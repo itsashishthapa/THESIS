@@ -1,0 +1,11 @@
+The state-of-the-art (SOTA) reinforcement learning (RL) methods for prescribing the optimal operational point in energy systems focus on 
+Deep RL algorithms such as Deep Q-Network (DQN), Proximal Policy Optimization (PPO), 
+Twin Delayed Deep Deterministic Policy Gradient (TD3), and Soft Actor-Critic (SAC)
+
+While these SOTA RL algorithms are effective, many studies lack robust benchmarking against white-box or gray-box models and have yet to fully leverage batch RL and all available historical operational data.
+
+
+- to compare energy management with mathematical, numrical optimization and RL(can we use RL instead of mathematical optimization). ****
+- which set point is optimal, can RL be used for set point of optimization.
+- find potential of RL in set point optimization.
+- Question to address and why.
