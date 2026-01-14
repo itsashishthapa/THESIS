@@ -1,3 +1,55 @@
+# OS
+Thumbs.db
+.DS_Store
+
+# Archives & images (keep specific figures explicitly if needed)
 *.zip
 *.png
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+.env
+.mypy_cache/
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# LaTeX (keep build artifacts out of git)
+paper/build/
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.synctex.gz
+
+# Data & results (track only small metadata files)
+data/raw/
+data/interim/
+data/processed/
+data/external/
+results/**
+!results/README.md
+!results/metrics/
+!results/metrics/*.csv
+
+# Models and experiment artifacts
+results/models/**
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+
+# Node/other (if any)
+node_modules/
 

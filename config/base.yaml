@@ -1,0 +1,8 @@
+# Base configuration for experiments
+seed: 42
+paths:
+  data_root: data
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+  results: results

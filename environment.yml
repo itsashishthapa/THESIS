@@ -1,0 +1,21 @@
+name: thesis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - jupyterlab
+  - numpy
+  - pandas
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - pip:
+      - papermill
+      - nbconvert
+      - nbqa
+      - ruff
+      - pytest
+      # Optional: experiment tracking
+      # - mlflow
