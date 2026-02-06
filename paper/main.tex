@@ -1,0 +1,208 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+
+%%%%%%%%%%
+%packages%
+%%%%%%%%%%
+%Spracheinstellung / language setting / replace "english" if needed
+\usepackage[english]{babel}
+\usepackage[absolute,overlay]{textpos}
+\usepackage[giveninits=true,sorting=none,style=numeric,maxbibnames=5]{biblatex}
+\usepackage{csquotes}
+\addbibresource{Sources.bib}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{setspace}
+
+ 
+%--------------------------------------------%
+%--------EDIT CONTENTS OF THIS BLOCK---------%
+%------------Title Page Content--------------%
+%--------------------------------------------%
+
+
+%%% ENTER THE THESIS TITLE HERE%%%
+\newcommand{\TITLE}{
+\textbf{\begin{spacing}{1}
+This is a working title, which should be replaced
+\end{spacing}}}
+%%% ENTER THE TYPE OF THESIS HERE %%%
+%%% Bachelor Thesis or Master Thesis
+\newcommand{\THESIS}{
+ExampleThesis (Bachelor/Master)
+}
+%%% ENTER YOUR STUDY PROGRAMME HERE%%%
+\newcommand{\STUDYPROGRAMME}{
+ExampleStudyCourse
+}
+%%% ENTER YOUR NAME HERE %%%
+\newcommand{\NAME}{
+ExampleName
+}
+%%% ENTER YOUR DATE OF BIRTH HERE %%%
+\newcommand{\DOB}{
+01 January 0101
+}
+%%% ENTER YOUR PLACE OF BIRTH HERE %%%
+\newcommand{\POB}{
+ExampleTown
+}
+%%% HIER DIE EIGENE MATRIKELNUMMER EINTRAGEN %%%
+\newcommand{\MATRICULATIONNUMBER}{
+0101010101
+}
+%%% ENTER FIRST REVIEWER HERE %%%
+\newcommand{\FIRSTREVIEWER}{
+Title and name of first reviewer
+}
+%%% ENTER SECOND REVIEWER HERE %%%
+\newcommand{\SECONDREVIEWER}{
+Title and name of second reviewer
+}
+%%% ENTER ADVISER HERE %%%
+\newcommand{\ADVISER}{
+Title and name of adviser (optional)
+}
+%%% ENTER (real) SUBMISSION DATE HERE%%%
+\newcommand{\SUBMISSIONDATE}{
+02 February 0202
+}
+%%% ENTER THE ABSTRACT IN ENGLISH HERE %%%
+%%% Should not exceed half a page %%%
+\newcommand{\ABSTRACT}{
+Example summary in English.
+}
+%%% ENTER THE ABSTRACT IN GERMAN HERE %%%
+%%% Should not exceed half a page %%%
+\newcommand{\ZUSAMMENFASSUNG}{
+Beispielzusammenfassung in Deutsch.
+}
+%%% ENTER THE (exact) TASK DESCRIPTION HERE %%%
+\newcommand{\TASKDESCRIPTION}{
+Example task description
+}
+\begin{document}
+
+
+%--------------------------------------------%
+%--------FOLGENDEN BLOCK NICHT ÄNDERN--------%
+%--------------------------------------------%
+
+
+\pagenumbering{gobble}
+\begin{center}
+{\Huge \TITLE}
+\end{center}
+\begin{textblock*}{\paperwidth}(0cm,8cm) % {block width} (coords) 
+\begin{center}
+{\Huge \textbf{\THESIS} \\ \textbf{\large \STUDYPROGRAMME}} \\[2em]
+{\Large submitted by} \\[2em]
+{\Huge \NAME} \\[0.5em]
+{\large \MATRICULATIONNUMBER} \\[2em]
+{\Large born on\DOB in\POB} \\[4em]
+{\Large AI-Lab}\\[0.5em] 
+{\Large Chair of Applied Mathematics} \\[0.5em]
+{\Large Brandenburg University of Technology Cottbus-Senftenberg}
+\end{center}    
+\end{textblock*}
+\begin{textblock*}{\paperwidth}(2.45cm,21cm) % {block width} (coords) 
+\begin{table}[!ht]
+\begin{tabular}{ll}
+{\Large Reviewer:}    & {\Large \FIRSTREVIEWER} \\[1em]
+{\Large Reviewer:}    & {\Large \SECONDREVIEWER} \\[1em]
+{\Large Adviser:}    & {\Large \ADVISER} \\[2em]
+{\Large Submission date:}    & {\Large \SUBMISSIONDATE}
+\end{tabular}
+\end{table}    
+\end{textblock*}
+
+
+\newpage\null\thispagestyle{empty}\newpage
+
+~
+\begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords) 
+\section*{\underline{Declaration of independence}}
+\vspace{1cm}
+I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\\[0.5cm] 
+\noindent
+I agree that the thesis will be checked for plagiarism with the help of a plagiarism detection service.\\[2cm]
+\noindent
+{Cottbus, \SUBMISSIONDATE}{\hspace*{2.725cm}\underline{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}} \\
+{\hspace*{7.75cm} Signature of the author}
+\end{textblock*}
+
+\newpage\null\thispagestyle{empty}\newpage
+\section*{\underline{Task description}}
+\vspace{0.5cm}
+\TASKDESCRIPTION
+
+\newpage\null\thispagestyle{empty}\newpage
+\section*{\underline{Abstract}}
+\vspace{0.5cm}
+\ABSTRACT
+\section*{\underline{Zusammenfassung}}
+\vspace{0.5cm}
+\ZUSAMMENFASSUNG
+
+
+\newpage\null\thispagestyle{empty}\newpage
+\tableofcontents
+
+\newpage\null\thispagestyle{empty}\newpage
+\pagenumbering{arabic}
+
+
+
+%---------------------------------------%
+%--------START EDITING FROM HERE--------%
+%---------------------------------------%
+
+
+
+\section{This is a section}
+\label{Section1}
+This is a chapter (see Sec.\ \ref{Section1}) with a figure (see Fig.\ \ref{IMG:ANN}).
+
+\begin{figure}[!h]
+\centering
+\includegraphics[scale=0.5]{TESTIMAGE}
+\caption{\label{IMG:ANN} Feedforward neural network. Source: \cite{schneidereit2022computational}}
+\end{figure}
+
+\subsection{This is a subsection}
+
+This is a subsection with a table (see Tab.\ \ref{TAB:NEURON}).
+
+\begin{table}[!h]
+\centering
+\begin{tabular}{c|c}
+Layer & Number of neurons \\\hline
+1 & 5 \\
+2 & 13 \\
+3 & 10
+\end{tabular}
+\caption{\label{TAB:NEURON} Number of neurons in each layer.}
+\end{table}
+
+\subsubsection{This is a subsubsection}
+
+This is a subsubsection with an equation (see Eq.\ \eqref{EQ:SUM})
+
+\begin{equation}
+N(x)=\sum_{i=1}^5 x^2
+\label{EQ:SUM}
+\end{equation}
+
+\paragraph{This is a paragraph.}
+
+This is a paragraph.
+
+\newpage
+
+%Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
+%Important note: Google Scholar offers the "Cite" feature - the information there must always be checked! They are often not completely correct!
+
+\printbibliography
+
+\end{document}

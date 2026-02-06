@@ -1,9 +1,0 @@
-# latexmk configuration
-$out_dir = 'build';
-$pdf_mode = 1; # pdflatex
-$bibtex = 'bibtex %O %B';
-$pdflatex = 'pdflatex -interaction=nonstopmode -shell-escape %O %S';
-
-# Rerun settings
-$silent = 0;
-$warnings_as_errors = 0;
