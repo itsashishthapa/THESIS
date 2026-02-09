@@ -71,5 +71,5 @@ if __name__ == '__main__':
     prices_full, global_price_scale = load_price_data()
     
     # Train the model
-    model = train_model(prices_full, global_price_scale, total_timesteps=100000)
+    model = train_model(prices_full, global_price_scale, total_timesteps=200000)
     
