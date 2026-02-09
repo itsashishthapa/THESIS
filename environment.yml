@@ -17,6 +17,7 @@ dependencies:
       - nbqa
       - ruff
       - pytest
+      - optuna
       - tensorboard
       # Optional: experiment tracking
       # - mlflow
