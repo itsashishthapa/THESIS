@@ -2,7 +2,9 @@
 Training script for Battery RL model using SAC (Soft Actor-Critic)
 """
 
+import logging
 import os
+from datetime import datetime
 
 import numpy as np
 import optuna
@@ -12,6 +14,30 @@ from stable_baselines3 import SAC
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
+
+
+def setup_optuna_logging(log_dir):
+    """Setup logging for Optuna optimization process"""
+    os.makedirs(log_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = os.path.join(log_dir, f'optuna_optimization_{timestamp}.log')
+    
+    logger = logging.getLogger('optuna_logger')
+    logger.setLevel(logging.INFO)
+    
+    # File handler
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    
+    # Formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    
+    # Remove existing handlers to avoid duplicates
+    logger.handlers = []
+    logger.addHandler(file_handler)
+    
+    return logger, log_file
 
 
 def load_price_data():
@@ -71,39 +97,71 @@ def train_model(prices_full, price_scale, log_dir='./logs', total_timesteps=1000
     return model
 
 
-def _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps=50000):
+def _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps=50000, logger=None):
     """Optuna objective for SAC hyperparameter tuning."""
     trial_log_dir = os.path.join(log_dir, f'optuna_trial_{trial.number}')
     os.makedirs(trial_log_dir, exist_ok=True)
 
-    model_kwargs = {
-        'buffer_size': trial.suggest_categorical('buffer_size', [100000, 200000, 500000]),
-        'batch_size': trial.suggest_categorical('batch_size', [128, 256, 512]),
-        'learning_rate': trial.suggest_float('learning_rate', 1e-5, 3e-4, log=True),
-        'tau': trial.suggest_float('tau', 0.001, 0.02, log=True),
-        'gamma': trial.suggest_float('gamma', 0.95, 0.9999, log=True),
-        'train_freq': trial.suggest_categorical('train_freq', [1, 4, 8]),
-        'gradient_steps': trial.suggest_categorical('gradient_steps', [1, 4, 8]),
-        'tensorboard_log': trial_log_dir,
-        'verbose': 0,
-    }
+    try:
+        train_freq = trial.suggest_categorical("train_freq", [1, 4, 8, 16])
+        update_ratio = trial.suggest_categorical("update_ratio", [0.25, 0.5, 1.0, 2.0])
+        gradient_steps = max(1, int(train_freq * update_ratio))
 
-    env_train = DummyVecEnv([lambda: make_train_env(prices_full, price_scale, trial_log_dir)])
-    model = SAC('MlpPolicy', env_train, **model_kwargs)
-    model.learn(total_timesteps=total_timesteps)
+        model_kwargs = {
+            'buffer_size': trial.suggest_categorical('buffer_size', [100000, 200000, 500000]),
+            'batch_size': trial.suggest_categorical('batch_size', [128, 256, 512, 1024]),
+            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-3, log=True),
+            'tau': trial.suggest_float('tau', 0.001, 0.05, log=True),
+            'gamma': trial.suggest_float('gamma', 0.95, 0.9999, log=True),
+            "train_freq": train_freq,
+            "gradient_steps": gradient_steps,
+            'ent_coef': trial.suggest_categorical("ent_coef",["auto", "auto_0.1", 0.003, 0.01, 0.03]),
+            'learning_starts': trial.suggest_int('learning_starts', 1000, 10000),
+            'tensorboard_log': trial_log_dir,
+            'verbose': 0,
+        }
 
-    mean_reward, _ = evaluate_policy(model, env_train, n_eval_episodes=5, deterministic=True)
-    env_train.close()
-    return mean_reward
+        if logger:
+            logger.info(f"Starting trial {trial.number} with params: {model_kwargs}")
+
+        env_train = DummyVecEnv([lambda: make_train_env(prices_full, price_scale, trial_log_dir)])
+        model = SAC('MlpPolicy', env_train, **model_kwargs)
+        model.learn(total_timesteps=total_timesteps)
+
+        mean_reward, _ = evaluate_policy(model, env_train, n_eval_episodes=5, deterministic=True)
+        env_train.close()
+        
+        if logger:
+            logger.info(f"Trial {trial.number} completed with mean reward: {mean_reward:.4f}")
+        
+        return mean_reward
+    
+    except Exception as e:
+        if logger:
+            logger.error(f"Trial {trial.number} failed with error: {str(e)}", exc_info=True)
+        else:
+            print(f"Trial {trial.number} failed with error: {str(e)}")
+        # Return a poor reward to penalize failed trials rather than crashing
+        return float('-inf')
 
 
-def tune_hyperparameters(prices_full, price_scale, log_dir='./logs', n_trials=20, total_timesteps=50000):
+def tune_hyperparameters(prices_full, price_scale, log_dir='./logs', n_trials=50, total_timesteps=50000):
     """Run Optuna study and return best hyperparameters."""
+    logger, log_file = setup_optuna_logging(log_dir)
+    
+    logger.info(f"Starting Optuna hyperparameter optimization with {n_trials} trials")
+    logger.info(f"Total timesteps per trial: {total_timesteps}")
+    
     study = optuna.create_study(direction='maximize')
     study.optimize(
-        lambda trial: _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps),
+        lambda trial: _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps, logger),
         n_trials=n_trials,
     )
+    
+    logger.info(f'Best reward: {study.best_value}')
+    logger.info(f'Best params: {study.best_params}')
+    logger.info(f'Optimization completed. Log file: {log_file}')
+    
     print('Best reward:', study.best_value)
     print('Best params:', study.best_params)
     return study.best_params
@@ -114,8 +172,11 @@ if __name__ == '__main__':
     prices_full, global_price_scale = load_price_data()
 
     # Optuna tuning (optional)
-    best_params = tune_hyperparameters(prices_full, global_price_scale, n_trials=20, total_timesteps=50000)
+    best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
     # Train the model with best params
     model = train_model(prices_full, global_price_scale, total_timesteps=100000, model_kwargs=best_params)
+
+    # find confidence band of the model training and evaluating multiple of times.
+    # presentation with reward, battery dynamics.
     
