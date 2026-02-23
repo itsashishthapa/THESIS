@@ -1,0 +1,48 @@
+\documentclass[%
+paper=a4,				% use a4 paper
+BCOR10mm,				% width of border for printing
+DIV=13,					% proportion for empty and non-empty parts of a page
+headinclude,			% include header in typearea calculation
+%footinclude,			% include footer in typearea calculation
+oneside,				% one sided printing
+%twoside,				% two sided printing
+cleardoublepage=empty,	% empty backsides for two sided printing
+%titlepage,				% support for title environment
+%pointednumbers,		% numbers (in headlines) with ending points
+pointlessnumbers,		% numbers (in headlines) without ending points
+parskip=half,			% a half line beetwen paragraphs
+%parintend=false,		% indentation and no skip between paragraphs
+%chapterprefix,			% chapter names with prefix "Chapter"
+chapterprefix=false,	% chapter names without prefix "Chapter"
+% headsepline,			% line below header
+%footsepline,			% line above footer
+%smallheadings,			% size of header is small
+normalheadings,			% size of header is normal
+%bigheadings,			% size of header is large
+bibtotoc,				% include bibliography in table of contents
+%bibtotocnumbered,		% include bibliography in table if contents (numbered)
+liststotoc,				% include lists in table of contents
+%liststotocnumbered,	% include lists in table of contents (numbered)
+idxtotoc,				% include index in table if contents
+fontsize=11pt,			% fontsize in points
+pagesize=pdftex,		% define typearea for pdftex usage
+%pagesize=dvips,		% define typearea for dvi/ps usage
+]{article}
+
+\begin{document}
+	
+	% -----------------------------------------------------------------------
+	% Task Description - displays contents of the file body.tex
+	% -----------------------------------------------------------------------
+	\include{content/body}
+	
+	
+	% -----------------------------------------------------------------------
+	% References - displays all the references in the bib file
+	% -----------------------------------------------------------------------
+	% \bibliographystyle{unsrt}
+	% \bibliography{bib/example}
+	% To print all references irrespective if they have been refered or not then keep nocite or else comment it
+	\nocite{*}	
+	
+\end{document}

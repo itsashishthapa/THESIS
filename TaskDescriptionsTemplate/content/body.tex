@@ -1,0 +1,20 @@
+% -----------------------------------------------------------------------------
+% Description Paragraphs
+% -----------------------------------------------------------------------------
+
+\title{Reinforcement Learning for Optimal Setpoint Determination in Complex Energy Utility Systems}
+\maketitle
+
+% -----------------------------------------------------------------------------
+% Read the text to get a general idea of what is to be written in all three paragraphs
+% -----------------------------------------------------------------------------
+\par
+Energy utility systems form the backbone of modern infrastructure, supplying electricity, heating, cooling, and other essential services. These systems operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Traditionally, optimal setpoints for such systems are determined using mathematical optimisation. These approaches rely on accurate system models and are typically formulated as constrained optimisation problems. While effective for well-defined and moderately sized systems, classical optimisation becomes computationally demanding as system complexity increases. Furthermore, time-varying dynamics, uncertainty from renewable integration, and model-plant mismatches challenge the applicability of purely model-based approaches. 
+
+\vspace{0.5pt}
+\par
+In recent years, Reinforcement Learning (RL) has emerged as a promising data-driven paradigm that learns optimal decision policies through interaction with the environment, without requiring explicit analytical system models. Despite its success in robotics and continuous benchmarks, the application of RL to complex energy utility systems remains insufficiently explored. The central problem addressed in this thesis is whether reinforcement learning can reliably and efficiently determine optimal setpoints for two distinct systems: a simple battery energy storage system and a more complex cookie production factory, and how its performance compares to classical optimisation techniques. The challenge arises from the need to simultaneously minimise operational costs, maintain constraint satisfaction, and ensure stable system behaviour under uncertainty. Classical optimisation methods struggle with scalability and adaptability, particularly in dynamic environments where conditions change continuously. This thesis proposes to formulate the setpoint optimisation problem as a Markov Decision Process (MDP) and to develop a reinforcement learning framework capable of learning adaptive policies. By comparing RL-based approaches with established optimisation methods, the research aims to identify strengths, weaknesses, and application boundaries of both approaches.
+
+\vspace{0.5pt}
+\par
+The evaluation of the proposed method will be conducted through systematic simulation studies on two energy system case studies of varying complexity. Performance will be assessed using quantitative metrics including total operational cost, constraint violation frequency and computational time. The results will provide a structured comparison between reinforcement learning and classical optimisation and will determine under which conditions RL offers practical advantages for real-time setpoint optimisation in complex energy utility systems. 
