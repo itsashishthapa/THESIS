@@ -5,13 +5,13 @@ Evaluation script for trained Battery RL model
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from battery_env import BatteryEnv
+from src.battery_model.battery_env import BatteryEnv
 from stable_baselines3 import SAC
 
 
 def load_price_data():
     """Load electricity price data from file"""
-    price_df = pd.read_csv('../../Battery_model/Optimization_Pyomo/input_data/electricity_price.txt',
+    price_df = pd.read_csv('Battery_model/Optimization_Pyomo/input_data/electricity_price.txt',
                             sep=r'\s+', header=None, names=['t', 'price'])
     prices_full = price_df['price'].values.astype(float)
     
