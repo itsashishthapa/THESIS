@@ -29,6 +29,7 @@ paper/build/
 *.fdb_latexmk
 *.fls
 *.log
+*.logs
 *.out
 *.toc
 *.synctex.gz
