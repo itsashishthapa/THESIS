@@ -5,8 +5,9 @@ Evaluation script for trained Battery RL model
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from src.battery_model.battery_env import BatteryEnv
 from stable_baselines3 import SAC
+
+from src.battery_model.battery_env import BatteryEnv
 
 
 def load_price_data():
