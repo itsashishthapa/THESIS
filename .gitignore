@@ -47,6 +47,9 @@ results/**
 # Models and experiment artifacts
 results/models/**
 
+# Training/TensorBoard logs
+logs/
+
 # DVC
 .dvc/tmp/
 .dvc/cache/
