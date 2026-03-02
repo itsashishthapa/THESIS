@@ -170,6 +170,14 @@ def tune_hyperparameters(prices_full, price_scale, log_dir='./logs', n_trials=50
     return study.best_params
 
 
+def linear_schedule(initial_value: float):
+    """Linear learning rate schedule that decays from initial_value to initial_value * 1e-1."""
+    def func(progress_remaining: float) -> float:
+        return np.max([progress_remaining * initial_value,
+                       initial_value * 1e-1])
+    return func
+
+
 def run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32):
     """
     Train and evaluate the model multiple times, and visualize results.
@@ -232,6 +240,21 @@ if __name__ == '__main__':
     # Optuna tuning (optional)
     # best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
+    # Single run with linear learning rate schedule
+    # print("\n--- Single Run with Linear Learning Rate Schedule ---")
+    # model_kwargs = {
+    #     'learning_rate': linear_schedule(3e-4),
+    # }
+    # model = train_model(prices_full, global_price_scale, total_timesteps=100000, 
+    #                    log_dir='./logs/single_run_linear_schedule', model_kwargs=model_kwargs)
+    
+    # # Evaluate the model
+    # P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
+    
+    # cumulative_reward = np.sum(rewards)
+    # total_cost = np.sum((prices_used / 1e6) * P_actuals)
+    # print(f"Single Run - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
+    
     # Train and evaluate multiple times
-    run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32)
+    # run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32)
     
