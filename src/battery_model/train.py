@@ -9,11 +9,14 @@ from datetime import datetime
 import numpy as np
 import optuna
 import pandas as pd
-from battery_env import RandomWindowEnv
 from stable_baselines3 import SAC
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
+
+# from Battery_model.Optimization_Pyomo.model_pyomo import optimize_battery_pyomo
+from src.battery_model.battery_env import RandomWindowEnv
+from src.battery_model.evaluate import evaluate_model
 
 
 def setup_optuna_logging(log_dir):
@@ -42,7 +45,7 @@ def setup_optuna_logging(log_dir):
 
 def load_price_data():
     """Load electricity price data from file"""
-    price_df = pd.read_csv('../../Battery_model/Optimization_Pyomo/input_data/electricity_price.txt',
+    price_df = pd.read_csv('./Battery_model/Optimization_Pyomo/input_data/electricity_price.txt',
                             sep=r'\s+', header=None, names=['t', 'price'])
     prices_full = price_df['price'].values.astype(float)
     
@@ -128,7 +131,7 @@ def _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps=
         model = SAC('MlpPolicy', env_train, **model_kwargs)
         model.learn(total_timesteps=total_timesteps)
 
-        mean_reward, _ = evaluate_policy(model, env_train, n_eval_episodes=5, deterministic=True)
+        mean_reward, _ = evaluate_policy(model, env_train, n_eval_episodes=100, deterministic=True)
         env_train.close()
         
         if logger:
@@ -167,16 +170,68 @@ def tune_hyperparameters(prices_full, price_scale, log_dir='./logs', n_trials=50
     return study.best_params
 
 
+def run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32):
+    """
+    Train and evaluate the model multiple times, and visualize results.
+    
+    Args:
+        prices_full: Full electricity price data
+        prices_eval: Evaluation price data window
+        global_price_scale: Global price scaling factor
+        num_runs: Number of training and evaluation runs (default: 32)
+    """
+    import matplotlib.pyplot as plt
+    
+    all_cumulative_rewards = []
+    all_total_costs = []
+    
+    print(f"\nTraining and evaluating {num_runs} times...")
+    for run in range(num_runs):
+        print(f"\n--- Run {run + 1}/{num_runs} ---")
+        
+        # Train the model
+        model = train_model(prices_full, global_price_scale, total_timesteps=50000, log_dir=f'./logs/run_{run}')
+        
+        # Evaluate the model
+        P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
+        
+        # Store metrics
+        cumulative_reward = np.sum(rewards)
+        total_cost = np.sum((prices_used / 1e6) * P_actuals) 
+        
+        all_cumulative_rewards.append(cumulative_reward)
+        all_total_costs.append(total_cost)
+        
+        print(f"Run {run + 1} - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
+    
+    # Create box plot
+    fig, ax = plt.subplots(figsize=(6, 5))
+    
+    ax.boxplot(all_total_costs)
+    ax.set_ylabel('Total Cost (Euro)')
+    ax.set_title(f'RL Total Cost over {num_runs} Runs')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('rl_boxplot_results.png', dpi=300)
+    print("\nBox plot saved to rl_boxplot_results.png")
+    plt.show()
+    
+    # Print summary statistics
+    print("\n=== Summary Statistics ===")
+    print(f"Cumulative Reward - Mean: {np.mean(all_cumulative_rewards):.2f}, Std: {np.std(all_cumulative_rewards):.2f}")
+    print(f"Total Cost - Mean: {np.mean(all_total_costs):.2f}, Std: {np.std(all_total_costs):.2f}")
+
+
 if __name__ == '__main__':
     # Load price data
     prices_full, global_price_scale = load_price_data()
+    prices_eval = prices_full[72:96]
+    # optimize_battery_pyomo(prices_eval, verbose=False)
 
     # Optuna tuning (optional)
-    best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
+    # best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
-    # Train the model with best params
-    model = train_model(prices_full, global_price_scale, total_timesteps=100000, model_kwargs=best_params)
-
-    # find confidence band of the model training and evaluating multiple of times.
-    # presentation with reward, battery dynamics.
+    # Train and evaluate multiple times
+    run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32)
     
