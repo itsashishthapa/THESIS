@@ -177,6 +177,12 @@ def linear_schedule(initial_value: float):
                        initial_value * 1e-1])
     return func
 
+def exponential_schedule(initial_value: float):
+    """Exponential decay schedule - decays more smoothly."""
+    def func(progress_remaining: float) -> float:
+        return initial_value * (progress_remaining ** 0.5)  # Slower decay
+    return func
+
 
 def run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32):
     """
@@ -196,9 +202,16 @@ def run_multiple_training_evaluations(prices_full, prices_eval, global_price_sca
     print(f"\nTraining and evaluating {num_runs} times...")
     for run in range(num_runs):
         print(f"\n--- Run {run + 1}/{num_runs} ---")
+
+    #     model_kwargs = {
+    #     'learning_rate': linear_schedule(3e-4),
+    # }
+        model_kwargs = {
+        'learning_rate': exponential_schedule(3e-4),
+    }
         
         # Train the model
-        model = train_model(prices_full, global_price_scale, total_timesteps=50000, log_dir=f'./logs/run_{run}')
+        model = train_model(prices_full, global_price_scale, total_timesteps=100000, log_dir=f'./logs/run_{run}',model_kwargs=model_kwargs)
         
         # Evaluate the model
         P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
@@ -225,6 +238,16 @@ def run_multiple_training_evaluations(prices_full, prices_eval, global_price_sca
     print("\nBox plot saved to rl_boxplot_results.png")
     plt.show()
     
+    # Save data to CSV file
+    results_df = pd.DataFrame({
+        'run': range(1, num_runs + 1),
+        'cumulative_reward': all_cumulative_rewards,
+        'total_cost': all_total_costs
+    })
+    results_filename = 'rl_training_results.csv'
+    results_df.to_csv(results_filename, index=False)
+    print(f"Results data saved to {results_filename}")
+    
     # Print summary statistics
     print("\n=== Summary Statistics ===")
     print(f"Cumulative Reward - Mean: {np.mean(all_cumulative_rewards):.2f}, Std: {np.std(all_cumulative_rewards):.2f}")
@@ -238,7 +261,7 @@ if __name__ == '__main__':
     # optimize_battery_pyomo(prices_eval, verbose=False)
 
     # Optuna tuning (optional)
-    # best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
+    best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
     # Single run with linear learning rate schedule
     # print("\n--- Single Run with Linear Learning Rate Schedule ---")
