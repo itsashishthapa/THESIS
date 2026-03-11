@@ -22,6 +22,8 @@ __pycache__/
 
 # LaTeX (keep build artifacts out of git)
 paper/build/
+paper/*.run.xml
+paper/*.bbl-SAVE-ERROR
 *.aux
 *.bbl
 *.bcf
