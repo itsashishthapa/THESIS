@@ -14,6 +14,8 @@
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{setspace}
+\usepackage{amssymb}
+\usepackage{xcolor}
 
  
 %--------------------------------------------%
@@ -25,32 +27,32 @@
 %%% ENTER THE THESIS TITLE HERE%%%
 \newcommand{\TITLE}{
 \textbf{\begin{spacing}{1}
-This is a working title, which should be replaced
+Reinforcement Learning for Optimal Setpoint Determination in Energy Utility Systems
 \end{spacing}}}
 %%% ENTER THE TYPE OF THESIS HERE %%%
 %%% Bachelor Thesis or Master Thesis
 \newcommand{\THESIS}{
-ExampleThesis (Bachelor/Master)
+Master Thesis
 }
 %%% ENTER YOUR STUDY PROGRAMME HERE%%%
 \newcommand{\STUDYPROGRAMME}{
-ExampleStudyCourse
+Master of Science in Artificial Intelligence
 }
 %%% ENTER YOUR NAME HERE %%%
 \newcommand{\NAME}{
-ExampleName
+Ashish Thapa
 }
 %%% ENTER YOUR DATE OF BIRTH HERE %%%
 \newcommand{\DOB}{
-01 January 0101
+04 March 1999
 }
 %%% ENTER YOUR PLACE OF BIRTH HERE %%%
 \newcommand{\POB}{
-ExampleTown
+Kaski, Nepal
 }
 %%% HIER DIE EIGENE MATRIKELNUMMER EINTRAGEN %%%
 \newcommand{\MATRICULATIONNUMBER}{
-0101010101
+5008270
 }
 %%% ENTER FIRST REVIEWER HERE %%%
 \newcommand{\FIRSTREVIEWER}{
@@ -66,7 +68,7 @@ Title and name of adviser (optional)
 }
 %%% ENTER (real) SUBMISSION DATE HERE%%%
 \newcommand{\SUBMISSIONDATE}{
-02 February 0202
+25 June 2026
 }
 %%% ENTER THE ABSTRACT IN ENGLISH HERE %%%
 %%% Should not exceed half a page %%%
@@ -80,7 +82,11 @@ Beispielzusammenfassung in Deutsch.
 }
 %%% ENTER THE (exact) TASK DESCRIPTION HERE %%%
 \newcommand{\TASKDESCRIPTION}{
-Example task description
+Energy utility systems is the backbone of modern energy infrastructures. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimisation. These approaches rely on accurate system models and are typically formulated as constrained optimisation problems. While effective for well-defined and moderately sized systems, classical optimisation becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from renewable source integration, and model-plant mismatches challenge the applicability of purely model-based approaches.
+
+The central problem addressed in this thesis is whether reinforcement learning can reliably and efficiently determine optimal setpoints for two distinct systems: a simple battery energy storage system and a more complex and non-linear cookie production factory. The challenge arises from the need to simultaneously minimise operational costs, maintain constraint satisfaction, and ensure stable system behaviour under uncertainty. Classical optimisation methods struggle with scalability and adaptability, particularly in dynamic environments where conditions change continuously. Reinforcement Learning (RL) has emerged as a promising data-driven paradigm that learns optimal decision policies through interaction with the environment, without requiring explicit analytical system models. Despite its success in robotics and continuous benchmarks, the application of RL to complex energy utility systems remains insufficiently explored. This thesis proposes to formulate the setpoint optimisation problem as a Markov Decision Process (MDP) and to develop a reinforcement learning framework capable of learning adaptive policies. By comparing RL-based approaches with established optimisation methods, the research aims to identify strengths, weaknesses, and application boundaries of both approaches.
+
+The evaluation of the proposed method will be conducted through systematic simulation studies on two energy system case studies of varying complexity. Performance will be assessed using quantitative metrics including total operational cost, constraint violation frequency, and computational time. The results will provide a structured comparison between reinforcement learning and classical optimisation and will determine under which conditions RL offers practical advantages for real-time setpoint optimisation in complex energy utility systems. 
 }
 \begin{document}
 
@@ -92,29 +98,29 @@ Example task description
 
 \pagenumbering{gobble}
 \begin{center}
-{\Huge \TITLE}
+	{\Huge \TITLE}
 \end{center}
 \begin{textblock*}{\paperwidth}(0cm,8cm) % {block width} (coords) 
-\begin{center}
-{\Huge \textbf{\THESIS} \\ \textbf{\large \STUDYPROGRAMME}} \\[2em]
-{\Large submitted by} \\[2em]
-{\Huge \NAME} \\[0.5em]
-{\large \MATRICULATIONNUMBER} \\[2em]
-{\Large born on\DOB in\POB} \\[4em]
-{\Large AI-Lab}\\[0.5em] 
-{\Large Chair of Applied Mathematics} \\[0.5em]
-{\Large Brandenburg University of Technology Cottbus-Senftenberg}
-\end{center}    
+	\begin{center}
+		{\Huge \textbf{\THESIS} \\ \textbf{\large \STUDYPROGRAMME}} \\[2em]
+		{\Large submitted by} \\[2em]
+		{\Huge \NAME} \\[0.5em]
+		{\large \MATRICULATIONNUMBER} \\[2em]
+		{\Large born on\DOB in\POB} \\[4em]
+		{\Large AI-Lab}\\[0.5em]
+		{\Large Chair of Applied Mathematics} \\[0.5em]
+		{\Large Brandenburg University of Technology Cottbus-Senftenberg}
+	\end{center}
 \end{textblock*}
 \begin{textblock*}{\paperwidth}(2.45cm,21cm) % {block width} (coords) 
-\begin{table}[!ht]
-\begin{tabular}{ll}
-{\Large Reviewer:}    & {\Large \FIRSTREVIEWER} \\[1em]
-{\Large Reviewer:}    & {\Large \SECONDREVIEWER} \\[1em]
-{\Large Adviser:}    & {\Large \ADVISER} \\[2em]
-{\Large Submission date:}    & {\Large \SUBMISSIONDATE}
-\end{tabular}
-\end{table}    
+	\begin{table}[!ht]
+		\begin{tabular}{ll}
+			{\Large Reviewer:}        & {\Large \FIRSTREVIEWER}  \\[1em]
+			{\Large Reviewer:}        & {\Large \SECONDREVIEWER} \\[1em]
+			{\Large Adviser:}         & {\Large \ADVISER}        \\[2em]
+			{\Large Submission date:} & {\Large \SUBMISSIONDATE}
+		\end{tabular}
+	\end{table}
 \end{textblock*}
 
 
@@ -122,14 +128,14 @@ Example task description
 
 ~
 \begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords) 
-\section*{\underline{Declaration of independence}}
-\vspace{1cm}
-I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\\[0.5cm] 
-\noindent
-I agree that the thesis will be checked for plagiarism with the help of a plagiarism detection service.\\[2cm]
-\noindent
-{Cottbus, \SUBMISSIONDATE}{\hspace*{2.725cm}\underline{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}} \\
-{\hspace*{7.75cm} Signature of the author}
+	\section*{\underline{Declaration of independence}}
+	\vspace{1cm}
+	I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\\[0.5cm]
+	\noindent
+	I agree that the thesis will be checked for plagiarism with the help of a plagiarism detection service.\\[2cm]
+	\noindent
+	{Cottbus, \SUBMISSIONDATE}{\hspace*{2.725cm}\underline{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}} \\
+	{\hspace*{7.75cm} Signature of the author}
 \end{textblock*}
 
 \newpage\null\thispagestyle{empty}\newpage
@@ -160,49 +166,136 @@ I agree that the thesis will be checked for plagiarism with the help of a plagia
 
 
 
-\section{This is a section}
+\section{Introduction}
 \label{Section1}
-This is a chapter (see Sec.\ \ref{Section1}) with a figure (see Fig.\ \ref{IMG:ANN}).
+Introduces the research problem, motivation, and objectives of the thesis.
 
-\begin{figure}[!h]
-\centering
-\includegraphics[scale=0.5]{TESTIMAGE}
-\caption{\label{IMG:ANN} Feedforward neural network. Source: \cite{schneidereit2022computational}}
-\end{figure}
+% This is a chapter (see Sec.\ \ref{Section1}) with a figure (see Fig.\ \ref{IMG:ANN}).
 
-\subsection{This is a subsection}
+% \begin{figure}[!h]
+% \centering
+% \includegraphics[scale=0.5]{TESTIMAGE}
+% \caption{\label{IMG:ANN} Feedforward neural network. Source: \cite{schneidereit2022computational}}
+% \end{figure}
 
-This is a subsection with a table (see Tab.\ \ref{TAB:NEURON}).
+% \subsection{This is a subsection}
 
-\begin{table}[!h]
-\centering
-\begin{tabular}{c|c}
-Layer & Number of neurons \\\hline
-1 & 5 \\
-2 & 13 \\
-3 & 10
-\end{tabular}
-\caption{\label{TAB:NEURON} Number of neurons in each layer.}
-\end{table}
+% This is a subsection with a table (see Tab.\ \ref{TAB:NEURON}).
 
-\subsubsection{This is a subsubsection}
+% \begin{table}[!h]
+% \centering
+% \begin{tabular}{c|c}
+% Layer & Number of neurons \\\hline
+% 1 & 5 \\
+% 2 & 13 \\
+% 3 & 10
+% \end{tabular}
+% \caption{\label{TAB:NEURON} Number of neurons in each layer.}
+% \end{table}
 
-This is a subsubsection with an equation (see Eq.\ \eqref{EQ:SUM})
+% \subsubsection{This is a subsubsection}
 
-\begin{equation}
-N(x)=\sum_{i=1}^5 x^2
-\label{EQ:SUM}
-\end{equation}
+% This is a subsubsection with an equation (see Eq.\ \eqref{EQ:SUM})
 
-\paragraph{This is a paragraph.}
+% \begin{equation}
+% N(x)=\sum_{i=1}^5 x^2
+% \label{EQ:SUM}
+% \end{equation}
 
-This is a paragraph.
+% \paragraph{This is a paragraph.}
+
+% This is a paragraph.
 
 \newpage
+% is it better to have a section for Mathematical Optimization and Reinforcement Learning or to have them as subsections in the Theory and Background section? 
+\section{Theory and Background}
+\textcolor{blue}{Provides the fundamental concepts and background required to understand the systems, optimization methods, and reinforcement learning used in this work.}
+
+
+Optimization is the process of selecting the best decision or solution, based on a defined objective, from a set of feasible alternatives while respecting given constraints. 
+
+Mathematically, it is formulated as the constrained optimization problem
+\begin{equation}
+\min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
+\end{equation}
+where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that achieves the minimum value $f(x^\star)$.
+
+In practice, optimization problems can be addressed using different methods depending on the availability of accurate system models, the presence of uncertainty, and the complexity of decision-making.
+
+In this thesis, two approaches are considered in the context of energy systems:
+\begin{itemize}
+    \item Mathematical optimization, which relies on explicit system models and deterministic formulations, and is used as a baseline for performance comparison;
+    \item Reinforcement learning, which learns decision-making policies through interaction with the environment and constitutes the main approach of this work.
+\end{itemize}
+
+The following sections introduce the fundamental principles of both approaches.
+
+
+\subsection{Mathematical Optimization}
+\textcolor{blue}{Presents traditional optimization methods used for determining optimal system setpoints.}
+
+Mathematical optimization uses explicit models of system behavior, constraints, and goals to solve decision problems. In energy systems, it computes the optimal operating strategies by minimizing costs or maximizing efficiency while respecting physical and operational limits.
+
+This thesis uses mathematical optimization as a benchmark to test reinforcement learning performance, rather than developing it further.
+
+An optimization problem is typically formulated using a set of decision variables, an objective function, and a set of constraints. The decision variables represent the control actions to be determined, such as the charging and discharging of a battery or production levels in a factory. The objective function defines the performance criterion to be optimized, commonly expressed as cost minimization or profit maximization. Constraints capture the physical and operational limits of the system, including capacity bounds, energy balance equations, and technical restrictions.
+
+Depending on the problem structure, optimization problems can be classified as linear, nonlinear, or mixed-integer. In particular, mixed-integer linear programming (MILP) is frequently used in energy system applications, as it allows for the inclusion of both continuous and discrete decision variables while maintaining computational tractability.
+
+A key distinction in optimization is between deterministic and stochastic formulations. In deterministic optimization, all parameters, such as electricity prices or demand, are assumed to be known in advance. In contrast, stochastic optimization explicitly accounts for uncertainty by modeling uncertain parameters as random variables or scenarios. While stochastic approaches provide a more realistic representation, they often lead to increased computational complexity. In many practical applications, including the benchmark used in this thesis, deterministic optimization is applied by treating forecasted values as known inputs.
+
+Energy system optimization problems are often time-coupled, meaning that decisions made at one time step influence future system states. For example, the state of charge of a battery depends on previous charging and discharging actions, which introduces inter-temporal dependencies into the optimization problem.
+
+These problems are typically solved using dedicated optimization solvers, such as those designed for linear and mixed-integer programming. Such solvers can efficiently compute optimal solutions for well-defined models.
+
+\textcolor{blue}{Despite its strengths, mathematical optimization has several limitations. It requires accurate system models and complete knowledge of system parameters, which may not always be available in practice. Additionally, it can struggle to handle uncertainty and may face scalability challenges as system complexity increases. These limitations motivate the exploration of alternative approaches, such as reinforcement learning, which is introduced in the following section.}
+
+\subsection{Reinforcement Learning}
+\textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
+
+Reinforcement learning (RL) is a data-driven method for sequential decision-making, where an agent learns the best actions by interacting with its environment. Unlike mathematical optimization, RL doesn't need an explicit model of system dynamics and naturally handles uncertainty and complex behaviors.
+
+Because of these advantages, this thesis uses reinforcement learning as the main approach to solve energy system control problems.
+
+\section{Use Cases}
+Describes the two systems considered in this thesis and their operational challenges.
+
+\subsection{Battery Energy Storage System}
+Describes the battery system used as the first case study.
+
+\subsection{Cookie Production Factory}
+Introduces the industrial production system considered as the second case study.
+
+\section{Methodology}
+Describes how the optimization problem is formulated as a reinforcement learning problem.
+
+\subsection{Problem Formulation}
+Formulates the system control problem as a reinforcement learning problem.
+
+\subsection{Reinforcement Learning Framework}
+Explains the structure of the RL agent and learning algorithm.
+
+\subsection{Training Setup}
+Describes the training environment, reward function, and hyperparameter configuration.
+
+\subsection{Evaluation Metrics}
+Defines the metrics used to evaluate the performance of the RL agent and optimization baseline.
+
+\section{Results and Discussion}
+Presents and analyzes the experimental results.
+
+\subsection{Battery Energy Storage System}
+
+\subsection{Cookie Production Factory}
+
+\subsection{Key Findings}
+
+\section{Conclusion and Future Work}
+Summarizes the main findings and outlines possible future work.
 
 %Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
 %Important note: Google Scholar offers the "Cite" feature - the information there must always be checked! They are often not completely correct!
 
-\printbibliography
+% \printbibliography
 
 \end{document}
