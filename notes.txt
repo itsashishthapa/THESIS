@@ -14,3 +14,5 @@ While these SOTA RL algorithms are effective, many studies lack robust benchmark
 
 Feedbacks:
 
+# lifecycle of the battery, self dischanging on long term.
+# 
