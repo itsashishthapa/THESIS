@@ -177,8 +177,8 @@ def linear_schedule(initial_value: float):
                        initial_value * 1e-1])
     return func
 
-def exponential_schedule(initial_value: float):
-    """Exponential decay schedule - decays more smoothly."""
+def power_schedule(initial_value: float):
+    """Power-law decay schedule using sqrt(progress_remaining)."""
     def func(progress_remaining: float) -> float:
         return initial_value * (progress_remaining ** 0.5)  # Slower decay
     return func
@@ -207,7 +207,7 @@ def run_multiple_training_evaluations(prices_full, prices_eval, global_price_sca
     #     'learning_rate': linear_schedule(3e-4),
     # }
         model_kwargs = {
-        'learning_rate': exponential_schedule(3e-4),
+        'learning_rate': power_schedule(3e-4),
     }
         
         # Train the model
@@ -261,22 +261,24 @@ if __name__ == '__main__':
     # optimize_battery_pyomo(prices_eval, verbose=False)
 
     # Optuna tuning (optional)
-    best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
+    # best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
-    # Single run with linear learning rate schedule
-    # print("\n--- Single Run with Linear Learning Rate Schedule ---")
+    # Single run 
     # model_kwargs = {
     #     'learning_rate': linear_schedule(3e-4),
     # }
-    # model = train_model(prices_full, global_price_scale, total_timesteps=100000, 
-    #                    log_dir='./logs/single_run_linear_schedule', model_kwargs=model_kwargs)
+    model_kwargs = {
+        'learning_rate': power_schedule(3e-4),
+    }
+    model = train_model(prices_full, global_price_scale, total_timesteps=100000, 
+                       log_dir='./logs/single_run_linear_schedule', model_kwargs=model_kwargs)
     
-    # # Evaluate the model
-    # P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
+    # Evaluate the model
+    P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
     
-    # cumulative_reward = np.sum(rewards)
-    # total_cost = np.sum((prices_used / 1e6) * P_actuals)
-    # print(f"Single Run - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
+    cumulative_reward = np.sum(rewards)
+    total_cost = np.sum((prices_used / 1e6) * P_actuals)
+    print(f"Single Run - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
     
     # Train and evaluate multiple times
     # run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32)
