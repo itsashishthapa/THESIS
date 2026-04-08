@@ -95,6 +95,8 @@ class RandomWindowEnv(gym.Env):
     def __init__(self, prices_full, window_len=24, price_scale=None, **kwargs):
         self.prices_full = prices_full
         self.window_len = window_len
+        if window_len > len(prices_full):
+            raise ValueError("window_len cannot be larger than the available price history.")
         self.max_start = len(prices_full) - window_len
         self.kwargs = kwargs
         self.price_scale = price_scale
@@ -106,7 +108,7 @@ class RandomWindowEnv(gym.Env):
         self._sample_new_window()
         
     def _sample_new_window(self):
-        start = np.random.randint(0, max(1, self.max_start))
+        start = np.random.randint(0, self.max_start + 1)
         window_prices = self.prices_full[start:start + self.window_len]
         self.env = BatteryEnv(window_prices, price_scale=self.price_scale, **self.kwargs)
     
