@@ -3,19 +3,18 @@ Comparison script: RL model vs Mathematical (Pyomo) model
 """
 
 import os
-import sys
 import time
 
 import numpy as np
 from stable_baselines3 import SAC
 
-# Add paths for imports
-sys.path.insert(0, '../../Battery_model/Optimization_Pyomo')
-
-# Import from evaluate module
-# Import from Pyomo model
 from Battery_model.Optimization_Pyomo.model_pyomo import optimize_battery_pyomo
-from src.battery_model.evaluate import evaluate_model, load_price_data
+from src.battery_model.evaluate import (
+    DEFAULT_MODEL_PATH,
+    compute_total_cost,
+    evaluate_model,
+    load_price_data,
+)
 
 
 def run_pyomo_model(prices_window):
@@ -42,7 +41,7 @@ def run_rl_model(model, prices_window, price_scale):
     elapsed_time = end_time - start_time
     
     # Calculate cost
-    cost = np.sum((np.array(prices_used) / 1e6) * np.array(Ps))
+    cost = compute_total_cost(prices_used, P_actuals)
     
     return {
         'cost': cost,
@@ -72,7 +71,7 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
     for i in range(n_comparisons):
         # Randomly select window
         max_start = len(prices_full) - window_len
-        start_idx = np.random.randint(0, max_start)
+        start_idx = np.random.randint(0, max_start + 1)
         prices_window = prices_full[start_idx:start_idx + window_len]
         
         print(f"\nComparison {i+1}/{n_comparisons}")
@@ -196,7 +195,7 @@ if __name__ == '__main__':
     print("Loading data and model...")
     prices_full, global_price_scale = load_price_data()
     
-    rl_model = SAC.load("src/battery_model/battery_sac_model")
+    rl_model = SAC.load(DEFAULT_MODEL_PATH)
     print("Model loaded successfully!")
     
     # Run comparisons
