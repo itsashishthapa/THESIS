@@ -9,6 +9,8 @@ from stable_baselines3 import SAC
 
 from src.battery_model.battery_env import BatteryEnv
 
+DEFAULT_MODEL_PATH = "src/battery_model/battery_sac_model"
+
 
 def load_price_data():
     """Load electricity price data from file"""
@@ -23,6 +25,11 @@ def load_price_data():
     print(f'Global price scale (95th pct): {global_price_scale:.4f}')
     
     return prices_full, global_price_scale
+
+
+def compute_total_cost(prices, power):
+    """Compute total grid cost in Euro for the given electricity prices and power values."""
+    return float(np.sum((np.asarray(prices) / 1e6) * np.asarray(power)))
 
 
 def evaluate_model(model, prices_eval, price_scale):
@@ -61,8 +68,8 @@ def evaluate_model(model, prices_eval, price_scale):
 
 def plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used):
     """Plot evaluation results"""
-    cum_cost_preeta = np.sum((prices_used / 1e6) * Ps)
-    cum_cost_posteta = np.sum((prices_used / 1e6) * P_actuals)
+    cum_cost_preeta = compute_total_cost(prices_used, Ps)
+    cum_cost_posteta = compute_total_cost(prices_used, P_actuals)
     
     print(f'RL Cumulative cost (pre-eta, Euro): {cum_cost_preeta:.2f}')
     print(f'RL Cumulative cost (post-eta, Euro): {cum_cost_posteta:.2f}')
@@ -103,7 +110,7 @@ if __name__ == '__main__':
     prices_full, global_price_scale = load_price_data()
     
     # Load trained model
-    model = SAC.load("battery_sac_model")
+    model = SAC.load(DEFAULT_MODEL_PATH)
     print("Model loaded successfully!")
     
     # Evaluate
