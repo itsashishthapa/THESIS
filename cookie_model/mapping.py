@@ -1,0 +1,25 @@
+# definition: decision variables
+# ###################################################
+# model.Thx1  = Var(model.Time,domain=NonNegativeReals,bounds = (177,250),initialize=random.uniform(177,250)) # (T_I_k)
+# model.Thx2  = Var(model.Time,domain=NonNegativeReals,bounds = (75,75),initialize=random.uniform(75,75)) # (T_III_k)
+# model.M1  = Var(model.Time,domain=NonNegativeReals,bounds = (5,16),initialize=random.uniform(5,16)) # (m_I_k)
+# model.P  = Var(model.Time,domain=NonNegativeReals,bounds = (0,5000),initialize=random.uniform(0,5000)) # (P_grid_k)
+# model.N  = Var(model.Time,domain=NonNegativeReals,bounds = (0.8,1.53),initialize=random.uniform(0.8,1.53)) # (R_k)
+# #    model.S  = Var(model.Time,domain=NonNegativeReals,bounds = (183,400),initialize=random.uniform(183,400))
+# model.x1  = Var(model.Time,domain=NonNegativeReals,bounds = (0,1),initialize=random.uniform(0,1)) # (beta1_k)
+# model.x2  = Var(model.Time,domain=NonNegativeReals,bounds = (0,1),initialize=random.uniform(0,1)) # (beta2_k)
+# model.Qch  = Var(model.Time,domain=NonNegativeReals,bounds = (0,5000),initialize=random.uniform(0,5000)) # (Q_s_ch_k)
+# model.Qdch  = Var(model.Time,domain=NonNegativeReals,bounds = (0,5000),initialize=random.uniform(0,5000)) # (Q_s_dch_k)
+# model.T1Out  = Var(model.Time,domain=NonNegativeReals,bounds = (239,400),initialize=random.uniform(239,400)) # (T_II_k)
+# model.T2Out  = Var(model.Time,domain=Reals,bounds = (-60,90),initialize=random.uniform(-60,90)) #(T_IV_k)
+# #    model.T2  = Var(model.Time,domain=NonNegativeReals,bounds = (183,400),initialize=random.uniform(183,400))
+# #    model.T5  = Var(model.Time,domain=NonNegativeReals,bounds = (183,400),initialize=random.uniform(183,400))
+# #    model.T0  = Var(model.Time,domain=NonNegativeReals,bounds = (183,400),initialize=random.uniform(183,400))
+# model.T3  = Var(model.Time,domain=NonNegativeReals,bounds = (239,324),initialize=random.uniform(239,324)) # (T_2_k)
+# model.T4  = Var(model.Time,domain=NonNegativeReals,bounds = (183,193),initialize=random.uniform(183,193)) # (T_SG_out or T_3_k) (intermediate variable)
+
+# # modified boundary conditions
+# model.S  = Var(model.Time,domain=NonNegativeReals,bounds = (183,324),initialize=random.uniform(183,324)) # (T_s_k)
+# model.T2  = Var(model.Time,domain=NonNegativeReals,bounds = (183,332),initialize=random.uniform(183,332)) # (T_1_k)
+# model.T5  = Var(model.Time,domain=NonNegativeReals,bounds = (183,332),initialize=random.uniform(183,332)) # (T_4_k)
+# model.T0  = Var(model.Time,domain=NonNegativeReals,bounds = (183,324),initialize=random.uniform(183,324)) # (T_s_k-1)
