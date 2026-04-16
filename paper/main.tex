@@ -212,13 +212,13 @@ Introduces the research problem, motivation, and objectives of the thesis.
 \textcolor{blue}{Provides the fundamental concepts and background required to understand the systems, optimization methods, and reinforcement learning used in this work.}
 
 
-Optimization is the process of selecting the best decision or solution, based on a defined objective, from a set of feasible alternatives while respecting given constraints. 
+Optimization is the process of selecting the best decision or solution, based on a defined objective, from a set of feasible alternatives while respecting given constraints. In energy systems, this typically involves determining control actions that minimize operational costs or energy consumption under physical and operational constraints.
 
-Mathematically, it is formulated as the constrained optimization problem
+Mathematically, optimization is formulated as:
 \begin{equation}
 \min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
 \end{equation}
-where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that achieves the minimum value $f(x^\star)$.
+where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that achieves the minimum or maximum value $f(x^\star)$.
 
 In practice, optimization problems can be addressed using different methods depending on the availability of accurate system models, the presence of uncertainty, and the complexity of decision-making.
 
@@ -234,28 +234,54 @@ The following sections introduce the fundamental principles of both approaches.
 \subsection{Mathematical Optimization}
 \textcolor{blue}{Presents traditional optimization methods used for determining optimal system setpoints.}
 
-Mathematical optimization uses explicit models of system behavior, constraints, and goals to solve decision problems. In energy systems, it computes the optimal operating strategies by minimizing costs or maximizing efficiency while respecting physical and operational limits.
-
-This thesis uses mathematical optimization as a benchmark to test reinforcement learning performance, rather than developing it further.
+Mathematical optimization uses explicit models of system behavior, constraints, and objectives to solve decision problems. In energy systems, it is commonly used to compute optimal operating strategies by minimizing costs or maximizing efficiency while respecting physical and operational limits. In this thesis, mathematical optimization is used as a baseline method for performance comparison, rather than being further developed as the main approach.
 
 An optimization problem is typically formulated using a set of decision variables, an objective function, and a set of constraints. The decision variables represent the control actions to be determined, such as the charging and discharging of a battery or production levels in a factory. The objective function defines the performance criterion to be optimized, commonly expressed as cost minimization or profit maximization. Constraints capture the physical and operational limits of the system, including capacity bounds, energy balance equations, and technical restrictions.
 
-Depending on the problem structure, optimization problems can be classified as linear, nonlinear, or mixed-integer. In particular, mixed-integer linear programming (MILP) is frequently used in energy system applications, as it allows for the inclusion of both continuous and discrete decision variables while maintaining computational tractability.
+Depending on the problem structure, optimization problems can be classified as linear, nonlinear, or mixed-integer. In energy system applications, mixed-integer linear programming (MILP) is widely used, as it enables the modeling of both continuous and discrete decision variables while maintaining computational tractability. However, as system size and complexity increase, such formulations can become computationally demanding and require accurate system modeling.
 
-A key distinction in optimization is between deterministic and stochastic formulations. In deterministic optimization, all parameters, such as electricity prices or demand, are assumed to be known in advance. In contrast, stochastic optimization explicitly accounts for uncertainty by modeling uncertain parameters as random variables or scenarios. While stochastic approaches provide a more realistic representation, they often lead to increased computational complexity. In many practical applications, including the benchmark used in this thesis, deterministic optimization is applied by treating forecasted values as known inputs.
+A key distinction in optimization is between deterministic and stochastic formulations. In deterministic optimization, all parameters, such as electricity prices or demand, are assumed to be known in advance. In contrast, stochastic optimization explicitly accounts for uncertainty by modeling uncertain parameters as random variables. While stochastic approaches provide a more realistic representation, they often lead to increased computational complexity.
 
 Energy system optimization problems are often time-coupled, meaning that decisions made at one time step influence future system states. For example, the state of charge of a battery depends on previous charging and discharging actions, which introduces inter-temporal dependencies into the optimization problem.
 
-These problems are typically solved using dedicated optimization solvers, such as those designed for linear and mixed-integer programming. Such solvers can efficiently compute optimal solutions for well-defined models.
+These problems are typically solved using dedicated optimization solvers, such as those designed for linear and mixed-integer programming which can efficiently compute optimal solutions for well-defined models.
+However, their performance depends strongly on the accuracy of system models and assumptions, and solution times can increase significantly for large-scale or highly dynamic problems, limiting their applicability in real-time decision-making.
 
-\textcolor{blue}{Despite its strengths, mathematical optimization has several limitations. It requires accurate system models and complete knowledge of system parameters, which may not always be available in practice. Additionally, it can struggle to handle uncertainty and may face scalability challenges as system complexity increases. These limitations motivate the exploration of alternative approaches, such as reinforcement learning, which is introduced in the following section.}
+These limitations motivate the use of reinforcement learning, which can learn control strategies directly from interaction with the environment without requiring explicit system models, aiming to minimize operational costs or maximize economic profit, and therefore constitutes the main approach of this thesis.
 
 \subsection{Reinforcement Learning}
 \textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
 
-Reinforcement learning (RL) is a data-driven method for sequential decision-making, where an agent learns the best actions by interacting with its environment. Unlike mathematical optimization, RL doesn't need an explicit model of system dynamics and naturally handles uncertainty and complex behaviors.
+Reinforcement learning (RL) is a data-driven approach to sequential decision-making, in which an agent learns to take optimal actions through interaction with an environment. Unlike mathematical optimization, RL does not require an explicit model of system dynamics. Instead, it learns control strategies based on observed state transitions and received rewards, making it well-suited for complex and uncertain environments.
 
-Because of these advantages, this thesis uses reinforcement learning as the main approach to solve energy system control problems.
+In the context of energy systems, reinforcement learning can be used to determine control actions, such as battery charging and discharging, in order to minimize operational costs or maximize economic profit over time. By continuously interacting with the system, the agent improves its decision-making policy based on experience.
+
+Formally, reinforcement learning problems are typically modeled as a Markov Decision Process (MDP), defined by the tuple 
+\[
+(\mathcal{S}, \mathcal{A}, P, R, \gamma),
+\]
+where:
+\begin{itemize}
+    \item $\mathcal{S}$ is the set of states representing the system,
+    \item $\mathcal{A}$ is the set of actions,
+    \item $P(s' \mid s,a)$ defines the transition dynamics,
+    \item $R(s,a)$ is the reward function,
+    \item $\gamma \in [0,1]$ is the discount factor.
+\end{itemize}
+
+At each time step, the agent observes the current state $s$, selects an action $a$, and transitions to a new state $s'$ while receiving a reward. The objective is to learn a policy $\pi(a \mid s)$ that maximizes the expected cumulative reward over time.
+
+In energy system applications, the underlying decision problem can often be formulated as a stochastic optimal control problem, where uncertainties arise from exogenous variables such as renewable generation and electricity prices. These uncertainties are commonly modeled as stochastic processes, and the resulting problem can be expressed as a finite-horizon MDP \cite{pilling2025rl}. The goal is typically to minimize expected operational costs over time while respecting system dynamics and constraints.
+
+Classical approaches such as dynamic programming can be used to solve such MDPs through backward recursion. However, these methods suffer from the curse of dimensionality when the state space becomes large \cite{pilling2025rl}. This limitation makes exact solutions computationally intractable for realistic energy systems.
+
+Reinforcement learning provides an alternative by learning approximate solutions directly from data. In particular, methods such as Q-learning can approximate the optimal value function without requiring full knowledge of the transition probabilities. As highlighted in \cite{pilling2025rl}, RL methods are especially useful in high-dimensional settings where traditional optimization methods become infeasible.
+
+Furthermore, advanced RL methods such as policy gradient and actor-critic algorithms are better suited for problems with continuous or high-dimensional action spaces, as they avoid exhaustive discretization of actions and instead learn parameterized policies \cite{pilling2025rl}. This is particularly important for energy systems, where control decisions are naturally continuous.
+
+Despite these advantages, reinforcement learning introduces new challenges, including the need for sufficient training data, potential instability during learning, and sensitivity to reward design and state representation.
+
+In this thesis, reinforcement learning is used as the primary approach to learn control policies for energy system operation under uncertainty. Its performance is evaluated against a mathematical optimization benchmark, highlighting the trade-offs between model-based and data-driven approaches.
 
 \section{Use Cases}
 Describes the two systems considered in this thesis and their operational challenges.
