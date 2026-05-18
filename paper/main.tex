@@ -82,11 +82,11 @@ Beispielzusammenfassung in Deutsch.
 }
 %%% ENTER THE (exact) TASK DESCRIPTION HERE %%%
 \newcommand{\TASKDESCRIPTION}{
-Energy utility systems is the backbone of modern energy infrastructures. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimisation. These approaches rely on accurate system models and are typically formulated as constrained optimisation problems. While effective for well-defined and moderately sized systems, classical optimisation becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from renewable source integration, and model-plant mismatches challenge the applicability of purely model-based approaches.
+Energy utility systems are the backbone of modern energy infrastructure. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimization. These approaches rely on accurate system models and are typically formulated as constrained optimization problems. While effective for well-defined and moderately sized systems, classical optimization becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from the integration of renewable sources, and model-plant mismatches makes it challenging to use purely model-based approaches.
 
-The central problem addressed in this thesis is whether reinforcement learning can reliably and efficiently determine optimal setpoints for two distinct systems: a simple battery energy storage system and a more complex and non-linear cookie production factory. The challenge arises from the need to simultaneously minimise operational costs, maintain constraint satisfaction, and ensure stable system behaviour under uncertainty. Classical optimisation methods struggle with scalability and adaptability, particularly in dynamic environments where conditions change continuously. Reinforcement Learning (RL) has emerged as a promising data-driven paradigm that learns optimal decision policies through interaction with the environment, without requiring explicit analytical system models. Despite its success in robotics and continuous benchmarks, the application of RL to complex energy utility systems remains insufficiently explored. This thesis proposes to formulate the setpoint optimisation problem as a Markov Decision Process (MDP) and to develop a reinforcement learning framework capable of learning adaptive policies. By comparing RL-based approaches with established optimisation methods, the research aims to identify strengths, weaknesses, and application boundaries of both approaches.
+This thesis investigates whether reinforcement learning can find optimal operating setpoints for two case studies of different complexity: a battery energy storage system and a non-linear cookie production factory. For each system, the control task is formulated as a Markov decision process (MDP) with explicit state, action, and reward definitions aligned with operational objectives. The RL agent is trained to produce adaptive setpoint policies that minimize operating cost while satisfying process constraints and preserving stable operation. The learned policies are then benchmarked against established mathematical optimization methods to determine where RL provides practical benefits and where its limitations remain.
 
-The evaluation of the proposed method will be conducted through systematic simulation studies on two energy system case studies of varying complexity. Performance will be assessed using quantitative metrics including total operational cost, constraint violation frequency, and computational time. The results will provide a structured comparison between reinforcement learning and classical optimisation and will determine under which conditions RL offers practical advantages for real-time setpoint optimisation in complex energy utility systems. 
+The evaluation of the proposed method will be conducted through systematic simulation studies on two energy system case studies of varying complexity. Performance will be assessed using quantitative metrics including total operational cost, constraint violation frequency, and computational time. The results will provide a structured comparison between reinforcement learning and classical optimization and will determine under which conditions RL offers practical advantages for real-time setpoint optimization in complex energy utility systems. 
 }
 \begin{document}
 
@@ -168,7 +168,7 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 \section{Introduction}
 \label{Section1}
-Introduces the research problem, motivation, and objectives of the thesis.
+\textcolor{blue}{Introduces the research problem, motivation, and objectives of the thesis.}
 
 % This is a chapter (see Sec.\ \ref{Section1}) with a figure (see Fig.\ \ref{IMG:ANN}).
 
@@ -245,7 +245,7 @@ A key distinction in optimization is between deterministic and stochastic formul
 Energy system optimization problems are often time-coupled, meaning that decisions made at one time step influence future system states. For example, the state of charge of a battery depends on previous charging and discharging actions, which introduces inter-temporal dependencies into the optimization problem.
 
 These problems are typically solved using dedicated optimization solvers, such as those designed for linear and mixed-integer programming which can efficiently compute optimal solutions for well-defined models.
-However, their performance depends strongly on the accuracy of system models and assumptions, and solution times can increase significantly for large-scale or highly dynamic problems, limiting their applicability in real-time decision-making.
+However, their performance depends strongly on the accuracy of system models and assumptions, and solution times can increase significantly for large-scale or highly dynamic problems, limiting their applicability in real-time decision-making \cite{kyriakidis2024hybrid}.
 
 These limitations motivate the use of reinforcement learning, which can learn control strategies directly from interaction with the environment without requiring explicit system models, aiming to minimize operational costs or maximize economic profit, and therefore constitutes the main approach of this thesis.
 
@@ -269,13 +269,13 @@ where:
     \item $\gamma \in [0,1]$ is the discount factor.
 \end{itemize}
 
-At each time step, the agent observes the current state $s$, selects an action $a$, and transitions to a new state $s'$ while receiving a reward. The objective is to learn a policy $\pi(a \mid s)$ that maximizes the expected cumulative reward over time.
+At each time step, the agent observes the current state $s$, selects an action $a$, and transitions to a new state $s'$ while receiving a reward. The objective is to learn a policy $\pi(a \mid s)$ that maximizes the expected cumulative reward over time \cite{sutton2018reinforcement}.
 
 In energy system applications, the underlying decision problem can often be formulated as a stochastic optimal control problem, where uncertainties arise from exogenous variables such as renewable generation and electricity prices. These uncertainties are commonly modeled as stochastic processes, and the resulting problem can be expressed as a finite-horizon MDP \cite{pilling2025rl}. The goal is typically to minimize expected operational costs over time while respecting system dynamics and constraints.
 
-Classical approaches such as dynamic programming can be used to solve such MDPs through backward recursion. However, these methods suffer from the curse of dimensionality when the state space becomes large \cite{pilling2025rl}. This limitation makes exact solutions computationally intractable for realistic energy systems.
+Classical approaches such as dynamic programming can be used to solve such MDPs through backward recursion. However, these methods suffer from the curse of dimensionality when the state space becomes large. This limitation makes exact solutions computationally intractable for realistic energy systems.
 
-Reinforcement learning provides an alternative by learning approximate solutions directly from data. In particular, methods such as Q-learning can approximate the optimal value function without requiring full knowledge of the transition probabilities. As highlighted in \cite{pilling2025rl}, RL methods are especially useful in high-dimensional settings where traditional optimization methods become infeasible.
+Reinforcement learning provides an alternative by learning approximate solutions directly from data. As highlighted in \cite{pilling2025rl}, RL methods are especially useful in high-dimensional settings where traditional optimization methods become infeasible.
 
 Furthermore, advanced RL methods such as policy gradient and actor-critic algorithms are better suited for problems with continuous or high-dimensional action spaces, as they avoid exhaustive discretization of actions and instead learn parameterized policies \cite{pilling2025rl}. This is particularly important for energy systems, where control decisions are naturally continuous.
 
@@ -284,31 +284,56 @@ Despite these advantages, reinforcement learning introduces new challenges, incl
 In this thesis, reinforcement learning is used as the primary approach to learn control policies for energy system operation under uncertainty. Its performance is evaluated against a mathematical optimization benchmark, highlighting the trade-offs between model-based and data-driven approaches.
 
 \section{Use Cases}
-Describes the two systems considered in this thesis and their operational challenges.
+\textcolor{blue}{Describes the two systems considered in this thesis and their operational challenges.}
 
 \subsection{Battery Energy Storage System}
-Describes the battery system used as the first case study.
+\textcolor{blue}{Describes the battery system used as the first case study.}
+
+Battery energy storage systems (BESS) are electrochemical devices that store electrical energy for later use and provide grid services such as energy arbitrage, peak shaving, and short-term balancing. A typical BESS is characterized by its usable energy capacity, maximum charge/discharge power, round-trip efficiency, and state-of-charge (SOC) operating limits. Real-world operation must balance economic objectives (e.g., buying low / using stored energy when prices are high) with engineering constraints (SOC bounds, power limits, efficiency losses).
+
+BESS presents several challenges. Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
+
+A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and a forecast window of upcoming prices; the action is a continuous charge/discharge command $a\in[-1,1]$ scaled to real power $P\in[-P_{\max},P_{\max}]$.
+
+The SOC dynamics are modeled as
+\[
+\mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{\eta\,P_{\text{actual}}\,\Delta t}{E_{\max}},
+\]
+where $\eta$ denotes round-trip efficiency, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The system is subject to the following operational constraints:
+
+\begin{align}
+0 \le \mathrm{SOC}_t \le 1, \quad \forall t, \label{eq:soc_bounds} \\
+-P_{\max} \le P_t \le P_{\max}, \quad \forall t, \label{eq:power_limits} \\
+P_{\text{actual}} = \begin{cases}
+\eta_{\text{ch}} \cdot P_t & \text{if } P_t > 0 \text{ (charging)} \\
+\frac{P_t}{\eta_{\text{disch}}} & \text{if } P_t < 0 \text{ (discharging)}
+\end{cases} \label{eq:efficiency}
+\end{align}
+
+where $P_{\max}$ is the maximum charge/discharge power, $\eta_{\text{ch}}$ and $\eta_{\text{disch}}$ are the charging and discharging efficiency coefficients respectively. Constraint~\eqref{eq:soc_bounds} ensures the battery operates within safe operating levels, Constraint~\eqref{eq:power_limits} enforces physical power limitations, and Constraint~\eqref{eq:efficiency} models energy losses during charge and discharge cycles. The environment enforces feasibility by dynamically limiting the commanded power at each step so that the SOC remains within bounds.
+
+The goal is to reduce the cost of electricity from the grid, which is calculated as the price multiplied by the power used. The environment gives the negative of this cost as the reward. In this work, there is no on-site generation and no selling back to the grid. The battery charges from the grid when prices are low and discharges to serve local demand when prices are high. Main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \subsection{Cookie Production Factory}
-Introduces the industrial production system considered as the second case study.
+\textcolor{blue}{Introduces the industrial production system considered as the second case study.}
 
 \section{Methodology}
-Describes how the optimization problem is formulated as a reinforcement learning problem.
+\textcolor{blue}{Describes how the optimization problem is formulated as a reinforcement learning problem.}
 
 \subsection{Problem Formulation}
-Formulates the system control problem as a reinforcement learning problem.
+\textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
 
 \subsection{Reinforcement Learning Framework}
-Explains the structure of the RL agent and learning algorithm.
+\textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
 
 \subsection{Training Setup}
-Describes the training environment, reward function, and hyperparameter configuration.
+\textcolor{blue}{Describes the training environment, reward function, and hyperparameter configuration.}
 
 \subsection{Evaluation Metrics}
-Defines the metrics used to evaluate the performance of the RL agent and optimization baseline.
+\textcolor{blue}{Defines the metrics used to evaluate the performance of the RL agent and optimization baseline.}
 
 \section{Results and Discussion}
-Presents and analyzes the experimental results.
+\textcolor{blue}{Presents and analyzes the experimental results.}
 
 \subsection{Battery Energy Storage System}
 
@@ -317,11 +342,11 @@ Presents and analyzes the experimental results.
 \subsection{Key Findings}
 
 \section{Conclusion and Future Work}
-Summarizes the main findings and outlines possible future work.
+\textcolor{blue}{Summarizes the main findings and outlines possible future work.}
 
 %Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
 %Important note: Google Scholar offers the "Cite" feature - the information there must always be checked! They are often not completely correct!
 
-% \printbibliography
+\printbibliography
 
 \end{document}
