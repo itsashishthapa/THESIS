@@ -79,11 +79,12 @@ class SteamEnv(gym.Env):
         lambda_mode=5.0, # penalty for invalid bypass/mode behavior
         lambda_bound=20.0, # penalty for storage temperature bound violations
         lambda_terminal=2.0, # penalty for ending away from cyclic terminal target
-        lambda_coupling=2.0, # penalty for F4/F5 coupling residuals
-        lambda_comp=2.0, # penalty for simultaneous charging and discharging
+        lambda_coupling=0.1, # penalty for F4/F5 coupling residuals
+        lambda_comp=1e-4, # penalty for simultaneous charging and discharging
         lambda_grid=10.0, # penalty for grid power bound violations
         eps_comp=1.0e-6, # small tolerance for the Qch*Qdch complementarity constraint
         enforce_cyclic_boundary=True, # enforce final storage temperature to return to the initial value
+        debug_reward_terms=True, # print reward term breakdown at each step
     ):
         super().__init__()
 
@@ -122,6 +123,7 @@ class SteamEnv(gym.Env):
         self.lambda_grid = float(lambda_grid)
         self.eps_comp = float(eps_comp)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
+        self.debug_reward_terms = bool(debug_reward_terms)
 
         # Observation = [T_s_k, g_grid_k, P_WT_k, last_mode] + forecast
         base_low = np.array([0.0, -1.0, 0.0, -1.0], dtype=np.float32)
@@ -324,12 +326,31 @@ class SteamEnv(gym.Env):
 
         # Objective reward
         cost_grid_k = (g_grid_k / 1000.0) * P_grid_k
+        penalty_mode_k = self.lambda_mode * mode_violation_k
+        penalty_bound_k = self.lambda_bound * (state_violation_k / max(self.T_s_max - self.T_s_min, 1e-6))
+        penalty_coupling_k = self.lambda_coupling * (abs(f4_residual_k) + abs(f5_residual_k))
+        penalty_comp_k = self.lambda_comp * complementarity_violation_k
+        penalty_grid_k = self.lambda_grid * (grid_bound_violation_k / max(self.P_HP_max, 1e-6))
+
         reward_k = -cost_grid_k
-        reward_k -= self.lambda_mode * mode_violation_k
-        reward_k -= self.lambda_bound * (state_violation_k / max(self.T_s_max - self.T_s_min, 1e-6))
-        reward_k -= self.lambda_coupling * (abs(f4_residual_k) + abs(f5_residual_k))
-        reward_k -= self.lambda_comp * complementarity_violation_k
-        reward_k -= self.lambda_grid * (grid_bound_violation_k / max(self.P_HP_max, 1e-6))
+        reward_k -= penalty_mode_k
+        reward_k -= penalty_bound_k
+        reward_k -= penalty_coupling_k
+        reward_k -= penalty_comp_k
+        reward_k -= penalty_grid_k
+
+        if self.debug_reward_terms:
+            print(
+                "reward_terms | "
+                f"k={k} "
+                f"cost_grid={cost_grid_k:.6f} "
+                f"pen_mode={penalty_mode_k:.6f} "
+                f"pen_bound={penalty_bound_k:.6f} "
+                f"pen_coupling={penalty_coupling_k:.6f} "
+                f"pen_comp={penalty_comp_k:.6f} "
+                f"pen_grid={penalty_grid_k:.6f} "
+                f"reward={reward_k:.6f}"
+            )
 
         self.k += 1
         terminated = self.k >= self.K
@@ -379,6 +400,11 @@ class SteamEnv(gym.Env):
             "mode_violation_k": mode_violation_k,
             "state_violation_k": state_violation_k,
             "cost_grid_k": cost_grid_k,
+            "penalty_mode_k": penalty_mode_k,
+            "penalty_bound_k": penalty_bound_k,
+            "penalty_coupling_k": penalty_coupling_k,
+            "penalty_comp_k": penalty_comp_k,
+            "penalty_grid_k": penalty_grid_k,
             "terminal_penalty_k": terminal_penalty_k,
             "t_k": t_k,
             "raw_reward": float(reward_k),
