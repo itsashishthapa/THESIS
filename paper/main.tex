@@ -214,11 +214,11 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 Optimization is the process of selecting the best decision or solution, based on a defined objective, from a set of feasible alternatives while respecting given constraints. In energy systems, this typically involves determining control actions that minimize operational costs or energy consumption under physical and operational constraints.
 
-Mathematically, optimization is formulated as:
+Mathematically, a constrained optimization problem can be formulated as \cite{nocedal2006numerical}:
 \begin{equation}
 \min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
 \end{equation}
-where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that achieves the minimum or maximum value $f(x^\star)$.
+where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that minimizes the objective function while satisfying all equality and inequality constraints.
 
 In practice, optimization problems can be addressed using different methods depending on the availability of accurate system models, the presence of uncertainty, and the complexity of decision-making.
 
@@ -236,40 +236,39 @@ The following sections introduce the fundamental principles of both approaches.
 
 Mathematical optimization uses explicit models of system behavior, constraints, and objectives to solve decision problems. In energy systems, it is commonly used to compute optimal operating strategies by minimizing costs or maximizing efficiency while respecting physical and operational limits. In this thesis, mathematical optimization is used as a baseline method for performance comparison, rather than being further developed as the main approach.
 
-An optimization problem is typically formulated using a set of decision variables, an objective function, and a set of constraints. The decision variables represent the control actions to be determined, such as the charging and discharging of a battery or production levels in a factory. The objective function defines the performance criterion to be optimized, commonly expressed as cost minimization or profit maximization. Constraints capture the physical and operational limits of the system, including capacity bounds, energy balance equations, and technical restrictions.
+An optimization problem is typically formulated using a set of decision variables, an objective function, and a set of constraints. The decision variables represent the control actions to be determined, such as the charging and discharging of a battery or operating setpoints in an industrial utility system. The objective function defines the performance criterion to be optimized, which in this thesis is primarily expressed as operating-cost minimization. Constraints capture the physical and operational limits of the system, including capacity bounds, energy balance equations, and technical restrictions.
 
-Depending on the problem structure, optimization problems can be classified as linear, nonlinear, or mixed-integer. In energy system applications, mixed-integer linear programming (MILP) is widely used, as it enables the modeling of both continuous and discrete decision variables while maintaining computational tractability. However, as system size and complexity increase, such formulations can become computationally demanding and require accurate system modeling.
+Depending on the problem structure, optimization problems can be classified as linear, nonlinear, convex, nonconvex, continuous, or mixed-integer. Linear and mixed-integer linear programming formulations are widely used in energy system applications because they can often be solved reliably when the system model is sufficiently simplified. However, many realistic energy conversion systems include nonlinear component behavior, continuous control variables, and coupled dynamic constraints. These problems lead to nonlinear programming (NLP) formulations, which are generally more difficult to solve and may contain local optima \cite{nocedal2006numerical}.
 
 A key distinction in optimization is between deterministic and stochastic formulations. In deterministic optimization, all parameters, such as electricity prices or demand, are assumed to be known in advance. In contrast, stochastic optimization explicitly accounts for uncertainty by modeling uncertain parameters as random variables. While stochastic approaches provide a more realistic representation, they often lead to increased computational complexity.
 
-Energy system optimization problems are often time-coupled, meaning that decisions made at one time step influence future system states. For example, the state of charge of a battery depends on previous charging and discharging actions, which introduces inter-temporal dependencies into the optimization problem.
+Energy system optimization problems are often time-coupled, meaning that decisions made at one time step influence future system states. For example, the state of charge of a battery depends on previous charging and discharging actions, which introduces inter-temporal dependencies into the optimization problem. Similarly, thermal storage systems couple present charging and discharging decisions with future temperature levels and heat availability.
 
-These problems are typically solved using dedicated optimization solvers, such as those designed for linear and mixed-integer programming which can efficiently compute optimal solutions for well-defined models.
-However, their performance depends strongly on the accuracy of system models and assumptions, and solution times can increase significantly for large-scale or highly dynamic problems, limiting their applicability in real-time decision-making \cite{kyriakidis2024hybrid}.
+These problems are typically solved using dedicated optimization solvers. For nonlinear constrained problems, interior-point methods are widely used; IPOPT is a common open-source solver for large-scale nonlinear programming and applies a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}. Such solvers can efficiently compute locally optimal solutions for well-defined models, but their performance depends strongly on model accuracy, constraint structure, and initialization. For nonlinear and nonconvex energy systems, solution times can increase significantly and the computed solution may depend on the chosen starting point, limiting direct applicability in real-time decision-making \cite{kyriakidis2024hybrid}.
 
-These limitations motivate the use of reinforcement learning, which can learn control strategies directly from interaction with the environment without requiring explicit system models, aiming to minimize operational costs or maximize economic profit, and therefore constitutes the main approach of this thesis.
+These limitations motivate the use of reinforcement learning, which can learn control strategies directly from interaction with the environment and is used in this thesis to minimize operating costs while respecting system constraints.
 
 \subsection{Reinforcement Learning}
 \textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
 
-Reinforcement learning (RL) is a data-driven approach to sequential decision-making, in which an agent learns to take optimal actions through interaction with an environment. Unlike mathematical optimization, RL does not require an explicit model of system dynamics. Instead, it learns control strategies based on observed state transitions and received rewards, making it well-suited for complex and uncertain environments.
+Reinforcement learning (RL) is a data-driven method for sequential decision-making, in which an agent learns actions through interaction with an environment. In contrast to mathematical optimization, model-free RL does not require an explicit analytical model to compute the control policy directly. However, training still requires interaction data, which in engineering applications is commonly generated using a simulated environment. The agent learns control strategies from observed state transitions and received rewards, making RL suitable for complex and uncertain environments when an appropriate training environment is available.
 
-In the context of energy systems, reinforcement learning can be used to determine control actions, such as battery charging and discharging, in order to minimize operational costs or maximize economic profit over time. By continuously interacting with the system, the agent improves its decision-making policy based on experience.
+In the context of energy systems, reinforcement learning can be used to determine control actions, such as battery charging and discharging, in order to minimize operational costs over time. By continuously interacting with the system, the agent improves its decision-making policy based on experience.
 
 Formally, reinforcement learning problems are typically modeled as a Markov Decision Process (MDP), defined by the tuple 
 \[
-(\mathcal{S}, \mathcal{A}, P, R, \gamma),
+\left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
 \]
 where:
 \begin{itemize}
     \item $\mathcal{S}$ is the set of states representing the system,
     \item $\mathcal{A}$ is the set of actions,
-    \item $P(s' \mid s,a)$ defines the transition dynamics,
-    \item $R(s,a)$ is the reward function,
-    \item $\gamma \in [0,1]$ is the discount factor.
+    \item $p(s' \mid s,a)$ defines the transition dynamics,
+    \item $r(s,a)$ is the reward function,
+    \item $\gamma_{\mathrm{RL}} \in [0,1]$ is the discount factor.
 \end{itemize}
 
-At each time step, the agent observes the current state $s$, selects an action $a$, and transitions to a new state $s'$ while receiving a reward. The objective is to learn a policy $\pi(a \mid s)$ that maximizes the expected cumulative reward over time \cite{sutton2018reinforcement}.
+At each time step, the agent observes the current state $s$, selects an action $a$, and transitions to a new state $s'$ while receiving a reward. The Markov property assumes that the current state contains the information required to describe the distribution of the next state. The objective is to learn a policy $\pi(a \mid s)$ that maximizes the expected cumulative reward over time \cite{sutton2018reinforcement}.
 
 In energy system applications, the underlying decision problem can often be formulated as a stochastic optimal control problem, where uncertainties arise from exogenous variables such as renewable generation and electricity prices. These uncertainties are commonly modeled as stochastic processes, and the resulting problem can be expressed as a finite-horizon MDP \cite{pilling2025rl}. The goal is typically to minimize expected operational costs over time while respecting system dynamics and constraints.
 
@@ -277,7 +276,9 @@ Classical approaches such as dynamic programming can be used to solve such MDPs 
 
 Reinforcement learning provides an alternative by learning approximate solutions directly from data. As highlighted in \cite{pilling2025rl}, RL methods are especially useful in high-dimensional settings where traditional optimization methods become infeasible.
 
-Furthermore, advanced RL methods such as policy gradient and actor-critic algorithms are better suited for problems with continuous or high-dimensional action spaces, as they avoid exhaustive discretization of actions and instead learn parameterized policies \cite{pilling2025rl}. This is particularly important for energy systems, where control decisions are naturally continuous.
+Furthermore, advanced RL methods such as policy-gradient and actor-critic algorithms are better suited for problems with continuous or high-dimensional action spaces, as they avoid exhaustive discretization of actions and instead learn parameterized policies \cite{pilling2025rl}. This is particularly important for energy systems, where control decisions are naturally continuous.
+
+In actor-critic methods, an actor represents the control policy, while a critic estimates the value of states or state-action pairs. This structure is useful for continuous-control problems because the policy can directly output continuous actions. Soft Actor-Critic (SAC) is an off-policy actor-critic algorithm that maximizes both expected return and policy entropy, encouraging exploration during training while learning a stochastic policy \cite{haarnoja2018soft}. For this reason, SAC is well suited to the control tasks considered in this thesis, where the agent must learn continuous setpoint policies under operational constraints and time-varying exogenous inputs.
 
 Despite these advantages, reinforcement learning introduces new challenges, including the need for sufficient training data, potential instability during learning, and sensitivity to reward design and state representation.
 
@@ -317,11 +318,91 @@ The goal is to reduce the cost of electricity from the grid, which is calculated
 \subsection{Cookie Production Factory}
 \textcolor{blue}{Introduces the industrial production system considered as the second case study.}
 
+The second use case represents a non-linear cookie production factory with an electrified steam-generation utility system. The production process requires a constant supply of process heat in the form of superheated steam, while the utility system must decide how to operate the energy conversion components under fluctuating wind generation and electricity prices. The operational objective is to satisfy the steam demand while minimizing grid electricity cost over a finite scheduling horizon. The system model is based on the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and later used as a renewable steam-generation benchmark by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.
+
+The system consists of four main units: a wind turbine (WT), a closed reverse Brayton-cycle high-temperature heat pump (HTHP), a sensible thermal energy storage (TES), and a steam generator (SG). The WT supplies renewable electricity, while additional electricity can be purchased from the grid. The HTHP uses a waste-heat air stream as heat source and delivers high-temperature process heat to an intermediate thermal-oil loop. The thermal oil acts as heat transfer fluid and can be routed through the TES or directly to the SG by controllable bypasses. The SG provides the required steam conditions for the consumer factory. The HTHP and SG are represented by polynomial surrogate models, while the TES is modeled as a simplified single energy reservoir, and the charging/discharging behavior is represented using efficiency equations.
+
+\begin{figure}[htbp]
+    \centering
+    \fbox{
+        \begin{minipage}[c][6cm][c]{0.85\textwidth}
+            \centering
+            Placeholder for schematic of the electrified steam-generation system
+        \end{minipage}
+    }
+	% \includegraphics[width=0.9\textwidth]{figures/cookie_steam_system.pdf} later replace \fbox with the actual figure
+    \caption{Schematic representation of the electrified steam-generation system serving the cookie production factory, adapted from the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and the renewable steam-generation benchmark described by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.}
+    \label{fig:cookie_steam_system}
+\end{figure}
+
+
+The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $k \in \{1,\ldots,n\}$:
+\begin{align}
+\min_{\mathbf{x}} \quad J
+&= \sum_{k=1}^{n} P_{\mathrm{grid}}^k g_{\mathrm{grid}}^k \Delta t, \label{eq:cookie_objective} \\
+\text{s.t.} \quad
+P_{\mathrm{grid}}^k + P_{\mathrm{WT}}^k
+&= 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \label{eq:cookie_power_balance} \\
+T_{\mathrm{II}}^k
+&= F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \\
+T_{\mathrm{IV}}^k
+&= F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \\
+T_2^k
+&= \beta_1^k T_{\mathrm{II}}^k + \left(1-\beta_1^k\right)T_1^k, \\
+T_{\mathrm{I}}^k
+&= \beta_2^k T_3^k + \left(1-\beta_2^k\right)T_4^k, \\
+T_2^k
+&= 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^k}, \\
+T_3^k
+&= 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^k}, \\
+\dot{Q}_{s,\mathrm{ch}}^k
+&= 3\dot{m}_{\mathrm{II}}^k c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^k-T_1^k\right)\left(1-\beta_1^k\right), \\
+\dot{Q}_{s,\mathrm{dch}}^k
+&= 3\dot{m}_{\mathrm{I}}^k c_{p,\mathrm{f}}\left(T_4^k-T_3^k\right)\left(1-\beta_2^k\right), \\
+\dot{Q}_{s,\mathrm{ch}}^k \dot{Q}_{s,\mathrm{dch}}^k
+&\leq \gamma, \\
+T_1^k
+&= T_{\mathrm{II}}^k - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^k-T_s^{k-1}\right), \\
+T_4^k
+&= T_3^k - \epsilon_{\mathrm{dch}}\left(T_3^k-T_s^{k-1}\right), \\
+T_s^k
+&= T_s^{k-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^k-\dot{Q}_{s,\mathrm{dch}}^k}{m_s c_{p,\mathrm{s}}}\Delta t, \\
+T_s^0
+&= \tilde{T}_0, \qquad T_s^n = T_s^0, \\
+T_{\mathrm{I}}^k
+&\in [177,250], \qquad \dot{m}_{\mathrm{I}}^k \in [5,16], \\
+T_{\mathrm{III}}^k
+&\in [60,100], \qquad R^k \in [0.8,1.53], \qquad \beta_1^k,\beta_2^k \in [0,1].
+\label{eq:cookie_bounds}
+\end{align}
+Here, the objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
+
+The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
+
+In the reinforcement-learning environment, the agent observes the normalized TES temperature, current electricity price, available wind power, the previous operating mode, and forecast information for price and wind availability. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
+
+This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, multiple coupled continuous control variables, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
+
 \section{Methodology}
 \textcolor{blue}{Describes how the optimization problem is formulated as a reinforcement learning problem.}
 
+The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In particular, the setpoint optimization task is expressed as a finite-horizon sequential decision problem, where an agent observes the current system state, selects continuous control actions, and receives a reward based on operating cost and constraint satisfaction.
+
 \subsection{Problem Formulation}
 \textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
+
+For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $k \in \{0,\ldots,N-1\}$ denote the discrete time index. At each time step, the system is described by a state vector $s_k$, the controller selects an action vector $a_k$, and the system evolves to the next state $s_{k+1}$ according to the underlying system dynamics and exogenous inputs such as electricity prices and renewable generation.
+
+The resulting decision problem is formulated as a Markov decision process (MDP)
+\[
+\mathcal{M} = \left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
+\]
+where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the action space, $p(s_{k+1}\mid s_k,a_k)$ denotes the transition dynamics, $r(s_k,a_k)$ is the reward function, and $\gamma_{\mathrm{RL}}$ is the discount factor. The agent aims to learn a policy $\pi(a_k\mid s_k)$ that maximizes the expected cumulative reward \cite{sutton2018reinforcement}:
+\[
+\max_{\pi} \; \mathbb{E}_{\pi}\left[\sum_{k=0}^{N-1} \gamma_{\mathrm{RL}}^k r(s_k,a_k)\right].
+\]
+
+Since the original engineering objective is cost minimization, the reward is defined as the negative operating cost, augmented by penalty terms for constraint violations where required. In this way, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
 
 \subsection{Reinforcement Learning Framework}
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
