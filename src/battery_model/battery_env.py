@@ -1,7 +1,7 @@
 """
 Battery Environment for Reinforcement Learning
 
-- Observation: state-of-charge (SOC), current price, and normalized forecast window.
+- Observation: state-of-charge (SOC), current price, normalized time, and normalized forecast window.
 - Action: continuous charge/discharge command in [-1, 1] scaled to power [-P_max, P_max].
 - Dynamics: `SOC_{t+1} = SOC_t + (eta * P_t * dt) / E_max` with bounds [0, 1].
 - Reward: negative grid cost `- price_t * P_t / 1e6`.
@@ -27,10 +27,9 @@ class BatteryEnv(gym.Env):
         self.forecast_h = int(forecast_h)
         # Price scaling
         self.price_scale = float(price_scale) if price_scale is not None else float(np.percentile(np.abs(self.prices), 95) + 1e-6)
-        # Observation: [SOC, normalized current price, normalized forecast window]
-        # TODO: try adding the timestamp of the forcast window.
-        obs_low = np.concatenate((np.array([0.0, -1.0], dtype=np.float32), -np.ones(self.forecast_h, dtype=np.float32)))
-        obs_high = np.concatenate((np.array([1.0, 1.0], dtype=np.float32), np.ones(self.forecast_h, dtype=np.float32)))
+        # Observation: [SOC, normalized current price, normalized time, normalized forecast window]
+        obs_low = np.concatenate((np.array([0.0, -1.0, 0.0], dtype=np.float32), -np.ones(self.forecast_h, dtype=np.float32)))
+        obs_high = np.concatenate((np.array([1.0, 1.0, 1.0], dtype=np.float32), np.ones(self.forecast_h, dtype=np.float32)))
         self.observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
         # Action: continuous in [-1, 1], scaled to power [-P_max, P_max]
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
@@ -49,8 +48,10 @@ class BatteryEnv(gym.Env):
         idx = min(self.t, self.T - 1)
         p = self.prices[idx]
         norm_price = float(np.tanh(p / self.price_scale))
+        denom = max(self.T - 1, 1)
+        norm_time = float(min(self.t, self.T - 1) / denom)
         forecast = self._forecast_window()
-        return np.concatenate((np.array([self.SOC, norm_price], dtype=np.float32), forecast))
+        return np.concatenate((np.array([self.SOC, norm_price, norm_time], dtype=np.float32), forecast))
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
