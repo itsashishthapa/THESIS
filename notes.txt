@@ -15,4 +15,9 @@ While these SOTA RL algorithms are effective, many studies lack robust benchmark
 Feedbacks:
 
 # lifecycle of the battery, self dischanging on long term.
-# 
+
+# when mathematical optimization is unstable use RL, 
+# cpu time, RL(training and testing)
+# take data from dwd (wind speed)(extrapolate to wind power)(location:hoyerswerda)
+# smard for electricity price.(location:germany)
+
