@@ -215,8 +215,6 @@ This section provides the theoretical basis for the control problem studied in t
 
 Here, RL is not treated as a replacement for physical constraints. Instead, the original constrained optimization problem is transformed into a policy-learning problem in which feasibility is encouraged or enforced through action bounds, clipping, and penalty terms. This distinction is important for the comparison with mathematical optimization, because a low-cost RL policy is only useful if its decisions remain feasible.
 
-The comparison between mathematical optimization and reinforcement learning is therefore based on three criteria. First, the resulting operating cost is used to measure economic performance. Second, constraint satisfaction is considered because energy utility systems must remain within physical and operational limits, even when low-cost actions would otherwise be attractive. Third, computational time is evaluated because setpoints must be available within the time scale of the operational decision process. For reinforcement learning, this refers to the time required by the trained policy to compute actions during evaluation, while training is treated as an offline process.
-
 \subsection{Setpoint Optimization in Energy Utility Systems}
 \textcolor{blue}{Defines setpoints and explains why their optimal selection is relevant for energy utility systems.}
 
@@ -243,8 +241,6 @@ The difficulty of an optimization problem depends strongly on its mathematical s
 Another important distinction is whether the problem is deterministic or stochastic. In deterministic optimization, all relevant parameters, such as electricity prices, wind availability, and demand, are assumed to be known over the optimization horizon. Stochastic optimization represents uncertain quantities through random variables or scenarios. This is closer to real operation, but it also increases model size and computational complexity.
 
 Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. IPOPT, for example, is an open-source solver for large-scale nonlinear programming and uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}. These solvers can be very effective when the model is well defined, but their performance depends on model accuracy, constraint structure, scaling, and initialization. Such sensitivity is one reason hybrid strategies, such as the Bayesian-optimization and IPOPT approach of Kyriakidis et al., have been proposed for complex nonconvex energy-conversion problems \cite{kyriakidis2024hybrid}.
-
-In this thesis, mathematical optimization serves as the model-based reference approach. Reinforcement learning is then investigated as an alternative that learns a policy for mapping observed system states directly to control actions after training.
 
 \subsection{Reinforcement Learning}
 \textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
