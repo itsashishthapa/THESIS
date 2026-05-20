@@ -287,7 +287,7 @@ The choice of algorithm follows from the structure of the problem. In this thesi
 
 Policy-gradient and actor-critic methods are commonly used for such problems because they optimize a parameterized policy instead of enumerating all possible actions \cite{pilling2025rl}. In an actor-critic setting, the actor can propose continuous setpoints, while the critic evaluates their expected long-term effect on cost and future system states. Within the classification above, Soft Actor-Critic (SAC) is a model-free, off-policy, actor-critic, deep reinforcement-learning algorithm.
 
-SAC is used in this thesis because it extends the model-free actor-critic framework with a maximum-entropy objective for continuous-control problems \cite{haarnoja2018soft}. This is useful for the present application because the agent must search through continuous operating setpoints during training, while still learning a policy that can be evaluated quickly after training.
+SAC is used in this thesis because it extends the model-free actor-critic framework with a maximum-entropy objective for continuous-control problems \cite{haarnoja2018soft}. This is useful for the present application because the agent must search through continuous operating setpoints during training, while still learning a policy that can be evaluated quickly after training. In the battery system, this corresponds to continuous charge and discharge power, while in the cookie factory it corresponds to continuous bypass, compressor, mass-flow, and temperature setpoints.
 
 In standard RL, the policy is usually trained to maximize expected return. SAC adds an entropy term to this objective. Intuitively, this means that the policy is encouraged to keep exploring when several actions appear useful, instead of becoming too deterministic too early. The objective can be interpreted as maximizing both reward and stochasticity:
 \[
@@ -296,7 +296,7 @@ In standard RL, the policy is usually trained to maximize expected return. SAC a
 \]
 where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce the risk that the agent converges too early to a narrow operating strategy.
 
-SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, storage dynamics, and operational constraints.
+SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, storage dynamics, and operational constraints. However, RL does not guarantee constraint satisfaction by itself, so feasibility must still be addressed through careful environment design, action bounds, reward penalties, or other safety mechanisms.
 
 \section{Use Cases}
 \textcolor{blue}{Describes the two systems considered in this thesis and their operational challenges.}
