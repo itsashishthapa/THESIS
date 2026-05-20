@@ -212,48 +212,48 @@ The evaluation of the proposed method will be conducted through systematic simul
 \label{sec:theory_background}
 \textcolor{blue}{Provides the fundamental concepts and background required to understand the systems, optimization methods, and reinforcement learning used in this work.}
 
-This section introduces the theoretical concepts required to formulate setpoint determination in energy utility systems as both a constrained optimization problem and a reinforcement-learning problem. The focus is on finite-horizon decision-making, model-based optimization, Markov decision processes, and the Soft Actor-Critic algorithm used for continuous-control tasks in this thesis.
+This section provides the theoretical basis for the control problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem can be viewed from two perspectives: as a model-based constrained optimization problem, and as a sequential decision-making problem that can be addressed with reinforcement learning. The following sections introduce both perspectives and then position Soft Actor-Critic (SAC), the reinforcement-learning algorithm used in this work.
 
 \subsection{Setpoint Optimization in Energy Utility Systems}
 \textcolor{blue}{Defines setpoints and explains why their optimal selection is relevant for energy utility systems.}
 
-Energy utility systems are operated by selecting setpoints for controllable components such as storage units, heat pumps, pumps, valves, or bypasses. A setpoint specifies the desired operating value of a control variable, for example the charging or discharging power of a battery, the compressor setting of a heat pump, a mass flow rate, or a temperature level in a thermal process. The quality of these setpoints directly influences operating cost, energy efficiency, constraint satisfaction, and system stability.
+Energy utility systems are operated by choosing setpoints for controllable components such as storage units, heat pumps, pumps, valves, and bypasses. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the compressor setting of a heat pump, a mass flow rate, or a temperature level in a thermal process. These choices are not merely technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and system stability.
 
-Setpoint determination in energy utility systems is typically a sequential decision problem. The best operating point at a given time cannot be chosen independently of past and future decisions, because many systems contain storage or other dynamic states. For instance, charging a battery or a thermal energy storage increases future flexibility but may increase the current electricity cost, whereas discharging reduces current grid consumption but can limit future operation. Therefore, setpoint optimization must account for inter-temporal dependencies, time-varying boundary conditions, and physical operating limits.
+Setpoint determination is also inherently sequential. The best operating point at one time step cannot be chosen independently of what happened before or what may be needed later. Storage systems make this especially clear. Charging a battery or a thermal energy storage can increase future flexibility, but it may also increase the current electricity cost. Discharging can reduce current grid consumption, but it leaves less stored energy for later. Good setpoint decisions therefore have to account for inter-temporal dependencies, changing boundary conditions, and physical operating limits at the same time.
 
-In addition, energy utility systems are affected by uncertain exogenous variables such as electricity prices, renewable generation, production demand, and ambient conditions. These variables change over time and can make fixed rule-based operation inefficient. The control problem is therefore to determine feasible setpoints over a finite time horizon such that operating costs are minimized while technical constraints, such as power limits, temperature bounds, storage capacities, and process requirements, remain satisfied. This thesis studies this problem for two systems of different complexity: a battery energy storage system and an electrified steam-generation system for a cookie production factory.
+In practical operation, the controller also has to react to external signals such as electricity prices, renewable generation, production demand, and ambient conditions. Since these signals change over time, fixed rule-based strategies can become inefficient. The control task in this thesis is therefore to determine feasible setpoints over a finite time horizon while minimizing operating cost and respecting constraints such as power limits, temperature bounds, storage capacities, and process requirements. This problem is studied for two systems of different complexity: a battery energy storage system and an electrified steam-generation system for a cookie production factory.
 
 
 \subsection{Mathematical Optimization}
 \textcolor{blue}{Presents traditional optimization methods used for determining optimal system setpoints.}
 
-Optimization is the process of selecting the best decision or solution, based on a defined objective, from a set of feasible alternatives while respecting given constraints. In energy systems, this usually means determining operating setpoints that minimize costs or energy consumption while satisfying physical and operational limits. A general constrained optimization problem can be written as \cite{nocedal2006numerical}:
+Mathematical optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating cost or energy consumption, while the feasible set is determined by physical equations and operational limits. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
 \begin{equation}
 \min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
 \label{eq:general_constrained_optimization}
 \end{equation}
-where $x \in \Omega \subseteq \mathbb{R}^n$ is the decision variable, $f : \mathbb{R}^n \to \mathbb{R}$ the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ the equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ the inequality constraints. The goal is to find the optimal solution $x^\star$ that minimizes the objective function while satisfying all equality and inequality constraints.
+Here, $x \in \Omega \subseteq \mathbb{R}^n$ denotes the decision variables, $f : \mathbb{R}^n \to \mathbb{R}$ is the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ represents equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ represents inequality constraints. The solution $x^\star$ is optimal if it minimizes the objective while satisfying all constraints.
 
-For finite-horizon setpoint optimization, the decision vector contains the control actions over multiple time steps. The objective function is commonly expressed as the accumulated operating cost over the horizon, while the constraints describe system dynamics, energy balances, storage bounds, and terminal requirements. Time-coupled constraints are especially important because the state at one time step, such as battery state of charge or thermal storage temperature, depends on previous decisions.
+For finite-horizon setpoint optimization, the decision vector contains the control actions for several time steps. The objective is usually the accumulated operating cost over the horizon. The constraints describe system dynamics, energy balances, storage bounds, and terminal requirements. This time-coupled structure is important because a state such as battery state of charge or thermal storage temperature depends on previous decisions.
 
-Depending on the problem structure, optimization problems can be classified as linear, nonlinear, convex, nonconvex, continuous, or mixed-integer. Linear and mixed-integer linear programming formulations are widely used in energy system applications because they can often be solved reliably when the system model is sufficiently simplified. However, many realistic energy conversion systems include nonlinear component behavior, continuous control variables, and coupled dynamic constraints. These problems lead to nonlinear programming (NLP) formulations, which are generally more difficult to solve and may contain local optima \cite{nocedal2006numerical}.
+The difficulty of an optimization problem depends strongly on its mathematical structure. Linear and mixed-integer linear formulations are widely used in energy-system applications because simplified models can often be solved reliably. However, realistic energy conversion systems frequently include nonlinear component behavior, continuous control variables, and coupled dynamic constraints. Such systems lead to nonlinear programming (NLP) formulations, which are generally harder to solve and may contain local optima \cite{nocedal2006numerical}.
 
-A further distinction is between deterministic and stochastic formulations. In deterministic optimization, all parameters, such as electricity prices, wind availability, and demand, are assumed to be known over the optimization horizon. Stochastic optimization accounts for uncertainty explicitly by representing uncertain quantities as random variables or scenarios. This can better represent real operation, but it also increases model size and computational complexity.
+Another important distinction is whether the problem is deterministic or stochastic. In deterministic optimization, all relevant parameters, such as electricity prices, wind availability, and demand, are assumed to be known over the optimization horizon. Stochastic optimization represents uncertain quantities through random variables or scenarios. This is closer to real operation, but it also increases model size and computational complexity.
 
-Nonlinear constrained problems are typically solved using dedicated numerical optimization solvers. Interior-point methods are widely used for this class of problems. IPOPT is a common open-source solver for large-scale nonlinear programming and applies a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}. Such solvers can compute locally optimal solutions for well-defined models, but their performance depends strongly on model accuracy, constraint structure, scaling, and initialization. For nonlinear and nonconvex energy systems, solution times can increase significantly and the computed solution may depend on the chosen starting point, which can limit direct use in real-time setpoint determination \cite{kyriakidis2024hybrid}.
+Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. IPOPT, for example, is an open-source solver for large-scale nonlinear programming and uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}. These solvers can be very effective when the model is well defined. At the same time, their performance depends on model accuracy, constraint structure, scaling, and initialization. For nonlinear and nonconvex energy systems, solution times can increase, and the result may depend on the starting point. This can make direct real-time use difficult \cite{kyriakidis2024hybrid}.
 
-In this thesis, mathematical optimization is used as the model-based reference approach. Reinforcement learning is investigated as an alternative way to learn a policy that maps observed system states directly to control actions after training.
+In this thesis, mathematical optimization serves as the model-based reference approach. Reinforcement learning is then investigated as an alternative that learns a policy for mapping observed system states directly to control actions after training.
 
 \subsection{Reinforcement Learning}
 \textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
 
-Reinforcement learning (RL) is a data-driven framework for sequential decision-making, in which an agent learns a control policy through interaction with an environment. At each time step, the agent observes the current state, selects an action, receives a reward, and observes the next state. Over repeated interactions, the agent improves its policy so that actions leading to high long-term reward become more likely \cite{sutton2018reinforcement}.
+Reinforcement learning (RL) offers a different view of the same setpoint problem. Instead of solving an optimization problem from scratch at every decision time, an agent learns from repeated interaction with an environment. At each time step, the agent observes the current state, selects an action, receives a reward, and observes the next state. Over time, it adapts its policy so that actions leading to high long-term reward become more likely \cite{sutton2018reinforcement}.
 
-Formally, reinforcement learning problems are typically modeled as a Markov Decision Process (MDP), defined by the tuple 
+Formally, RL problems are commonly modeled as a Markov Decision Process (MDP), defined by the tuple
 \[
 \left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
 \]
-where:
+where
 \begin{itemize}
     \item $\mathcal{S}$ is the set of states representing the system,
     \item $\mathcal{A}$ is the set of actions,
@@ -262,46 +262,53 @@ where:
     \item $\gamma_{\mathrm{RL}} \in [0,1]$ is the discount factor.
 \end{itemize}
 
-The Markov property assumes that the current state contains the information required to determine the probability distribution of the next state. A policy $\pi(a \mid s)$ defines the agent's action-selection behavior. The return from time step $k$ is the discounted cumulative reward
+The Markov property means that the current state contains the information needed to describe the probability distribution of the next state. A policy $\pi(a \mid s)$ describes how the agent selects actions. The return from time step $k$ is the discounted cumulative reward
 \[
 G_k = \sum_{i=0}^{N-k-1} \gamma_{\mathrm{RL}}^i r(s_{k+i},a_{k+i}),
 \]
-and the objective is to learn a policy that maximizes the expected return. Value functions estimate the expected return from a state, while action-value functions estimate the expected return from a state-action pair. These quantities are central to many RL algorithms because they allow the agent to evaluate the long-term effect of current decisions rather than only their immediate reward \cite{sutton2018reinforcement}.
+and the learning objective is to find a policy that maximizes the expected return. Value functions estimate the expected return from a state, while action-value functions estimate the expected return from a state-action pair. These estimates are important because they allow the agent to consider the future consequences of a decision, not only its immediate reward \cite{sutton2018reinforcement}.
 
-In energy system applications, the underlying decision problem can often be formulated as a stochastic optimal control problem, where uncertainties arise from exogenous variables such as renewable generation, electricity prices and demand. These uncertainties are commonly modeled as stochastic processes, and the resulting problem can be expressed as a finite-horizon MDP \cite{pilling2025rl}. Since the engineering objective is usually cost minimization, the reward is often defined as the negative operating cost. The goal is typically to minimize expected operational costs over time while respecting system dynamics and constraints.
+In energy-system applications, the decision problem can often be interpreted as stochastic optimal control. Uncertainty enters through external variables such as renewable generation, electricity prices, and demand. These variables can be modeled as stochastic processes, which leads to a finite-horizon MDP formulation \cite{pilling2025rl}. Since the engineering objective is usually cost minimization, the reward is often defined as the negative operating cost. The resulting goal is to minimize expected operating cost over time while respecting system dynamics and constraints.
 
-Classical approaches such as dynamic programming can be used to solve such MDPs through backward recursion. However, these methods suffer from the curse of dimensionality when the state space becomes large. This limitation makes exact solutions computationally intractable for realistic energy systems.
+Classical dynamic programming can solve some MDPs through backward recursion. However, this approach becomes impractical when the state or action space grows, a difficulty known as the curse of dimensionality. Realistic energy systems often have continuous states, continuous actions, and long horizons, so exact dynamic-programming solutions are usually not tractable.
 
-Reinforcement learning provides an alternative by learning approximate policies from interaction data. In contrast to solving an explicit optimization problem online at every decision step, a trained RL policy can compute an action directly from the current observation.
+RL addresses this limitation by learning approximate policies from interaction data. A trained policy can then compute an action directly from the current observation. In model-free RL, the learning algorithm does not require an explicit analytical transition model for planning, although training still requires interaction data. In engineering applications, this data is usually generated with a simulator or digital model, so the quality of the learned policy depends strongly on the quality of the training environment.
 
 \subsection{Categories of Reinforcement Learning Algorithms}
 \textcolor{blue}{Classifies reinforcement-learning algorithms and positions SAC within this classification.}
 
-There is no single linear list of RL algorithm types. Instead, RL algorithms are commonly classified along several dimensions \cite{sutton2018reinforcement}:
+RL algorithms are best understood through several overlapping categories rather than through one fixed list of types. The most relevant distinctions for this thesis are the following \cite{sutton2018reinforcement}:
 \begin{itemize}
-    \item Model-based and model-free methods: model-based methods learn or use a model of the environment dynamics for planning, while model-free methods learn directly from sampled transitions without explicitly planning with a separate transition model.
-    \item Value-based and policy-based methods: value-based methods learn value or action-value functions and derive actions from them, while policy-based methods directly optimize a parameterized policy.
-    \item Actor-critic methods: actor-critic methods combine the two ideas; the actor represents the policy, while the critic estimates values or action-values used to improve the policy.
-    \item On-policy and off-policy methods: on-policy methods update the policy using data generated by the current policy, while off-policy methods can reuse data generated by earlier policies or exploratory behavior.
-    \item Tabular and deep RL methods: tabular methods store values explicitly for small state and action spaces, while deep RL uses neural networks as function approximators for larger or continuous spaces.
+    \item Model-based and model-free methods: model-based methods learn or use a model of the environment dynamics for planning. Model-free methods learn directly from sampled transitions.
+    \item Value-based and policy-based methods: value-based methods learn value or action-value functions and choose actions from them. Policy-based methods directly optimize a parameterized policy.
+    \item Actor-critic methods: actor-critic methods combine both ideas. The actor represents the policy, and the critic estimates values or action-values used to improve that policy.
+    \item On-policy and off-policy methods: on-policy methods learn from data generated by the current policy. Off-policy methods can also reuse data generated by previous policies or exploratory behavior.
+    \item Tabular and deep RL methods: tabular methods store values explicitly for small state and action spaces. Deep RL uses neural networks as function approximators and is therefore more suitable for large or continuous spaces.
 \end{itemize}
 
-The choice of RL algorithm depends strongly on the structure of the control problem. In the systems considered in this thesis, the relevant setpoints are continuous quantities, such as battery power, temperature levels, mass flow rates, and bypass positions. Discretizing these variables would either remove important operating possibilities or create a very large action space. Therefore, an algorithm is required that can learn a parameterized policy and directly output continuous actions.
+The choice of algorithm follows from the structure of the problem. In this thesis, the relevant setpoints are continuous quantities, such as battery power, temperature levels, mass flow rates, and bypass positions. Discretizing these variables would either remove useful operating points or create a very large action space. A suitable algorithm should therefore learn a parameterized policy and output continuous actions directly.
 
-Policy-gradient and actor-critic methods are commonly used for this type of problem because they optimize a parameterized policy instead of enumerating all possible actions \cite{pilling2025rl}. In actor-critic methods, the actor can propose continuous setpoints and the critic can evaluate their expected long-term effect on operating cost and future system states. Within the classification above, SAC can be located as a model-free, off-policy, actor-critic, deep reinforcement-learning algorithm.
+Policy-gradient and actor-critic methods are commonly used for such problems because they optimize a parameterized policy instead of enumerating all possible actions \cite{pilling2025rl}. In an actor-critic setting, the actor can propose continuous setpoints, while the critic evaluates their expected long-term effect on cost and future system states. Within the classification above, SAC is a model-free, off-policy, actor-critic, deep reinforcement-learning algorithm.
 
 \subsection{Soft Actor-Critic}
 
-Soft Actor-Critic (SAC) is selected in this thesis because it extends the model-free actor-critic framework with a maximum-entropy objective for continuous-control problems \cite{haarnoja2018soft}. This makes it suitable for learning setpoint policies in systems where the actions are continuous and where exploration during training is important.
+Soft Actor-Critic (SAC) is used in this thesis because it extends the model-free actor-critic framework with a maximum-entropy objective for continuous-control problems \cite{haarnoja2018soft}. This is useful for the present application because the agent must search through continuous operating setpoints during training, while still learning a policy that can be evaluated quickly after training.
 
-SAC follows the maximum-entropy reinforcement-learning framework. In addition to maximizing expected return, it encourages high policy entropy, meaning that the policy is rewarded for maintaining exploration where multiple actions may be useful. The objective can be interpreted as maximizing both reward and stochasticity:
+In standard RL, the policy is usually trained to maximize expected return. SAC adds an entropy term to this objective. Intuitively, this means that the policy is encouraged to keep exploring when several actions appear useful, instead of becoming too deterministic too early. The objective can be interpreted as maximizing both reward and stochasticity:
 \[
 \mathbb{E}_{\pi}\left[\sum_{k=0}^{N-1}\gamma_{\mathrm{RL}}^k
 \left(r(s_k,a_k)+\alpha \mathcal{H}(\pi(\cdot \mid s_k))\right)\right],
 \]
-where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce premature convergence to a narrow action strategy during training.
+where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce the risk that the agent converges too early to a narrow operating strategy.
 
-These properties make SAC a suitable choice for the systems considered in this thesis, where the action spaces are continuous and the agent must learn setpoint policies under time-varying prices, renewable generation, storage dynamics, and operational constraints.
+SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, storage dynamics, and operational constraints.
+
+\subsection{Practical Considerations and Limitations}
+\textcolor{blue}{Summarizes practical limitations of reinforcement learning for constrained energy-system control.}
+
+Although RL is useful for learning control policies, it does not automatically solve all difficulties of constrained energy-system operation. Standard RL algorithms do not guarantee constraint satisfaction in the same way as a constrained optimization solver. Feasibility must therefore be addressed through the environment design, action bounds, penalty terms, or additional safety mechanisms.
+
+The quality of an RL policy also depends on the reward design, state representation, training data, and hyperparameter choices. A policy trained in simulation may learn behavior that works well in the simulated environment but performs less reliably if the real system differs from that simulation. For this reason, the learned policies in this thesis are evaluated against mathematical optimization benchmarks. The comparison is intended to show not only where RL is beneficial, but also where model-based optimization remains more reliable.
 
 \section{Use Cases}
 \textcolor{blue}{Describes the two systems considered in this thesis and their operational challenges.}
