@@ -79,10 +79,15 @@ class SteamEnv(gym.Env):
         lambda_mode=5.0, # penalty for invalid bypass/mode behavior
         lambda_bound=20.0, # penalty for storage temperature bound violations
         lambda_terminal=2.0, # penalty for ending away from cyclic terminal target
-        lambda_coupling=0.1, # penalty for F4/F5 coupling residuals
+        lambda_coupling=10, # penalty for F4/F5 coupling residuals
         lambda_comp=1e-4, # penalty for simultaneous charging and discharging
         lambda_grid=10.0, # penalty for grid power bound violations
         eps_comp=1.0e-6, # small tolerance for the Qch*Qdch complementarity constraint
+        Q_flow_max=5000.0, # Qch/Qdch upper bound from the NLP model
+        hard_bypass=True, # repair beta1/beta2 so beta1 + beta2 >= 1
+        hard_complementarity=True, # repair beta1/beta2 so charge and discharge do not happen together
+        hard_flow_bounds=True, # repair beta1/beta2 so Qch/Qdch stay in [0, Q_flow_max]
+        hard_storage_bounds=True, # repair beta1/beta2 so storage temperature remains inside bounds
         enforce_cyclic_boundary=True, # enforce final storage temperature to return to the initial value
         debug_reward_terms=True, # print reward term breakdown at each step
     ):
@@ -122,6 +127,11 @@ class SteamEnv(gym.Env):
         self.lambda_comp = float(lambda_comp)
         self.lambda_grid = float(lambda_grid)
         self.eps_comp = float(eps_comp)
+        self.Q_flow_max = float(Q_flow_max)
+        self.hard_bypass = bool(hard_bypass)
+        self.hard_complementarity = bool(hard_complementarity)
+        self.hard_flow_bounds = bool(hard_flow_bounds)
+        self.hard_storage_bounds = bool(hard_storage_bounds)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
         self.debug_reward_terms = bool(debug_reward_terms)
 
@@ -242,13 +252,44 @@ class SteamEnv(gym.Env):
 
     def step(self, action):
         # a_k = [beta1_k, beta2_k, R_k, m_I_k, T_I_k]
-        beta1_k = float(np.clip(action[0], 0.0, 1.0))
-        beta2_k = float(np.clip(action[1], 0.0, 1.0))
+        action = np.asarray(action, dtype=np.float32)
+        beta1_raw = float(action[0])
+        beta2_raw = float(action[1])
+        R_raw = float(action[2])
+        m_I_raw = float(action[3])
+        T_I_raw = float(action[4])
+
+        beta1_k = float(np.clip(beta1_raw, 0.0, 1.0))
+        beta2_k = float(np.clip(beta2_raw, 0.0, 1.0))
         # C 15 (bounds)
-        R_k = float(np.clip(action[2], 0.8, 1.53))  
-        m_I_k = float(np.clip(action[3], 5.0, 16.0))
-        T_I_k = float(np.clip(action[4], 177.0, 250.0))
+        R_k = float(np.clip(R_raw, 0.8, 1.53))
+        m_I_k = float(np.clip(m_I_raw, 5.0, 16.0))
+        T_I_k = float(np.clip(T_I_raw, 177.0, 250.0))
         T_III_k = self.T_III_k  # fixed
+        action_repaired = False
+        repair_reasons = []
+
+        def mark_repair(reason):
+            nonlocal action_repaired
+            action_repaired = True
+            if reason not in repair_reasons:
+                repair_reasons.append(reason)
+
+        if (
+            abs(beta1_raw - beta1_k) > 1e-9
+            or abs(beta2_raw - beta2_k) > 1e-9
+            or abs(R_raw - R_k) > 1e-9
+            or abs(m_I_raw - m_I_k) > 1e-9
+            or abs(T_I_raw - T_I_k) > 1e-9
+        ):
+            mark_repair("action_bounds")
+
+        bypass_sum_violation_unrepaired_k = max(1.0 - (beta1_k + beta2_k), 0.0)
+        if self.hard_bypass and bypass_sum_violation_unrepaired_k > 1e-9:
+            beta_deficit = bypass_sum_violation_unrepaired_k
+            beta1_k = float(min(1.0, beta1_k + 0.5 * beta_deficit))
+            beta2_k = float(min(1.0, beta2_k + 0.5 * beta_deficit))
+            mark_repair("bypass_sum")
 
         k = self.k
         g_grid_k = float(self.g_grid[k])
@@ -280,10 +321,79 @@ class SteamEnv(gym.Env):
         # F9: T_4_k = T_3_k - epsilon_dch * (T_3_k - T_s_(k-1))
         T_4_k = T_3_k - self.epsilon_dch * (T_3_k - T_0_k)
 
+        q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
+        q_dch_base_k = (T_4_k - T_3_k) * m_I_k * 3 * self.c_p_f
+
+        def calc_flows(beta1, beta2):
+            # F6/F7 after any hard-constraint repair of the bypass variables.
+            q_ch = q_ch_base_k * (1.0 - beta1)
+            q_dch = q_dch_base_k * (1.0 - beta2)
+            return float(q_ch), float(q_dch)
+
+        if self.hard_flow_bounds:
+            if q_ch_base_k <= 0.0 and beta1_k < 1.0:
+                beta1_k = 1.0
+                mark_repair("qch_lower_bound")
+            elif q_ch_base_k > 0.0:
+                q_ch_trial = q_ch_base_k * (1.0 - beta1_k)
+                if q_ch_trial > self.Q_flow_max:
+                    beta1_k = float(max(beta1_k, 1.0 - self.Q_flow_max / q_ch_base_k))
+                    beta1_k = float(np.clip(beta1_k, 0.0, 1.0))
+                    mark_repair("qch_upper_bound")
+
+            if q_dch_base_k <= 0.0 and beta2_k < 1.0:
+                beta2_k = 1.0
+                mark_repair("qdch_lower_bound")
+            elif q_dch_base_k > 0.0:
+                q_dch_trial = q_dch_base_k * (1.0 - beta2_k)
+                if q_dch_trial > self.Q_flow_max:
+                    beta2_k = float(max(beta2_k, 1.0 - self.Q_flow_max / q_dch_base_k))
+                    beta2_k = float(np.clip(beta2_k, 0.0, 1.0))
+                    mark_repair("qdch_upper_bound")
+
+        Q_s_ch_k, Q_s_dch_k = calc_flows(beta1_k, beta2_k)
+        charge_discharge_product_unrepaired_k = Q_s_ch_k * Q_s_dch_k
+        complementarity_violation_unrepaired_k = max(
+            charge_discharge_product_unrepaired_k - self.eps_comp,
+            0.0,
+        )
+
+        if (
+            self.hard_complementarity
+            and Q_s_ch_k > 1e-9
+            and Q_s_dch_k > 1e-9
+            and complementarity_violation_unrepaired_k > 0.0
+        ):
+            if Q_s_ch_k <= Q_s_dch_k:
+                beta1_k = 1.0
+                mark_repair("complementarity_qch_zeroed")
+            else:
+                beta2_k = 1.0
+                mark_repair("complementarity_qdch_zeroed")
+            Q_s_ch_k, Q_s_dch_k = calc_flows(beta1_k, beta2_k)
+
+        storage_factor_k = self.Delta_t / max(self.m_s * self.c_p_s, 1e-6)
+        T_s_next_unrepaired_k = T_0_k + (Q_s_ch_k - Q_s_dch_k) * storage_factor_k
+
+        if self.hard_storage_bounds:
+            if T_s_next_unrepaired_k > self.T_s_max + 1e-9 and q_ch_base_k > 0.0:
+                allowed_q_ch = Q_s_dch_k + (self.T_s_max - T_0_k) / storage_factor_k
+                allowed_q_ch = max(0.0, allowed_q_ch)
+                beta1_required = 1.0 - allowed_q_ch / q_ch_base_k
+                if beta1_required > beta1_k:
+                    beta1_k = float(np.clip(beta1_required, 0.0, 1.0))
+                    mark_repair("storage_upper_bound")
+            elif T_s_next_unrepaired_k < self.T_s_min - 1e-9 and q_dch_base_k > 0.0:
+                allowed_q_dch = Q_s_ch_k + (T_0_k - self.T_s_min) / storage_factor_k
+                allowed_q_dch = max(0.0, allowed_q_dch)
+                beta2_required = 1.0 - allowed_q_dch / q_dch_base_k
+                if beta2_required > beta2_k:
+                    beta2_k = float(np.clip(beta2_required, 0.0, 1.0))
+                    mark_repair("storage_lower_bound")
+
         # F6: Q_s_ch_k = 3 * m_II_k * c_p_f * (T_II_k - T_1_k) * (1 - beta1_k)
-        Q_s_ch_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f * (1.0 - beta1_k)
         # F7: Q_s_dch_k = 3 * m_I_k * c_p_f * (T_4_k - T_3_k) * (1 - beta2_k)
-        Q_s_dch_k = (T_4_k - T_3_k) * m_I_k * 3 * self.c_p_f * (1.0 - beta2_k)
+        Q_s_ch_k, Q_s_dch_k = calc_flows(beta1_k, beta2_k)
 
         # F4: T_2_k = T_II_k * beta1_k + T_1_k * (1 - beta1_k)
         # F5: T_I_k = T_3_k * beta2_k + T_4_k * (1 - beta2_k)
@@ -294,6 +404,16 @@ class SteamEnv(gym.Env):
         charge_discharge_product_k = Q_s_ch_k * Q_s_dch_k
         # F11: Qch * Qdch <= EPS
         complementarity_violation_k = max(charge_discharge_product_k - self.eps_comp, 0.0)
+        q_ch_lower_violation_k = max(-Q_s_ch_k, 0.0)
+        q_dch_lower_violation_k = max(-Q_s_dch_k, 0.0)
+        q_ch_upper_violation_k = max(Q_s_ch_k - self.Q_flow_max, 0.0)
+        q_dch_upper_violation_k = max(Q_s_dch_k - self.Q_flow_max, 0.0)
+        flow_bound_violation_k = (
+            q_ch_lower_violation_k
+            + q_dch_lower_violation_k
+            + q_ch_upper_violation_k
+            + q_dch_upper_violation_k
+        )
 
         # Diagnostic mode only (for observation hint)
         if Q_s_ch_k > 1e-9 and Q_s_dch_k <= 1e-9:
@@ -316,7 +436,7 @@ class SteamEnv(gym.Env):
         grid_bound_violation_k = grid_lower_violation_k + grid_upper_violation_k
 
         # Storage update (explicit Euler step)
-        T_s_next = T_0_k + (Q_s_ch_k - Q_s_dch_k) * self.Delta_t / max(self.m_s * self.c_p_s, 1e-6)
+        T_s_next = T_0_k + (Q_s_ch_k - Q_s_dch_k) * storage_factor_k
 
         # F14: T_s_n = T_s_0 (soft cyclic penalty)
         lower_violation_k = max(self.T_s_min - T_s_next, 0.0)
@@ -339,18 +459,6 @@ class SteamEnv(gym.Env):
         reward_k -= penalty_comp_k
         reward_k -= penalty_grid_k
 
-        if self.debug_reward_terms:
-            print(
-                "reward_terms | "
-                f"k={k} "
-                f"cost_grid={cost_grid_k:.6f} "
-                f"pen_mode={penalty_mode_k:.6f} "
-                f"pen_bound={penalty_bound_k:.6f} "
-                f"pen_coupling={penalty_coupling_k:.6f} "
-                f"pen_comp={penalty_comp_k:.6f} "
-                f"pen_grid={penalty_grid_k:.6f} "
-                f"reward={reward_k:.6f}"
-            )
 
         self.k += 1
         terminated = self.k >= self.K
@@ -368,12 +476,21 @@ class SteamEnv(gym.Env):
 
         self._last_mode = mode_k
         info = {
+            "action_repaired": action_repaired,
+            "repair_reasons": tuple(repair_reasons),
+            "beta1_raw": beta1_raw,
+            "beta2_raw": beta2_raw,
+            "R_raw": R_raw,
+            "m_I_raw": m_I_raw,
+            "T_I_raw": T_I_raw,
             "beta1_k": beta1_k,
             "beta2_k": beta2_k,
             "R_k": R_k,
             "m_I_k": m_I_k,
             "T_I_k": T_I_k,
             "T_s_k": self.T_s_k,
+            "T_s_next_unclipped_k": T_s_next,
+            "T_s_next_before_storage_repair_k": T_s_next_unrepaired_k,
             "T_1_k": T_1_k,
             "T_2_k": T_2_k,
             "T_3_k": T_3_k,
@@ -381,13 +498,24 @@ class SteamEnv(gym.Env):
             "T_0_k": T_0_k,
             "T_SG_out": float(T_SG_out),
             "T_II_k": T_II_k,
+            "q_ch_base_k": q_ch_base_k,
+            "q_dch_base_k": q_dch_base_k,
             "Q_s_ch_k": Q_s_ch_k,
             "Q_s_dch_k": Q_s_dch_k,
+            "Q_flow_max": self.Q_flow_max,
             "charge_discharge_product_k": charge_discharge_product_k,
+            "charge_discharge_product_before_complementarity_repair_k": charge_discharge_product_unrepaired_k,
             "f4_residual_k": f4_residual_k,
             "f5_residual_k": f5_residual_k,
             "bypass_sum_violation_k": bypass_sum_violation_k,
+            "bypass_sum_violation_unrepaired_k": bypass_sum_violation_unrepaired_k,
             "complementarity_violation_k": complementarity_violation_k,
+            "complementarity_violation_unrepaired_k": complementarity_violation_unrepaired_k,
+            "q_ch_lower_violation_k": q_ch_lower_violation_k,
+            "q_dch_lower_violation_k": q_dch_lower_violation_k,
+            "q_ch_upper_violation_k": q_ch_upper_violation_k,
+            "q_dch_upper_violation_k": q_dch_upper_violation_k,
+            "flow_bound_violation_k": flow_bound_violation_k,
             "P_HP_k": P_HP_k,
             "P_grid_k": P_grid_k,
             "P_WT_k": P_WT_k,
@@ -399,6 +527,10 @@ class SteamEnv(gym.Env):
             "mode_k": mode_k,
             "mode_violation_k": mode_violation_k,
             "state_violation_k": state_violation_k,
+            "hard_bypass": self.hard_bypass,
+            "hard_complementarity": self.hard_complementarity,
+            "hard_flow_bounds": self.hard_flow_bounds,
+            "hard_storage_bounds": self.hard_storage_bounds,
             "cost_grid_k": cost_grid_k,
             "penalty_mode_k": penalty_mode_k,
             "penalty_bound_k": penalty_bound_k,
