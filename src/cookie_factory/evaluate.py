@@ -3,6 +3,9 @@ Evaluation script for Cookie Factory SAC model.
 Runs deterministic (greedy) rollouts and collects metrics.
 """
 
+# Run with all parameters:
+# python -m src.cookie_factory.evaluate --model-path src/cookie_factory/cookie_sac_model --data cookie_model/WKA_Pe_merged.csv --num-episodes 10 --window-len 24 --forecast-h 24 --stochastic --seed 42 --output-dir results/eval --price-col Pe --wind-col WKA --first-24
+
 from __future__ import annotations
 
 import argparse
@@ -20,6 +23,82 @@ from src.cookie_factory.train import load_cookie_data
 DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 DEFAULT_VECNORM_PATH = "src/cookie_factory/cookie_sac_model_vecnormalize.pkl"
+FIRST_24_ROWS = 24
+
+
+def load_first_24_cookie_data(
+    data_path: str = DEFAULT_DATA_PATH,
+    price_col: str = "Pe",
+    wind_col: str = "WKA",
+) -> tuple[np.ndarray, np.ndarray, float, float]:
+    """Load the same first 24 WKA/Pe rows used by cookie_optimization.py."""
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Could not find dataset: {data_path}")
+
+    if data_path.lower().endswith(".csv"):
+        df = pd.read_csv(data_path, sep=None, engine="python", nrows=FIRST_24_ROWS)
+    else:
+        df = pd.read_excel(data_path, nrows=FIRST_24_ROWS)
+
+    if price_col not in df.columns or wind_col not in df.columns:
+        raise ValueError(f"Dataset must contain columns '{price_col}' and '{wind_col}'")
+    if len(df) < FIRST_24_ROWS:
+        raise ValueError(f"Dataset must contain at least {FIRST_24_ROWS} rows")
+
+    g_grid = pd.to_numeric(df[price_col], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    P_WT = pd.to_numeric(df[wind_col], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+
+    price_scale = float(np.percentile(np.abs(g_grid), 95) + 1e-6)
+    wind_scale = float(np.percentile(np.abs(P_WT), 95) + 1e-6)
+
+    print(f"Loaded first {FIRST_24_ROWS} timesteps from {data_path}")
+    print(f"price_scale (95th pct): {price_scale:.4f}")
+    print(f"wind_scale  (95th pct): {wind_scale:.4f}")
+
+    return g_grid, P_WT, price_scale, wind_scale
+
+
+def evaluate_first_24_data(
+    model_path: str = DEFAULT_MODEL_PATH,
+    data_path: str = DEFAULT_DATA_PATH,
+    price_col: str = "Pe",
+    wind_col: str = "WKA",
+    forecast_h: int = 24,
+    deterministic: bool = True,
+    seed: int = 42,
+    env_kwargs: dict[str, Any] | None = None,
+    vecnormalize_path: str | None = None,
+) -> tuple[dict, pd.DataFrame]:
+    """Evaluate one episode on the first 24 rows of WKA_Pe_merged.csv and print it."""
+    if vecnormalize_path is None:
+        vecnormalize_path = f"{model_path}_vecnormalize.pkl"
+
+    g_grid, P_WT, price_scale, wind_scale = load_first_24_cookie_data(
+        data_path=data_path,
+        price_col=price_col,
+        wind_col=wind_col,
+    )
+
+    episode_stats, trajectories = evaluate_model(
+        model_path=model_path,
+        g_grid_full=g_grid,
+        P_WT_full=P_WT,
+        price_scale=price_scale,
+        wind_scale=wind_scale,
+        num_episodes=1,
+        window_len=FIRST_24_ROWS,
+        forecast_h=forecast_h,
+        deterministic=deterministic,
+        seed=seed,
+        env_kwargs=env_kwargs,
+        vecnormalize_path=vecnormalize_path,
+    )
+
+    result = episode_stats[0]
+    print("\nFirst 24-row evaluation result:")
+    print(pd.DataFrame([result]).to_string(index=False))
+
+    return result, trajectories
 
 
 def evaluate_model(
@@ -213,11 +292,25 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="results/eval", help="Where to save results")
     parser.add_argument("--price-col", type=str, default="Pe", help="Column name for grid price")
     parser.add_argument("--wind-col", type=str, default="WKA", help="Column name for wind power")
+    parser.add_argument("--first-24", action="store_true", help="Evaluate exactly the first 24 rows of the dataset")
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+
+    if args.first_24:
+        evaluate_first_24_data(
+            model_path=args.model_path,
+            data_path=args.data,
+            price_col=args.price_col,
+            wind_col=args.wind_col,
+            forecast_h=args.forecast_h,
+            deterministic=not args.stochastic,
+            seed=args.seed,
+            vecnormalize_path=f"{args.model_path}_vecnormalize.pkl",
+        )
+        return
 
     g_grid_full, P_WT_full, price_scale, wind_scale = load_cookie_data(
         data_path=args.data,
