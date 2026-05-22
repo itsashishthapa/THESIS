@@ -9,26 +9,26 @@ Created on Mon Jan 30 15:21:03 2023
 # HTHP-based (surrogate-based model) Keksfabrik combined with sensible thermal storage (physical model) and evaporator (surrogate-based model)
 # thermal storage - without binary variable (charge/discharge via complementarity condition)
 # time step: dt=3600 --> 1h
-# data (price, wind power) import from "data_24h_xx_xx.xlsx" file
+# data (price, wind power) import from "WKA_Pe_merged.csv" file
 
 from pyomo.environ import *
 import random
 import sys
 import numpy as np
 import math
+from pathlib import Path
 from pandas import DataFrame
 import pandas as pd
 import timeit
 
 # read input data
 ###################################################
-#df = pd.read_excel('data_24h_12_04.xlsx', sheet_name='Tabelle1')
-df = pd.read_excel('data_24h_test.xlsx', sheet_name='Tabelle1')
-DF=df.to_numpy()
+input_file = Path(__file__).with_name('WKA_Pe_merged.csv')
+df = pd.read_csv(input_file, nrows=24)
 
-dataSize=len(DF)
-power_price = np.zeros(dataSize) 
-power_WKA = np.zeros(dataSize) 
+dataSize=len(df)
+power_price = df['Pe'].to_numpy(dtype=float)
+power_WKA = df['WKA'].to_numpy(dtype=float)
 
 # loop over k random-based start initialization
 k=10
@@ -41,12 +41,7 @@ start = timeit.default_timer() # starts the timer
 while counter < k:
  
     model = ConcreteModel()
-    
-    for i in range(dataSize):
-        power_price[i]=DF[i][2]
-        power_WKA[i]=DF[i][1]
-        
-        
+
     # definition: parameter
     ###################################################
     model.Time = RangeSet(0, dataSize-1)
