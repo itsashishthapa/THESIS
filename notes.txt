@@ -21,3 +21,7 @@ Feedbacks:
 # take data from dwd (wind speed)(extrapolate to wind power)(location:hoyerswerda)
 # smard for electricity price.(location:germany)
 
+# wind_models.py- vestas_150 method., extrapolate 10 m to  166 m- log_extrap method.
+# battery case- test other reward functions.
+# prepare dataset for hybrid modeling,
+# GP- cokrigings.
