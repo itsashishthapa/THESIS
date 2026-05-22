@@ -2,6 +2,9 @@
 Training script for Cookie Factory (SteamEnv) using SAC.
 """
 
+# Run with all parameters:
+# python -m src.cookie_factory.train --data cookie_model/WKA_Pe_merged.csv --model-path src/cookie_factory/cookie_sac_model --log-dir logs/cookie_factory --timesteps 20000 --window-len 24 --forecast-h 24 --no-cyclic-boundary --price-col Pe --wind-col WKA --seed 42
+
 from __future__ import annotations
 
 import argparse
@@ -162,7 +165,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--data", default=DEFAULT_DATA_PATH, help="Path to CSV or Excel dataset")
     parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH, help="Where to save the model")
     parser.add_argument("--log-dir", default="logs/cookie_factory", help="TensorBoard/log directory")
-    parser.add_argument("--timesteps", type=int, default=200_000, help="Total SAC training steps")
+    parser.add_argument("--timesteps", type=int, default=20_000, help="Total SAC training steps")
     parser.add_argument("--window-len", type=int, default=24, help="Random training window length")
     parser.add_argument("--forecast-h", type=int, default=24, help="Forecast horizon in env")
     parser.add_argument("--no-cyclic-boundary", action="store_true", help="Disable cyclic terminal boundary (F14) penalty in env")
