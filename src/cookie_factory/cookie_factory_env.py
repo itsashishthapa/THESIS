@@ -88,6 +88,7 @@ class SteamEnv(gym.Env):
         hard_complementarity=True, # repair beta1/beta2 so charge and discharge do not happen together
         hard_flow_bounds=True, # repair beta1/beta2 so Qch/Qdch stay in [0, Q_flow_max]
         hard_storage_bounds=True, # repair beta1/beta2 so storage temperature remains inside bounds
+        hard_f5_coupling=True, # compute T_I from F5 instead of trusting the raw T_I action
         enforce_cyclic_boundary=True, # enforce final storage temperature to return to the initial value
         debug_reward_terms=True, # print reward term breakdown at each step
     ):
@@ -132,6 +133,7 @@ class SteamEnv(gym.Env):
         self.hard_complementarity = bool(hard_complementarity)
         self.hard_flow_bounds = bool(hard_flow_bounds)
         self.hard_storage_bounds = bool(hard_storage_bounds)
+        self.hard_f5_coupling = bool(hard_f5_coupling)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
         self.debug_reward_terms = bool(debug_reward_terms)
 
@@ -295,31 +297,63 @@ class SteamEnv(gym.Env):
         g_grid_k = float(self.g_grid[k])
         P_WT_k = float(self.P_WT[k])
 
-        # F1-F3: HTHP surrogate
+        # Initialize states/flows
+        # F14: T_s_0 = T_tilde_0 and cyclic terminal condition is handled via terminal penalty
+        T_0_k = self.T_s_k  # previous storage temperature
+
+        # F12-F13: Steam generator surrogate. This surrogate depends on m_I_k only.
+        T_SG_in, T_SG_out = self._SG_surrogate(T_in_SG_k=0.0, m_I_k=m_I_k)
+
+        # NLP variable mapping from cookie_model/mapping.py:
+        # model.T2  -> T_1_k  (F8)
+        # model.T3  -> T_2_k  (F13 / F4 residual check)
+        # model.T4  -> T_3_k  (F12)
+        # model.T5  -> T_4_k  (F9)
+        T_2_k = T_SG_in
+        T_3_k = float(T_SG_out)
+        # F9: T_4_k = T_3_k - epsilon_dch * (T_3_k - T_s_(k-1))
+        T_4_k = T_3_k - self.epsilon_dch * (T_3_k - T_0_k)
+        T_I_before_f5_repair_k = T_I_k
+
+        def f5_implied_T_I(beta2):
+            return float(T_3_k * beta2 + T_4_k * (1.0 - beta2))
+
+        def repair_beta2_for_f5_bounds(beta2):
+            T_I_from_f5 = f5_implied_T_I(beta2)
+            if 177.0 <= T_I_from_f5 <= 250.0:
+                return float(beta2)
+
+            denominator = T_3_k - T_4_k
+            if abs(denominator) <= 1e-9:
+                return float(beta2)
+
+            target_T_I = float(np.clip(T_I_from_f5, 177.0, 250.0))
+            return float(np.clip((target_T_I - T_4_k) / denominator, 0.0, 1.0))
+
+        if self.hard_f5_coupling:
+            beta2_after_f5_bounds = repair_beta2_for_f5_bounds(beta2_k)
+            if abs(beta2_after_f5_bounds - beta2_k) > 1e-9:
+                beta2_k = beta2_after_f5_bounds
+                mark_repair("f5_temperature_bounds")
+
+            bypass_deficit_after_f5 = max(1.0 - (beta1_k + beta2_k), 0.0)
+            if self.hard_bypass and bypass_deficit_after_f5 > 1e-9:
+                beta1_k = float(min(1.0, beta1_k + bypass_deficit_after_f5))
+                mark_repair("bypass_sum_after_f5")
+
+            T_I_k = f5_implied_T_I(beta2_k)
+            if abs(T_I_k - T_I_before_f5_repair_k) > 1e-9:
+                mark_repair("f5_coupling")
+
+        # F1-F3: HTHP surrogate, evaluated with the F5-consistent T_I_k.
         P_HP_k, _, T_II_k = self._HTHP_surrogate(
             T_I_k=T_I_k,
             m_I_k=m_I_k,
             T_III_k=T_III_k,
             R_k=R_k,
         )
-
-        # F12-F13: Steam generator surrogate
-        T_SG_in, T_SG_out = self._SG_surrogate(T_in_SG_k=T_II_k, m_I_k=m_I_k)
-
-        # Initialize states/flows
-        # F14: T_s_0 = T_tilde_0 and cyclic terminal condition is handled via terminal penalty
-        T_0_k = self.T_s_k  # previous storage temperature
-        # NLP variable mapping from cookie_model/mapping.py:
-        # model.T2  -> T_1_k  (F8)
-        # model.T3  -> T_2_k  (F13 / F4 residual check)
-        # model.T4  -> T_3_k  (F12)
-        # model.T5  -> T_4_k  (F9)
         # F8: T_1_k = T_II_k - epsilon_ch * (T_II_k - T_s_(k-1))
         T_1_k = T_II_k - self.epsilon_ch * (T_II_k - T_0_k)
-        T_2_k = T_SG_in
-        T_3_k = float(T_SG_out)
-        # F9: T_4_k = T_3_k - epsilon_dch * (T_3_k - T_s_(k-1))
-        T_4_k = T_3_k - self.epsilon_dch * (T_3_k - T_0_k)
 
         q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
         q_dch_base_k = (T_4_k - T_3_k) * m_I_k * 3 * self.c_p_f
@@ -390,6 +424,30 @@ class SteamEnv(gym.Env):
                 if beta2_required > beta2_k:
                     beta2_k = float(np.clip(beta2_required, 0.0, 1.0))
                     mark_repair("storage_lower_bound")
+
+        if self.hard_f5_coupling:
+            beta2_after_f5_bounds = repair_beta2_for_f5_bounds(beta2_k)
+            if abs(beta2_after_f5_bounds - beta2_k) > 1e-9:
+                beta2_k = beta2_after_f5_bounds
+                mark_repair("f5_temperature_bounds")
+
+            bypass_deficit_after_f5 = max(1.0 - (beta1_k + beta2_k), 0.0)
+            if self.hard_bypass and bypass_deficit_after_f5 > 1e-9:
+                beta1_k = float(min(1.0, beta1_k + bypass_deficit_after_f5))
+                mark_repair("bypass_sum_after_f5")
+
+            T_I_after_mode_repair_k = f5_implied_T_I(beta2_k)
+            if abs(T_I_after_mode_repair_k - T_I_k) > 1e-9:
+                T_I_k = T_I_after_mode_repair_k
+                mark_repair("f5_coupling_after_mode_repair")
+                P_HP_k, _, T_II_k = self._HTHP_surrogate(
+                    T_I_k=T_I_k,
+                    m_I_k=m_I_k,
+                    T_III_k=T_III_k,
+                    R_k=R_k,
+                )
+                T_1_k = T_II_k - self.epsilon_ch * (T_II_k - T_0_k)
+                q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
 
         # F6: Q_s_ch_k = 3 * m_II_k * c_p_f * (T_II_k - T_1_k) * (1 - beta1_k)
         # F7: Q_s_dch_k = 3 * m_I_k * c_p_f * (T_4_k - T_3_k) * (1 - beta2_k)
@@ -488,6 +546,8 @@ class SteamEnv(gym.Env):
             "R_k": R_k,
             "m_I_k": m_I_k,
             "T_I_k": T_I_k,
+            "T_I_before_f5_repair_k": T_I_before_f5_repair_k,
+            "T_I_f5_implied_k": f5_implied_T_I(beta2_k),
             "T_s_k": self.T_s_k,
             "T_s_next_unclipped_k": T_s_next,
             "T_s_next_before_storage_repair_k": T_s_next_unrepaired_k,
@@ -531,6 +591,7 @@ class SteamEnv(gym.Env):
             "hard_complementarity": self.hard_complementarity,
             "hard_flow_bounds": self.hard_flow_bounds,
             "hard_storage_bounds": self.hard_storage_bounds,
+            "hard_f5_coupling": self.hard_f5_coupling,
             "cost_grid_k": cost_grid_k,
             "penalty_mode_k": penalty_mode_k,
             "penalty_bound_k": penalty_bound_k,

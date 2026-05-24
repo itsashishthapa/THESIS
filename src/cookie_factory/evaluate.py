@@ -97,6 +97,36 @@ def evaluate_first_24_data(
     result = episode_stats[0]
     print("\nFirst 24-row evaluation result:")
     print(pd.DataFrame([result]).to_string(index=False))
+    if not trajectories.empty:
+        violation_columns = [
+            "constraint_violation_bypass_post",
+            "constraint_violation_complementarity_post",
+            "constraint_violation_state",
+            "constraint_violation_grid_post",
+            "constraint_violation_coupling",
+        ]
+        violation_summary = trajectories[violation_columns].sum().sort_values(ascending=False).reset_index()
+        violation_summary.columns = ["constraint", "total_violation"]
+        violation_summary["mean_violation_per_step"] = violation_summary["total_violation"] / len(trajectories)
+        print("\nFirst 24-row violation breakdown:")
+        print(violation_summary.to_string(index=False))
+
+        f4_total = trajectories["constraint_violation_f4"].sum()
+        f5_total = trajectories["constraint_violation_f5"].sum()
+        coupling_detail = pd.DataFrame([
+            {
+                "constraint": "constraint_violation_f4",
+                "total_violation": f4_total,
+                "mean_violation_per_step": f4_total / len(trajectories),
+            },
+            {
+                "constraint": "constraint_violation_f5",
+                "total_violation": f5_total,
+                "mean_violation_per_step": f5_total / len(trajectories),
+            },
+        ])
+        print("\nFirst 24-row coupling detail:")
+        print(coupling_detail.to_string(index=False))
 
     return result, trajectories
 
@@ -228,6 +258,8 @@ def evaluate_model(
                 "constraint_violation_complementarity": step_info.get("complementarity_violation_k"),
                 "constraint_violation_state": step_info.get("state_violation_k"),
                 "constraint_violation_grid": step_info.get("grid_bound_violation_k"),
+                "constraint_violation_f4": abs(step_info.get("f4_residual_k", 0.0)),
+                "constraint_violation_f5": abs(step_info.get("f5_residual_k", 0.0)),
                 "constraint_violation_coupling": abs(step_info.get("f4_residual_k", 0.0)) + abs(step_info.get("f5_residual_k", 0.0)),
             })
 
