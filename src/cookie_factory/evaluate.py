@@ -128,6 +128,22 @@ def evaluate_first_24_data(
         print("\nFirst 24-row coupling detail:")
         print(coupling_detail.to_string(index=False))
 
+        f4_infeasible = trajectories.loc[
+            trajectories["f4_projection_feasible"] == False,
+            "f4_infeasible_reasons",
+        ]
+        f4_reason_summary = f4_infeasible.explode().dropna().value_counts().rename_axis("reason").reset_index(name="steps")
+        if not f4_reason_summary.empty:
+            print("\nFirst 24-row F4 infeasibility reasons:")
+            print(f4_reason_summary.to_string(index=False))
+        mode_repairs = trajectories.loc[
+            trajectories["f4_mode_repair_applied"],
+            "f4_mode_candidate",
+        ].value_counts().rename_axis("mode").reset_index(name="steps")
+        if not mode_repairs.empty:
+            print("\nFirst 24-row F4 joint mode repairs:")
+            print(mode_repairs.to_string(index=False))
+
     return result, trajectories
 
 
@@ -190,7 +206,7 @@ def evaluate_model(
 
     def _post_grid_violation(step_info: dict[str, Any]) -> float:
         p_grid = float(step_info.get("P_grid_k", step_info.get("P_grid", 0.0)))
-        p_max = float(step_info.get("P_HP_k", 5000.0))
+        p_max = float(step_info.get("P_grid_max", 5000.0))
         return max(-p_grid, 0.0) + max(p_grid - p_max, 0.0)
 
     for ep in range(num_episodes):
@@ -241,6 +257,12 @@ def evaluate_model(
                 "action_R": step_info.get("R_k"),
                 "action_m_I": step_info.get("m_I_k"),
                 "action_T_I": step_info.get("T_I_k"),
+                "f4_projection_applied": bool(step_info.get("f4_projection_applied_k", False)),
+                "f4_projection_feasible": step_info.get("f4_projection_feasible_k"),
+                "f4_infeasible_reasons": step_info.get("f4_infeasible_reasons_k"),
+                "f4_initial_infeasible_reasons": step_info.get("f4_initial_infeasible_reasons_k"),
+                "f4_mode_repair_applied": bool(step_info.get("f4_mode_repair_applied_k", False)),
+                "f4_mode_candidate": step_info.get("f4_mode_candidate_k"),
                 "reward": float(reward[0]),
                 "cost_grid": step_info.get("cost_grid_k"),
                 "P_grid": step_info.get("P_grid_k"),
@@ -298,6 +320,9 @@ def evaluate_model(
             "charging_steps": (trajectory_df_ep["Q_ch"] > 1e-3).sum(),
             "discharging_steps": (trajectory_df_ep["Q_dch"] > 1e-3).sum(),
             "repair_steps": trajectory_df_ep["action_repaired"].sum(),
+            "f4_projection_steps": trajectory_df_ep["f4_projection_applied"].sum(),
+            "f4_infeasible_steps": (trajectory_df_ep["f4_projection_feasible"] == False).sum(),
+            "f4_mode_repair_steps": trajectory_df_ep["f4_mode_repair_applied"].sum(),
         }
         episode_stats.append(ep_stats)
         

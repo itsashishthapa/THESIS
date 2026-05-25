@@ -89,6 +89,8 @@ class SteamEnv(gym.Env):
         hard_flow_bounds=True, # repair beta1/beta2 so Qch/Qdch stay in [0, Q_flow_max]
         hard_storage_bounds=True, # repair beta1/beta2 so storage temperature remains inside bounds
         hard_f5_coupling=True, # compute T_I from F5 instead of trusting the raw T_I action
+        hard_f4_coupling=True, # project beta1 onto F4 where it is compatible with other hard rules
+        hard_mode_repair=True, # find a jointly feasible charge/discharge candidate when F4 projection conflicts
         enforce_cyclic_boundary=True, # enforce final storage temperature to return to the initial value
         debug_reward_terms=True, # print reward term breakdown at each step
     ):
@@ -134,6 +136,8 @@ class SteamEnv(gym.Env):
         self.hard_flow_bounds = bool(hard_flow_bounds)
         self.hard_storage_bounds = bool(hard_storage_bounds)
         self.hard_f5_coupling = bool(hard_f5_coupling)
+        self.hard_f4_coupling = bool(hard_f4_coupling)
+        self.hard_mode_repair = bool(hard_mode_repair)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
         self.debug_reward_terms = bool(debug_reward_terms)
 
@@ -449,6 +453,239 @@ class SteamEnv(gym.Env):
                 T_1_k = T_II_k - self.epsilon_ch * (T_II_k - T_0_k)
                 q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
 
+        f4_residual_before_repair_k = T_2_k - (
+            T_1_k * (1.0 - beta1_k) + T_II_k * beta1_k
+        )
+        f4_required_beta1_k = np.nan
+        f4_projection_applied_k = False
+        f4_projection_feasible_k = None
+        f4_infeasible_reasons_k = ()
+
+        if self.hard_f4_coupling:
+            f4_denominator_k = T_II_k - T_1_k
+            f4_failures = []
+            if abs(f4_denominator_k) <= 1e-9:
+                if abs(f4_residual_before_repair_k) <= 1e-9:
+                    f4_projection_feasible_k = True
+                else:
+                    f4_projection_feasible_k = False
+                    f4_failures.append("zero_denominator")
+            else:
+                f4_required_beta1_k = float((T_2_k - T_1_k) / f4_denominator_k)
+                if not -1e-9 <= f4_required_beta1_k <= 1.0 + 1e-9:
+                    f4_failures.append("beta1_bounds")
+                else:
+                    beta1_candidate = float(np.clip(f4_required_beta1_k, 0.0, 1.0))
+                    q_ch_candidate, q_dch_candidate = calc_flows(beta1_candidate, beta2_k)
+                    T_s_candidate = T_0_k + (
+                        q_ch_candidate - q_dch_candidate
+                    ) * storage_factor_k
+
+                    if self.hard_bypass and beta1_candidate + beta2_k < 1.0 - 1e-9:
+                        f4_failures.append("bypass_sum")
+                    if self.hard_flow_bounds and (
+                        q_ch_candidate < -1e-9
+                        or q_dch_candidate < -1e-9
+                        or q_ch_candidate > self.Q_flow_max + 1e-9
+                        or q_dch_candidate > self.Q_flow_max + 1e-9
+                    ):
+                        f4_failures.append("flow_bounds")
+                    if (
+                        self.hard_complementarity
+                        and q_ch_candidate * q_dch_candidate > self.eps_comp + 1e-9
+                    ):
+                        f4_failures.append("complementarity")
+                    if self.hard_storage_bounds and (
+                        T_s_candidate < self.T_s_min - 1e-9
+                        or T_s_candidate > self.T_s_max + 1e-9
+                    ):
+                        f4_failures.append("storage_bounds")
+
+                    if not f4_failures:
+                        f4_projection_feasible_k = True
+                        if abs(beta1_candidate - beta1_k) > 1e-9:
+                            beta1_k = beta1_candidate
+                            f4_projection_applied_k = True
+                            mark_repair("f4_coupling")
+
+                if f4_failures:
+                    f4_projection_feasible_k = False
+
+            f4_infeasible_reasons_k = tuple(f4_failures)
+
+        f4_initial_infeasible_reasons_k = f4_infeasible_reasons_k
+        f4_mode_repair_applied_k = False
+        f4_mode_candidate_k = None
+        f4_mode_candidate_score_k = np.nan
+
+        if (
+            self.hard_mode_repair
+            and self.hard_f4_coupling
+            and self.hard_f5_coupling
+            and f4_projection_feasible_k is False
+        ):
+            beta1_policy_k = float(np.clip(beta1_raw, 0.0, 1.0))
+            beta2_policy_k = float(np.clip(beta2_raw, 0.0, 1.0))
+            R_policy_k = float(np.clip(R_raw, 0.8, 1.53))
+            mode_candidates = []
+
+            def evaluate_mode_candidate(beta1, beta2, R_value):
+                candidate_T_I = f5_implied_T_I(beta2)
+                candidate_P_HP, _, candidate_T_II = self._HTHP_surrogate(
+                    T_I_k=candidate_T_I,
+                    m_I_k=m_I_k,
+                    T_III_k=T_III_k,
+                    R_k=R_value,
+                )
+                candidate_T_1 = candidate_T_II - self.epsilon_ch * (candidate_T_II - T_0_k)
+                candidate_q_ch_base = (
+                    (candidate_T_II - candidate_T_1) * m_I_k * 3 * self.c_p_f
+                )
+                candidate_q_ch = candidate_q_ch_base * (1.0 - beta1)
+                candidate_q_dch = q_dch_base_k * (1.0 - beta2)
+                candidate_T_s = T_0_k + (
+                    candidate_q_ch - candidate_q_dch
+                ) * storage_factor_k
+                candidate_f4 = T_2_k - (
+                    candidate_T_1 * (1.0 - beta1) + candidate_T_II * beta1
+                )
+                candidate_failures = []
+
+                if not 177.0 - 1e-9 <= candidate_T_I <= 250.0 + 1e-9:
+                    candidate_failures.append("T_I_bounds")
+                if abs(candidate_f4) > 1e-6:
+                    candidate_failures.append("f4_residual")
+                if self.hard_bypass and beta1 + beta2 < 1.0 - 1e-9:
+                    candidate_failures.append("bypass_sum")
+                if self.hard_flow_bounds and (
+                    candidate_q_ch < -1e-9
+                    or candidate_q_dch < -1e-9
+                    or candidate_q_ch > self.Q_flow_max + 1e-9
+                    or candidate_q_dch > self.Q_flow_max + 1e-9
+                ):
+                    candidate_failures.append("flow_bounds")
+                if (
+                    self.hard_complementarity
+                    and candidate_q_ch * candidate_q_dch > self.eps_comp + 1e-9
+                ):
+                    candidate_failures.append("complementarity")
+                if self.hard_storage_bounds and (
+                    candidate_T_s < self.T_s_min - 1e-9
+                    or candidate_T_s > self.T_s_max + 1e-9
+                ):
+                    candidate_failures.append("storage_bounds")
+                if candidate_failures:
+                    return None
+
+                if candidate_q_ch > 1e-9:
+                    candidate_mode = "charge"
+                elif candidate_q_dch > 1e-9:
+                    candidate_mode = "discharge"
+                else:
+                    candidate_mode = "idle"
+                candidate_score = (
+                    (beta1 - beta1_policy_k) ** 2
+                    + (beta2 - beta2_policy_k) ** 2
+                    + ((R_value - R_policy_k) / (1.53 - 0.8)) ** 2
+                )
+                return {
+                    "beta1": float(beta1),
+                    "beta2": float(beta2),
+                    "R": float(R_value),
+                    "T_I": float(candidate_T_I),
+                    "P_HP": float(candidate_P_HP),
+                    "T_II": float(candidate_T_II),
+                    "T_1": float(candidate_T_1),
+                    "q_ch_base": float(candidate_q_ch_base),
+                    "mode": candidate_mode,
+                    "score": float(candidate_score),
+                }
+
+            # Charge candidate: F5 fixes beta2=1; scan R and solve F4 for beta1.
+            candidate_R_values = np.unique(
+                np.concatenate(([R_policy_k], np.linspace(0.8, 1.53, 11)))
+            )
+            for candidate_R in candidate_R_values:
+                candidate_T_I = f5_implied_T_I(1.0)
+                _, _, candidate_T_II = self._HTHP_surrogate(
+                    T_I_k=candidate_T_I,
+                    m_I_k=m_I_k,
+                    T_III_k=T_III_k,
+                    R_k=candidate_R,
+                )
+                candidate_T_1 = candidate_T_II - self.epsilon_ch * (candidate_T_II - T_0_k)
+                f4_denominator = candidate_T_II - candidate_T_1
+                if abs(f4_denominator) <= 1e-9:
+                    continue
+                candidate_beta1 = (T_2_k - candidate_T_1) / f4_denominator
+                if -1e-9 <= candidate_beta1 <= 1.0 + 1e-9:
+                    candidate = evaluate_mode_candidate(
+                        float(np.clip(candidate_beta1, 0.0, 1.0)),
+                        1.0,
+                        float(candidate_R),
+                    )
+                    if candidate is not None:
+                        mode_candidates.append(candidate)
+
+            # Discharge/idle candidate: beta1=1, solve T_II == T_2 by adjusting R.
+            candidate_beta2_values = np.unique(
+                np.concatenate(([beta2_policy_k, beta2_k], np.linspace(0.0, 1.0, 5)))
+            )
+            for candidate_beta2 in candidate_beta2_values:
+                candidate_T_I = f5_implied_T_I(float(candidate_beta2))
+                if not 177.0 - 1e-9 <= candidate_T_I <= 250.0 + 1e-9:
+                    continue
+                c0 = (
+                    95.9612 + 0.93433 * candidate_T_I - 0.327753 * m_I_k
+                    + 0.0146542 * T_III_k + 0.00104853 * candidate_T_I**2
+                    + 0.0211819 * candidate_T_I * m_I_k + 1.04924 * m_I_k**2
+                    - 0.00388073 * m_I_k * T_III_k
+                    - 0.00148575 * candidate_T_I * m_I_k**2
+                    - 0.0405702 * m_I_k**3 - T_2_k
+                )
+                c1 = (
+                    -271.354 - 0.706122 * candidate_T_I - 29.4801 * m_I_k
+                    + 0.0595068 * T_III_k - 0.000716825 * candidate_T_I**2
+                    + 0.0229386 * candidate_T_I * m_I_k + 0.881391 * m_I_k**2
+                )
+                c2 = 562.428 + 0.203578 * candidate_T_I - 2.18172 * m_I_k
+                roots = np.roots([-151.476, c2, c1, c0])
+                for root in roots:
+                    if abs(root.imag) > 1e-7:
+                        continue
+                    candidate_R = float(root.real)
+                    if not 0.8 - 1e-9 <= candidate_R <= 1.53 + 1e-9:
+                        continue
+                    candidate = evaluate_mode_candidate(
+                        1.0,
+                        float(candidate_beta2),
+                        float(np.clip(candidate_R, 0.8, 1.53)),
+                    )
+                    if candidate is not None:
+                        mode_candidates.append(candidate)
+
+            if mode_candidates:
+                selected = min(mode_candidates, key=lambda candidate: candidate["score"])
+                beta1_k = selected["beta1"]
+                beta2_k = selected["beta2"]
+                R_k = selected["R"]
+                T_I_k = selected["T_I"]
+                P_HP_k = selected["P_HP"]
+                T_II_k = selected["T_II"]
+                T_1_k = selected["T_1"]
+                q_ch_base_k = selected["q_ch_base"]
+                f4_projection_applied_k = True
+                f4_projection_feasible_k = True
+                f4_infeasible_reasons_k = ()
+                f4_mode_repair_applied_k = True
+                f4_mode_candidate_k = selected["mode"]
+                f4_mode_candidate_score_k = selected["score"]
+                mark_repair(f"f4_mode_{selected['mode']}")
+            else:
+                f4_infeasible_reasons_k = tuple(
+                    list(f4_infeasible_reasons_k) + ["no_joint_mode_candidate"]
+                )
+
         # F6: Q_s_ch_k = 3 * m_II_k * c_p_f * (T_II_k - T_1_k) * (1 - beta1_k)
         # F7: Q_s_dch_k = 3 * m_I_k * c_p_f * (T_4_k - T_3_k) * (1 - beta2_k)
         Q_s_ch_k, Q_s_dch_k = calc_flows(beta1_k, beta2_k)
@@ -566,6 +803,15 @@ class SteamEnv(gym.Env):
             "charge_discharge_product_k": charge_discharge_product_k,
             "charge_discharge_product_before_complementarity_repair_k": charge_discharge_product_unrepaired_k,
             "f4_residual_k": f4_residual_k,
+            "f4_residual_before_repair_k": f4_residual_before_repair_k,
+            "f4_required_beta1_k": f4_required_beta1_k,
+            "f4_projection_applied_k": f4_projection_applied_k,
+            "f4_projection_feasible_k": f4_projection_feasible_k,
+            "f4_infeasible_reasons_k": f4_infeasible_reasons_k,
+            "f4_initial_infeasible_reasons_k": f4_initial_infeasible_reasons_k,
+            "f4_mode_repair_applied_k": f4_mode_repair_applied_k,
+            "f4_mode_candidate_k": f4_mode_candidate_k,
+            "f4_mode_candidate_score_k": f4_mode_candidate_score_k,
             "f5_residual_k": f5_residual_k,
             "bypass_sum_violation_k": bypass_sum_violation_k,
             "bypass_sum_violation_unrepaired_k": bypass_sum_violation_unrepaired_k,
@@ -578,6 +824,7 @@ class SteamEnv(gym.Env):
             "flow_bound_violation_k": flow_bound_violation_k,
             "P_HP_k": P_HP_k,
             "P_grid_k": P_grid_k,
+            "P_grid_max": self.P_HP_max,
             "P_WT_k": P_WT_k,
             "P_spill_k": P_spill_k,
             "grid_lower_violation_k": grid_lower_violation_k,
@@ -592,6 +839,8 @@ class SteamEnv(gym.Env):
             "hard_flow_bounds": self.hard_flow_bounds,
             "hard_storage_bounds": self.hard_storage_bounds,
             "hard_f5_coupling": self.hard_f5_coupling,
+            "hard_f4_coupling": self.hard_f4_coupling,
+            "hard_mode_repair": self.hard_mode_repair,
             "cost_grid_k": cost_grid_k,
             "penalty_mode_k": penalty_mode_k,
             "penalty_bound_k": penalty_bound_k,
