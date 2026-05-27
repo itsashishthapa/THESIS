@@ -1,0 +1,55 @@
+% !TEX TS-program = xelatex
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[a4paper,left=1.50in,right=1.40in,top=1.27in,bottom=1.00in]{geometry}
+\usepackage{fontspec}
+\usepackage{xcolor}
+
+% The source PDF embeds Roboto and Lora-Bold; these installed fonts are close fallbacks.
+\setmainfont{Arial}
+\newfontfamily\lettertitlefont{Georgia}
+
+\definecolor{lettertitle}{HTML}{283A50}
+\definecolor{datechip}{HTML}{E6E8EB}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\linespread{1.15}
+
+\begin{document}
+\raggedright
+\vspace*{0pt}
+
+{\lettertitlefont\bfseries\fontsize{26pt}{32pt}\selectfont\color{lettertitle}Letter of Intent\par}
+
+\vspace{24pt}
+{\setlength{\fboxsep}{3pt}\colorbox{datechip}{May 26, 2026}\par}
+
+\vspace{34pt}
+Subject: Expression of Interest for Full-Time Position
+
+\vspace{22pt}
+Dear ,
+
+\vspace{18pt}
+I am writing to formally express my enthusiastic interest in transitioning into a full-time role within the engineering and data science team at your company upon the completion of my Master's thesis. Having previously served as both an intern and a student researcher at the firm, I have developed a deep appreciation for the company's innovative culture and am eager to contribute my evolving expertise in Machine Learning and Visual Computing to your ongoing projects.
+
+\vspace{17pt}
+During my tenure as an intern, I actively collaborated with my supervisor Loukas Kyriakidis on a research paper focused on \textbf{A Hybrid Surrogate Modeling Approach Integrating Simulation and Experimental Data}. My primary responsibility was to implement and test various AI-based surrogate models using Python and machine learning libraries. The core objective was to develop computationally efficient and reliable models by effectively combining small, highly accurate experimental datasets with larger sets of less accurate simulation data. I was responsible for reviewing relevant literature, implementing techniques such as transfer learning, neural network ensembles, and BFGS optimization, and conducting systematic comparisons to determine the optimal hybrid modeling strategy. This work was tested to a practical industrial use case: predicting the outlet temperature and electric power consumption of a High-Temperature Heat Pump (HTHP) operating on a closed-loop Brayton cycle. Our Hybrid Model 3 demonstrated superior accuracy and robustness\newpage in predicting key system variables for industrial applications requiring high supply temperatures, even when utilizing limited experimental data.
+
+\vspace{17pt}
+Furthermore, as a student researcher, I worked closely on several critical projects. These projects involved deploying middleware software for efficient data exchange, and I developed APIs to fetch data from open-source data sources. I was also responsible for integrating these data source APIs directly into optimization projects. I am currently working on my Master's thesis, which focuses on using Reinforcement Learning to create a surrogate model for two different use cases---a cookie factory and a battery model---and directly comparing its performance with mathematical models developed by colleagues in the Simulation and Virtual Design (SVD) department.
+
+\vspace{17pt}
+Building on these experiences, my strong foundation in programming and algorithm design, together with my recognition as the department topper for academic excellence, positions me to contribute effectively in a full-time role. I would welcome the opportunity to discuss how my practical experience and ongoing advanced studies can support the continued growth and innovation of your team.
+
+\vspace{17pt}
+Thank you for your time and for the mentorship I have received thus far.
+
+\vspace{17pt}
+Sincerely,
+
+Ashish Thapa
+
+\end{document}
