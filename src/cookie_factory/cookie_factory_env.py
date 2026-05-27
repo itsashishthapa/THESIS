@@ -78,7 +78,7 @@ class SteamEnv(gym.Env):
         # reward penalties
         lambda_mode=5.0, # penalty for invalid bypass/mode behavior
         lambda_bound=20.0, # penalty for storage temperature bound violations
-        lambda_terminal=2.0, # penalty for ending away from cyclic terminal target
+        lambda_terminal=1000.0, # penalty for ending away from cyclic terminal target
         lambda_coupling=10, # penalty for F4/F5 coupling residuals
         lambda_comp=1e-4, # penalty for simultaneous charging and discharging
         lambda_grid=10.0, # penalty for grid power bound violations
