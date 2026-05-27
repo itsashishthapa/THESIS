@@ -84,14 +84,14 @@ class SteamEnv(gym.Env):
         lambda_grid=10.0, # penalty for grid power bound violations
         eps_comp=1.0e-6, # small tolerance for the Qch*Qdch complementarity constraint
         Q_flow_max=5000.0, # Qch/Qdch upper bound from the NLP model
-        hard_bypass=True, # repair beta1/beta2 so beta1 + beta2 >= 1
-        hard_complementarity=True, # repair beta1/beta2 so charge and discharge do not happen together
-        hard_flow_bounds=True, # repair beta1/beta2 so Qch/Qdch stay in [0, Q_flow_max]
-        hard_storage_bounds=True, # repair beta1/beta2 so storage temperature remains inside bounds
-        hard_f5_coupling=True, # compute T_I from F5 instead of trusting the raw T_I action
-        hard_f4_coupling=True, # project beta1 onto F4 where it is compatible with other hard rules
-        hard_mode_repair=True, # find a jointly feasible charge/discharge candidate when F4 projection conflicts
-        enforce_cyclic_boundary=True, # enforce final storage temperature to return to the initial value
+        hard_bypass=True, # F10 / penalty_mode_k: repair beta1 + beta2 >= 1
+        hard_complementarity=True, # F11 / penalty_comp_k: prevent simultaneous charge and discharge
+        hard_flow_bounds=True, # Qch/Qdch variable bounds: enforce [0, Q_flow_max] (diagnostic only; no penalty term)
+        hard_storage_bounds=True, # storage bounds / penalty_bound_k: keep storage temperature inside bounds
+        hard_f5_coupling=True, # F5 / penalty_coupling_k: derive T_I from beta2 instead of the raw action
+        hard_f4_coupling=True, # F4 / penalty_coupling_k: project beta1 where compatible with hard rules
+        hard_mode_repair=True, # F4/F5/F10/F11 feasibility: find a jointly feasible operating mode
+        enforce_cyclic_boundary=True, # terminal storage constraint / terminal_penalty_k: return to T_s_0
         debug_reward_terms=True, # print reward term breakdown at each step
     ):
         super().__init__()
