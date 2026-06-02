@@ -77,14 +77,14 @@ class BatteryEnv(gym.Env):
         dSOC = (P_actual * self.dt) / self.E_max
         self.SOC = float(np.clip(self.SOC + dSOC, 0.0, 1.0))
         price = float(self.prices[self.t])
-        cost = (price / 1e6) * P_actual
+        cost = (price / 1e6) * P
         reward = float(-cost)
         self._last_P = P
         self.t += 1
         # TODO: investigate on final SOC and add a terminal reward/penalty if needed.
         terminated = self.t >= self.T
         truncated = False
-        info = {'P': P, 'P_actual': P_actual, 'price': price, 'SOC': self.SOC, 'raw_reward': reward}
+        info = {'P': P, 'P_actual': P_actual, 'price': price, 'SOC': self.SOC, 'cost': cost, 'raw_reward': reward}
         return self._obs(), reward, terminated, truncated, info
 
     def render(self):

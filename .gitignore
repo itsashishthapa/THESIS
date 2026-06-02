@@ -35,6 +35,7 @@ paper/*.bbl-SAVE-ERROR
 *.out
 *.toc
 *.synctex.gz
+*Letter of Intent.pdf
 
 # Data & results (track only small metadata files)
 data/raw/
@@ -48,6 +49,7 @@ results/**
 
 # Models and experiment artifacts
 results/models/**
+*.pkl
 
 # Training/TensorBoard logs
 logs/

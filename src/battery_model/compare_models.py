@@ -5,6 +5,7 @@ Comparison script: RL model vs Mathematical (Pyomo) model
 import os
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 from stable_baselines3 import SAC
 
@@ -40,8 +41,8 @@ def run_rl_model(model, prices_window, price_scale):
     end_time = time.time()
     elapsed_time = end_time - start_time
     
-    # Calculate cost
-    cost = compute_total_cost(prices_used, P_actuals)
+    # Match Pyomo's objective: grid-side power P. P_actual is used for SOC dynamics.
+    cost = compute_total_cost(prices_used, Ps)
     
     return {
         'cost': cost,
@@ -50,9 +51,20 @@ def run_rl_model(model, prices_window, price_scale):
         'SOC': SOCs,
         'P': Ps,
         'P_actual': P_actuals,
+        'battery_side_cost': compute_total_cost(prices_used, P_actuals),
         'rewards': rewards,
         'status': 'success'
     }
+
+
+def _rmse(a, b):
+    """Return RMSE over the overlapping part of two trajectories."""
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    n = min(len(a), len(b))
+    if n == 0:
+        return float("nan")
+    return float(np.sqrt(np.mean((a[:n] - b[:n]) ** 2)))
 
 
 def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_comparisons=10):
@@ -62,7 +74,11 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
     results = {
         'rl': {'costs': [], 'times': [], 'max_socs': [], 'min_socs': []},
         'pyomo': {'costs': [], 'times': [], 'max_socs': [], 'min_socs': []},
-        'differences': []
+        'differences': [],
+        'windows': [],
+        'abs_cost_gaps': [],
+        'soc_rmse': [],
+        'power_rmse_kw': [],
     }
     
     print(f"\nRunning {n_comparisons} comparisons between RL and Pyomo models...")
@@ -84,7 +100,7 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
             results['rl']['times'].append(rl_result['time'])
             results['rl']['max_socs'].append(np.max(rl_result['SOC']))
             results['rl']['min_socs'].append(np.min(rl_result['SOC']))
-            print(f"  RL Cost: {rl_result['cost']:.4f}€, Time: {rl_result['time']:.4f}s")
+            print(f"  RL Cost: {rl_result['cost']:.4f} EUR, Time: {rl_result['time']:.4f}s")
         else:
             print("  RL failed")
             continue
@@ -96,16 +112,95 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
             results['pyomo']['times'].append(pyomo_result['time'])
             results['pyomo']['max_socs'].append(np.max(pyomo_result['SOC']))
             results['pyomo']['min_socs'].append(np.min(pyomo_result['SOC']))
-            print(f"  Pyomo Cost: {pyomo_result['cost']:.4f}€, Time: {pyomo_result['time']:.4f}s")
+            print(f"  Pyomo Cost: {pyomo_result['cost']:.4f} EUR, Time: {pyomo_result['time']:.4f}s")
             
             diff = rl_result['cost'] - pyomo_result['cost']
-            pct_diff = (diff / pyomo_result['cost'] * 100) if pyomo_result['cost'] != 0 else 0
+            pct_diff = (diff / abs(pyomo_result['cost']) * 100) if pyomo_result['cost'] != 0 else 0
             results['differences'].append(pct_diff)
-            print(f"  Difference: {diff:.4f}€ ({pct_diff:+.2f}%)")
+            results['windows'].append(f"{start_idx}-{start_idx + window_len}")
+            results['abs_cost_gaps'].append(abs(diff))
+            results['soc_rmse'].append(_rmse(rl_result['SOC'], pyomo_result['SOC']))
+            results['power_rmse_kw'].append(_rmse(rl_result['P'], pyomo_result['P']) / 1000.0)
+            print(f"  Difference: {diff:.4f} EUR ({pct_diff:+.2f}%)")
         else:
+            for key in ('costs', 'times', 'max_socs', 'min_socs'):
+                results['rl'][key].pop()
             print(f"  Pyomo failed: {pyomo_result.get('error', 'Unknown error')}")
     
     return results
+
+
+def plot_comparison_distances(results, output_file=None, show=False):
+    """
+    Plot per-window RL vs Pyomo cost, absolute cost gap, SOC RMSE, and power RMSE.
+    """
+    rl_costs = np.asarray(results['rl']['costs'], dtype=float)
+    pyomo_costs = np.asarray(results['pyomo']['costs'], dtype=float)
+    n = min(len(rl_costs), len(pyomo_costs))
+    if n == 0:
+        print("No successful comparisons available for plotting.")
+        return None
+
+    labels = results.get('windows') or [str(i + 1) for i in range(n)]
+    labels = labels[:n]
+    x = np.arange(n)
+
+    def series(name, fallback):
+        values = np.asarray(results.get(name, []), dtype=float)
+        if len(values) < n:
+            values = np.asarray(fallback, dtype=float)
+        return values[:n]
+
+    abs_cost_gaps = series('abs_cost_gaps', np.abs(rl_costs[:n] - pyomo_costs[:n]))
+    soc_rmse = series('soc_rmse', np.full(n, np.nan))
+    power_rmse_kw = series('power_rmse_kw', np.full(n, np.nan))
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 13), sharex=True)
+
+    axes[0].plot(x, rl_costs[:n], marker='o', label='RL cost')
+    axes[0].plot(x, pyomo_costs[:n], marker='o', label='Pyomo cost')
+    axes[0].set_title("RL vs Pyomo distance per comparison")
+    axes[0].set_ylabel('Cost [EUR]')
+    axes[0].legend(loc='lower left')
+    axes[0].grid(True, alpha=0.35)
+
+    axes[1].bar(x, abs_cost_gaps, alpha=0.75)
+    axes[1].set_ylabel('Absolute gap [EUR]')
+    axes[1].grid(True, alpha=0.35)
+
+    soc_line = axes[2].plot(x, soc_rmse, marker='o', color='tab:purple', label='SOC RMSE')
+    axes[2].set_ylabel('SOC RMSE')
+    axes[2].grid(True, alpha=0.35)
+
+    ax_power = axes[2].twinx()
+    power_line = ax_power.plot(
+        x,
+        power_rmse_kw,
+        marker='o',
+        color='tab:orange',
+        label='Power RMSE [kW]',
+    )
+    ax_power.set_ylabel('Power RMSE [kW]')
+
+    lines = soc_line + power_line
+    axes[2].legend(lines, [line.get_label() for line in lines], loc='upper left')
+    axes[2].set_xlabel('Comparison window')
+    axes[2].set_xticks(x)
+    axes[2].set_xticklabels(labels, rotation=45, ha='right')
+
+    fig.tight_layout()
+
+    if output_file:
+        os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
+        fig.savefig(output_file, dpi=300, bbox_inches='tight')
+        print(f"Distance plot saved to {output_file}")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    return fig
 
 
 def print_comparison_stats(results, output_file=None):
@@ -123,24 +218,28 @@ def print_comparison_stats(results, output_file=None):
         
         # Cost comparison
         lines.append("\n" + "-"*80)
-        lines.append("COST COMPARISON (€)")
+        lines.append("COST COMPARISON (EUR)")
         lines.append("-"*80)
         
         rl_costs = np.array(results['rl']['costs'])
         pyomo_costs = np.array(results['pyomo']['costs'])
         
         lines.append("RL Model:")
-        lines.append(f"  Mean: {np.mean(rl_costs):.4f} ± {np.std(rl_costs):.4f}")
+        lines.append(f"  Mean: {np.mean(rl_costs):.4f} +/- {np.std(rl_costs):.4f}")
         lines.append(f"  Range: [{np.min(rl_costs):.4f}, {np.max(rl_costs):.4f}]")
         
         lines.append("\nPyomo Model:")
-        lines.append(f"  Mean: {np.mean(pyomo_costs):.4f} ± {np.std(pyomo_costs):.4f}")
+        lines.append(f"  Mean: {np.mean(pyomo_costs):.4f} +/- {np.std(pyomo_costs):.4f}")
         lines.append(f"  Range: [{np.min(pyomo_costs):.4f}, {np.max(pyomo_costs):.4f}]")
         
         lines.append("\nRL - Pyomo (RL is better if negative):")
         diffs = rl_costs - pyomo_costs
-        lines.append(f"  Mean: {np.mean(diffs):.4f} ± {np.std(diffs):.4f}€")
-        lines.append(f"  Percentage difference: {np.mean(results['differences']):.2f}% ± {np.std(results['differences']):.2f}%")
+        abs_gap = np.abs(diffs)
+        rel_gap = abs_gap / np.maximum(np.abs(pyomo_costs), 1e-12) * 100.0
+        lines.append(f"  Mean: {np.mean(diffs):.4f} +/- {np.std(diffs):.4f} EUR")
+        lines.append(f"  Mean absolute gap: {np.mean(abs_gap):.4f} +/- {np.std(abs_gap):.4f} EUR")
+        lines.append(f"  Mean relative absolute gap: {np.mean(rel_gap):.2f}% +/- {np.std(rel_gap):.2f}%")
+        lines.append(f"  Signed percentage difference: {np.mean(results['differences']):.2f}% +/- {np.std(results['differences']):.2f}%")
         
         # Time comparison
         lines.append("\n" + "-"*80)
@@ -151,11 +250,11 @@ def print_comparison_stats(results, output_file=None):
         pyomo_times = np.array(results['pyomo']['times'])
         
         lines.append("RL Model:")
-        lines.append(f"  Mean: {np.mean(rl_times):.4f} ± {np.std(rl_times):.4f}s")
+        lines.append(f"  Mean: {np.mean(rl_times):.4f} +/- {np.std(rl_times):.4f}s")
         lines.append(f"  Range: [{np.min(rl_times):.4f}, {np.max(rl_times):.4f}]s")
         
         lines.append("\nPyomo Model:")
-        lines.append(f"  Mean: {np.mean(pyomo_times):.4f} ± {np.std(pyomo_times):.4f}s")
+        lines.append(f"  Mean: {np.mean(pyomo_times):.4f} +/- {np.std(pyomo_times):.4f}s")
         lines.append(f"  Range: [{np.min(pyomo_times):.4f}, {np.max(pyomo_times):.4f}]s")
         
         lines.append(f"\nSpeedup (Pyomo time / RL time): {np.mean(pyomo_times) / np.mean(rl_times):.2f}x")
@@ -166,16 +265,16 @@ def print_comparison_stats(results, output_file=None):
         lines.append("-"*80)
         
         lines.append("RL Max SOC:")
-        lines.append(f"  Mean: {np.mean(results['rl']['max_socs']):.4f} ± {np.std(results['rl']['max_socs']):.4f}")
+        lines.append(f"  Mean: {np.mean(results['rl']['max_socs']):.4f} +/- {np.std(results['rl']['max_socs']):.4f}")
         
         lines.append("\nPyomo Max SOC:")
-        lines.append(f"  Mean: {np.mean(results['pyomo']['max_socs']):.4f} ± {np.std(results['pyomo']['max_socs']):.4f}")
+        lines.append(f"  Mean: {np.mean(results['pyomo']['max_socs']):.4f} +/- {np.std(results['pyomo']['max_socs']):.4f}")
         
         lines.append("\nRL Min SOC:")
-        lines.append(f"  Mean: {np.mean(results['rl']['min_socs']):.4f} ± {np.std(results['rl']['min_socs']):.4f}")
+        lines.append(f"  Mean: {np.mean(results['rl']['min_socs']):.4f} +/- {np.std(results['rl']['min_socs']):.4f}")
         
         lines.append("\nPyomo Min SOC:")
-        lines.append(f"  Mean: {np.mean(results['pyomo']['min_socs']):.4f} ± {np.std(results['pyomo']['min_socs']):.4f}")
+        lines.append(f"  Mean: {np.mean(results['pyomo']['min_socs']):.4f} +/- {np.std(results['pyomo']['min_socs']):.4f}")
     
     lines.append("\n" + "="*80 + "\n")
     
@@ -201,8 +300,9 @@ if __name__ == '__main__':
     # Run comparisons
     results = compare_models(
         prices_full, global_price_scale, rl_model,
-        window_len=24, n_comparisons=1000
+        window_len=24, n_comparisons=10
     )
     
     # Print results
     print_comparison_stats(results, output_file='src/battery_model/model_comparison.txt')
+    plot_comparison_distances(results, output_file='src/battery_model/model_comparison_distances.png')

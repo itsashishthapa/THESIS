@@ -82,7 +82,7 @@ def train_model(prices_full, price_scale, log_dir='./logs', total_timesteps=1000
         batch_size=256,
         learning_rate=3e-4,
         tau=0.005,
-        gamma=0.99,
+        gamma=0.9999,
         train_freq=1,
         gradient_steps=1,
         verbose=1,
@@ -116,17 +116,17 @@ def _optuna_objective(trial, prices_full, price_scale, log_dir, total_timesteps=
         gradient_steps = max(1, int(train_freq * update_ratio))
 
         model_kwargs = {
-            'buffer_size': trial.suggest_categorical('buffer_size', [100000, 200000, 500000]),
-            'batch_size': trial.suggest_categorical('batch_size', [128, 256, 512, 1024]),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-3, log=True),
-            'tau': trial.suggest_float('tau', 0.001, 0.05, log=True),
-            'gamma': trial.suggest_float('gamma', 0.95, 0.9999, log=True),
-            "train_freq": train_freq,
-            "gradient_steps": gradient_steps,
-            'ent_coef': trial.suggest_categorical("ent_coef",["auto", "auto_0.1", 0.003, 0.01, 0.03]),
-            'learning_starts': trial.suggest_int('learning_starts', 1000, 10000),
-            'tensorboard_log': trial_log_dir,
-            'verbose': 0,
+            'buffer_size': trial.suggest_categorical('buffer_size', [100000, 200000, 500000]),  # Stores past transitions for replay learning.
+            'batch_size': trial.suggest_categorical('batch_size', [128, 256, 512, 1024]),  # Controls how many samples update the model at once.
+            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-3, log=True),  # Sets how fast the neural networks learn.
+            'tau': trial.suggest_float('tau', 0.001, 0.05, log=True),  # Smooths target-network updates for stability.
+            'gamma': trial.suggest_float('gamma', 0.995, 0.99999),  # Keep 24h arbitrage close to undiscounted Pyomo.
+            "train_freq": train_freq,  # Decides how often training updates happen.
+            "gradient_steps": gradient_steps,  # Sets how many updates run after each training trigger.
+            'ent_coef': trial.suggest_categorical("ent_coef",["auto", "auto_0.1", 0.003, 0.01, 0.03]),  # Balances exploration against reward optimization.
+            'learning_starts': trial.suggest_int('learning_starts', 1000, 10000),  # Lets the replay buffer fill before learning starts.
+            'tensorboard_log': trial_log_dir,  # Saves trial metrics for TensorBoard comparison.
+            'verbose': 0,  # Keeps Optuna trials quiet except for explicit logging.
         }
 
         if logger:
@@ -246,7 +246,7 @@ def run_multiple_training_evaluations(
             )
 
             cumulative_reward = float(np.sum(rewards))
-            total_cost = compute_total_cost(prices_used, P_actuals)
+            total_cost = compute_total_cost(prices_used, Ps)
 
             total_costs_by_schedule[schedule_name].append(total_cost)
             records.append({
@@ -380,14 +380,15 @@ if __name__ == '__main__':
     # best_params = tune_hyperparameters(prices_full, global_price_scale,"./logs", n_trials=20, total_timesteps=50000)
 
     # Single run 
-    # model_kwargs = {
-    #     'learning_rate': linear_schedule(3e-4),
-    # }
+    model_kwargs = {
+        'learning_rate': linear_schedule(3e-4),
+        'gamma': 0.9999,
+    }
     # model_kwargs = {
     #     'learning_rate': power_schedule(3e-4),
     # }
-    # model = train_model(prices_full, global_price_scale, total_timesteps=100000, 
-    #                    log_dir='./logs/single_run_power_schedule', model_kwargs=model_kwargs)
+    model = train_model(prices_full, global_price_scale, total_timesteps=500000, 
+                       log_dir='./logs/single_run_power_schedule', model_kwargs=model_kwargs)
     
     # # Evaluate the model
     # P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
@@ -397,5 +398,5 @@ if __name__ == '__main__':
     # print(f"Single Run - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
     
     # Train and evaluate multiple times
-    run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32, base_lr=3e-4)
+    # run_multiple_training_evaluations(prices_full, prices_eval, global_price_scale, num_runs=32, base_lr=3e-4)
     

@@ -3,49 +3,51 @@
 COMPARISON: RL Model vs Pyomo Mathematical Model
 ================================================================================
 
-Number of successful comparisons: 1000
+Number of successful comparisons: 10
 
 --------------------------------------------------------------------------------
-COST COMPARISON (€)
+COST COMPARISON (EUR)
 --------------------------------------------------------------------------------
 RL Model:
-  Mean: -7.7574 ± 2.3346
-  Range: [-31.9100, -3.9034]
+  Mean: -8.8327 +/- 1.2286
+  Range: [-10.5216, -6.7677]
 
 Pyomo Model:
-  Mean: -8.3196 ± 2.4385
-  Range: [-32.2139, -4.2760]
+  Mean: -9.0357 +/- 1.1888
+  Range: [-10.7349, -7.1075]
 
 RL - Pyomo (RL is better if negative):
-  Mean: 0.5622 ± 0.5081€
-  Percentage difference: -6.67% ± 5.31%
+  Mean: 0.2031 +/- 0.0586 EUR
+  Mean absolute gap: 0.2031 +/- 0.0586 EUR
+  Mean relative absolute gap: 2.35% +/- 1.00%
+  Signed percentage difference: 2.35% +/- 1.00%
 
 --------------------------------------------------------------------------------
 COMPUTATION TIME (seconds)
 --------------------------------------------------------------------------------
 RL Model:
-  Mean: 0.0331 ± 0.0201s
-  Range: [0.0110, 0.1400]s
+  Mean: 0.0135 +/- 0.0068s
+  Range: [0.0000, 0.0236]s
 
 Pyomo Model:
-  Mean: 0.2053 ± 0.1097s
-  Range: [0.0861, 0.8500]s
+  Mean: 0.1727 +/- 0.1188s
+  Range: [0.0890, 0.4621]s
 
-Speedup (Pyomo time / RL time): 6.21x
+Speedup (Pyomo time / RL time): 12.76x
 
 --------------------------------------------------------------------------------
 SOC ANALYSIS
 --------------------------------------------------------------------------------
 RL Max SOC:
-  Mean: 0.6132 ± 0.1730
+  Mean: 0.7361 +/- 0.1686
 
 Pyomo Max SOC:
-  Mean: 0.7413 ± 0.1931
+  Mean: 0.8017 +/- 0.1719
 
 RL Min SOC:
-  Mean: 0.0023 ± 0.0159
+  Mean: 0.0000 +/- 0.0000
 
 Pyomo Min SOC:
-  Mean: 0.0028 ± 0.0033
+  Mean: 0.0042 +/- 0.0033
 
 ================================================================================

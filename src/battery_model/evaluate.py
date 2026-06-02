@@ -35,6 +35,14 @@ def compute_total_cost(prices, power):
 def evaluate_model(model, prices_eval, price_scale):
     """Evaluate the trained model on given price data"""
     env_eval = BatteryEnv(prices_eval, price_scale=price_scale)
+    model_obs_shape = getattr(getattr(model, "observation_space", None), "shape", None)
+    if model_obs_shape is not None and env_eval.observation_space.shape != model_obs_shape:
+        raise ValueError(
+            "Model observation shape "
+            f"{model_obs_shape} does not match BatteryEnv shape "
+            f"{env_eval.observation_space.shape}. Use the same BatteryEnv "
+            "observation features and forecast_h as training, or retrain the model."
+        )
     obs, _ = env_eval.reset()
     
     P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = [], [], [], [], [], []
