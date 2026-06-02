@@ -11,6 +11,13 @@ Optimization of the battery model in Pyomo
 import time
 import numpy as np
 import pandas as pd
+
+# Pyomo 6.7 expects NumPy 1.x scalar aliases when NumPy is already imported.
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+if not hasattr(np, "complex_"):
+    np.complex_ = np.complex128
+
 from pyomo.environ import *
 
 

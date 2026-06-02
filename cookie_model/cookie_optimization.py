@@ -10,16 +10,24 @@ Created on Mon Jan 30 15:21:03 2023
 # thermal storage - without binary variable (charge/discharge via complementarity condition)
 # time step: dt=3600 --> 1h
 # data (price, wind power) import from "WKA_Pe_merged.csv" file
+import numpy as np
 
-from pyomo.environ import *
+# Pyomo 6.7 expects NumPy 1.x scalar aliases when NumPy is already imported.
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+if not hasattr(np, "complex_"):
+    np.complex_ = np.complex128
+    
+import math
 import random
 import sys
-import numpy as np
-import math
-from pathlib import Path
-from pandas import DataFrame
-import pandas as pd
 import timeit
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from pandas import DataFrame
+from pyomo.environ import *
 
 # read input data
 ###################################################
