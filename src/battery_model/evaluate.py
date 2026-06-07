@@ -49,8 +49,8 @@ def evaluate_model(model, prices_eval, price_scale):
     
     for _ in range(env_eval.T):
         action, _ = model.predict(obs, deterministic=True)
-        # commanded power before env clipping
-        P_cmd = float(np.clip(action[0], -1.0, 1.0)) * env_eval.P_max
+        # commanded power before env smooth mapping
+        P_cmd = float(np.asarray(action, dtype=np.float32).reshape(-1)[0]) * env_eval.P_max
         obs, reward, terminated, truncated, info = env_eval.step(action)
         
         P_cmds.append(P_cmd)
