@@ -132,7 +132,7 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
 
 def plot_comparison_distances(results, output_file=None, show=False):
     """
-    Plot per-window RL vs Pyomo cost, absolute cost gap, SOC RMSE, and power RMSE.
+    Plot per-window RL vs Pyomo cost and absolute cost gap.
     """
     rl_costs = np.asarray(results['rl']['costs'], dtype=float)
     pyomo_costs = np.asarray(results['pyomo']['costs'], dtype=float)
@@ -152,10 +152,8 @@ def plot_comparison_distances(results, output_file=None, show=False):
         return values[:n]
 
     abs_cost_gaps = series('abs_cost_gaps', np.abs(rl_costs[:n] - pyomo_costs[:n]))
-    soc_rmse = series('soc_rmse', np.full(n, np.nan))
-    power_rmse_kw = series('power_rmse_kw', np.full(n, np.nan))
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 13), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 
     axes[0].plot(x, rl_costs[:n], marker='o', label='RL cost')
     axes[0].plot(x, pyomo_costs[:n], marker='o', label='Pyomo cost')
@@ -167,26 +165,9 @@ def plot_comparison_distances(results, output_file=None, show=False):
     axes[1].bar(x, abs_cost_gaps, alpha=0.75)
     axes[1].set_ylabel('Absolute gap [EUR]')
     axes[1].grid(True, alpha=0.35)
-
-    soc_line = axes[2].plot(x, soc_rmse, marker='o', color='tab:purple', label='SOC RMSE')
-    axes[2].set_ylabel('SOC RMSE')
-    axes[2].grid(True, alpha=0.35)
-
-    ax_power = axes[2].twinx()
-    power_line = ax_power.plot(
-        x,
-        power_rmse_kw,
-        marker='o',
-        color='tab:orange',
-        label='Power RMSE [kW]',
-    )
-    ax_power.set_ylabel('Power RMSE [kW]')
-
-    lines = soc_line + power_line
-    axes[2].legend(lines, [line.get_label() for line in lines], loc='upper left')
-    axes[2].set_xlabel('Comparison window')
-    axes[2].set_xticks(x)
-    axes[2].set_xticklabels(labels, rotation=45, ha='right')
+    axes[1].set_xlabel('Comparison window')
+    axes[1].set_xticks(x)
+    axes[1].set_xticklabels(labels, rotation=45, ha='right')
 
     fig.tight_layout()
 
