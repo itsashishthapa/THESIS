@@ -5,6 +5,7 @@ Battery Environment for Reinforcement Learning
 - Action: continuous charge/discharge command in [-1, 1] mapped smoothly to power.
 - Dynamics: `SOC_{t+1} = SOC_t + (P_actual_t * dt) / E_max` with bounds [0, 1].
 - Reward: negative grid-side cost `- price_t * P_t * dt`.
+- Terminal SOC: ending below `terminal_soc_min` receives a penalty.
 """
 
 import gymnasium as gym
@@ -28,7 +29,7 @@ class BatteryEnv(gym.Env):
         deadband_eps=0.0025,
         efficiency_eps=1.0,
         terminal_soc_min=0.5,
-        terminal_soc_penalty=10.0,
+        terminal_soc_penalty=200.0,
         dt=1.0,
         price_unit_scale=1000.0,
     ):
