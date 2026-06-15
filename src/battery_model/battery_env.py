@@ -3,8 +3,8 @@ Battery Environment for Reinforcement Learning
 
 - Observation: state-of-charge (SOC), current price, normalized time, and normalized forecast window.
 - Action: continuous charge/discharge command in [-1, 1] mapped smoothly to power.
-- Dynamics: `SOC_{t+1} = SOC_t + (eta * P_t * dt) / E_max` with bounds [0, 1].
-- Reward: negative grid cost `- price_t * P_t / 1e6`.
+- Dynamics: `SOC_{t+1} = SOC_t + (P_actual_t * dt) / E_max` with bounds [0, 1].
+- Reward: negative grid-side cost `- price_t * P_t * dt`.
 """
 
 import gymnasium as gym
@@ -18,19 +18,23 @@ class BatteryEnv(gym.Env):
     def __init__(
         self,
         prices,
-        P_max=20000.0,
+        P_max=20.0,
         eta=0.9,
-        E_max=2e5*3600.0,
+        E_max=2e2,
         SOC_0=0.5,
         forecast_h=24,
         price_scale=None,
-        smooth_k=500.0,
+        smooth_k=700.0,
         deadband_eps=0.0025,
+        efficiency_eps=1.0,
+        terminal_soc_min=0.5,
+        terminal_soc_penalty=0.0,
+        dt=1.0,
     ):
         super().__init__()
         self.prices = np.array(prices, dtype=np.float32)
         self.T = len(self.prices)
-        self.dt = 3600.0  # in seconds
+        self.dt = float(dt)  # v2 uses hours with kW/kWh-style units.
         self.P_max = float(P_max)
         self.eta = float(eta)
         self.E_max = float(E_max)
@@ -38,6 +42,9 @@ class BatteryEnv(gym.Env):
         self.forecast_h = int(forecast_h)
         self.smooth_k = float(smooth_k)
         self.deadband_eps = float(deadband_eps)
+        self.efficiency_eps = float(efficiency_eps)
+        self.terminal_soc_min = float(terminal_soc_min)
+        self.terminal_soc_penalty = float(terminal_soc_penalty)
         self.soc_upper_gate = 0.995
         self.soc_lower_gate = 0.005
         # Price scaling
@@ -69,6 +76,16 @@ class BatteryEnv(gym.Env):
         )
         return float(P), u
 
+    def _actual_power_mapping(self, P):
+        arg = P / self.efficiency_eps
+        tanh_arg = np.tanh(arg)
+        efficiency_factor = 0.5 * (
+            (1.0 + tanh_arg) * self.eta
+            + (1.0 - tanh_arg) / self.eta
+        )
+        P_actual = P * efficiency_factor
+        return float(P_actual), float(arg), float(efficiency_factor)
+
     def _forecast_window(self):
         idx = min(self.t, self.T - 1)
         window = self.prices[idx + 1: idx + 1 + self.forecast_h]
@@ -92,37 +109,54 @@ class BatteryEnv(gym.Env):
         self.t = 0
         self.SOC = self.SOC_0
         self._last_P = 0.0
+        self._last_P_actual = 0.0
+        self.acc_cost = 0.0
         return self._obs(), {}
 
     def step(self, action):
         action_value = float(np.asarray(action, dtype=np.float32).reshape(-1)[0])
         P, a = self._smooth_power_mapping(action_value)
         P_cmd = a * self.P_max
-        P_actual = self.eta * P
+        P_actual, arg, efficiency_factor = self._actual_power_mapping(P)
         dSOC = (P_actual * self.dt) / self.E_max
         self.SOC = float(np.clip(self.SOC + dSOC, 0.0, 1.0))
         price = float(self.prices[self.t])
-        cost = (price / 1e6) * P
-        reward = float(-cost)
+        cost = price * P * self.dt
+        self.acc_cost += cost
+        grid_reward = float(-cost)
+        reward = grid_reward
         self._last_P = P
+        self._last_P_actual = P_actual
         self.t += 1
-        # TODO: investigate on final SOC and add a terminal reward/penalty if needed.
         terminated = self.t >= self.T
+        terminal_soc_violation = 0.0
+        terminal_penalty = 0.0
+        if terminated:
+            terminal_soc_violation = max(self.terminal_soc_min - self.SOC, 0.0)
+            terminal_penalty = self.terminal_soc_penalty * terminal_soc_violation
+            reward -= terminal_penalty
         truncated = False
         info = {
             'P': P,
             'P_cmd': P_cmd,
             'P_actual': P_actual,
+            'arg': arg,
+            'efficiency_factor': efficiency_factor,
             'u': a,
             'price': price,
             'SOC': self.SOC,
             'cost': cost,
+            'acc_cost': self.acc_cost,
+            'terminal_soc_min': self.terminal_soc_min,
+            'terminal_soc_violation': terminal_soc_violation,
+            'terminal_penalty': terminal_penalty,
+            'grid_reward': grid_reward,
             'raw_reward': reward,
         }
         return self._obs(), reward, terminated, truncated, info
 
     def render(self):
-        print(f't={self.t} SOC={self.SOC:.3f} P={self._last_P:.1f}')
+        print(f't={self.t} SOC={self.SOC:.3f} P={self._last_P:.1f} P_actual={self._last_P_actual:.1f}')
 
 
 class RandomWindowEnv(gym.Env):
