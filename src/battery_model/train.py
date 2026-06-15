@@ -394,7 +394,7 @@ if __name__ == "__main__":
     # P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(model, prices_eval, global_price_scale)
 
     # cumulative_reward = np.sum(rewards)
-    # total_cost = np.sum((prices_used / 1e6) * P_actuals)
+    # total_cost = compute_total_cost(prices_used, P_actuals)
     # print(f"Single Run - Cumulative reward: {cumulative_reward:.2f}, Total cost: {total_cost:.2f} Euro")
 
     # Train and evaluate multiple times

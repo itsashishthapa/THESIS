@@ -43,7 +43,7 @@ def build_battery_model(e_price):
 
     # sets
     model.T = RangeSet(0, T-1)
-    price_dict = {t: e_price[t] for t in range(T)}
+    price_dict = {t: e_price[t]/(1e3) for t in range(T)}
 
     # Parameters
     P_max = 20.0 # in kW

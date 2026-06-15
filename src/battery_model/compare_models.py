@@ -9,13 +9,13 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from Battery_model.Optimization_Pyomo.pyomo_battery_model import optimize_battery_pyomo
+from Battery_model.Optimization_Pyomo.pyomo_battery_model_v2 import get_battery_model
 from src.battery_model.evaluate import (
     DEFAULT_ALGORITHM,
     compute_total_cost,
     evaluate_model,
-    load_rl_model,
     load_price_data,
+    load_rl_model,
     normalize_algorithm,
 )
 
@@ -23,10 +23,10 @@ from src.battery_model.evaluate import (
 def run_pyomo_model(prices_window):
     """
     Run the Pyomo optimization model on given price window.
-    Uses optimize_battery_pyomo from pyomo_battery_model.py to avoid code duplication.
+    Uses get_battery_model from pyomo_battery_model_v2.py.
     Returns cost and optimization time.
     """
-    result = optimize_battery_pyomo(prices_window, verbose=False)
+    result = get_battery_model(prices_window, verbose=False)
     return result
 
 
@@ -122,7 +122,7 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
             results['windows'].append(f"{start_idx}-{start_idx + window_len}")
             results['abs_cost_gaps'].append(abs(diff))
             results['soc_rmse'].append(_rmse(rl_result['SOC'], pyomo_result['SOC']))
-            results['power_rmse_kw'].append(_rmse(rl_result['P'], pyomo_result['P']) / 1000.0)
+            results['power_rmse_kw'].append(_rmse(rl_result['P'], pyomo_result['P']))
             print(f"  Difference: {diff:.4f} EUR ({pct_diff:+.2f}%)")
         else:
             for key in ('costs', 'times', 'max_socs', 'min_socs'):

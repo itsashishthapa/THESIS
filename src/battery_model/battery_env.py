@@ -28,8 +28,9 @@ class BatteryEnv(gym.Env):
         deadband_eps=0.0025,
         efficiency_eps=1.0,
         terminal_soc_min=0.5,
-        terminal_soc_penalty=0.0,
+        terminal_soc_penalty=10.0,
         dt=1.0,
+        price_unit_scale=1000.0,
     ):
         super().__init__()
         self.prices = np.array(prices, dtype=np.float32)
@@ -45,6 +46,7 @@ class BatteryEnv(gym.Env):
         self.efficiency_eps = float(efficiency_eps)
         self.terminal_soc_min = float(terminal_soc_min)
         self.terminal_soc_penalty = float(terminal_soc_penalty)
+        self.price_unit_scale = float(price_unit_scale)
         self.soc_upper_gate = 0.995
         self.soc_lower_gate = 0.005
         # Price scaling
@@ -121,7 +123,7 @@ class BatteryEnv(gym.Env):
         dSOC = (P_actual * self.dt) / self.E_max
         self.SOC = float(np.clip(self.SOC + dSOC, 0.0, 1.0))
         price = float(self.prices[self.t])
-        cost = price * P * self.dt
+        cost = (price / self.price_unit_scale) * P * self.dt
         self.acc_cost += cost
         grid_reward = float(-cost)
         reward = grid_reward
