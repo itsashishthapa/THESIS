@@ -64,9 +64,9 @@ def load_price_data():
     return prices_full, global_price_scale
 
 
-def compute_total_cost(prices, power):
-    """Compute total grid cost in Euro for the given electricity prices and power values."""
-    return float(np.sum((np.asarray(prices) / 1e6) * np.asarray(power)))
+def compute_total_cost(prices, power, dt=1.0, price_unit_scale=1000.0):
+    """Compute total grid cost in euros, matching the v2 Pyomo model."""
+    return float(np.sum((np.asarray(prices) / price_unit_scale) * np.asarray(power) * dt))
 
 
 def evaluate_model(model, prices_eval, price_scale):
@@ -131,7 +131,7 @@ def plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used):
     axs[1].plot(P_cmds, label='P_cmd')
     axs[1].plot(Ps, label='P (pre-eta)')
     axs[1].plot(P_actuals, label='P_actual')
-    axs[1].set_ylabel('P [W]')
+    axs[1].set_ylabel('P [kW]')
     axs[1].legend()
     axs[1].grid(True)
     
