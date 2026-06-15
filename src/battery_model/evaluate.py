@@ -2,14 +2,51 @@
 Evaluation script for trained Battery RL model
 """
 
+import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, TD3
 
 from src.battery_model.battery_env import BatteryEnv
 
+DEFAULT_ALGORITHM = "SAC"
 DEFAULT_MODEL_PATH = "src/battery_model/battery_sac_model"
+DEFAULT_MODEL_PATHS = {
+    "SAC": DEFAULT_MODEL_PATH,
+    "TD3": "src/battery_model/battery_td3_model",
+}
+MODEL_CLASSES = {
+    "SAC": SAC,
+    "TD3": TD3,
+}
+
+
+def normalize_algorithm(algorithm):
+    """Return a canonical algorithm name."""
+    algorithm = algorithm.upper()
+    if algorithm not in MODEL_CLASSES:
+        choices = ", ".join(MODEL_CLASSES)
+        raise ValueError(f"Unsupported algorithm '{algorithm}'. Choose one of: {choices}")
+    return algorithm
+
+
+def get_model_class(algorithm=DEFAULT_ALGORITHM):
+    """Return the Stable-Baselines3 class for the selected algorithm."""
+    return MODEL_CLASSES[normalize_algorithm(algorithm)]
+
+
+def get_model_path(algorithm=DEFAULT_ALGORITHM):
+    """Return the default saved-model path for the selected algorithm."""
+    return DEFAULT_MODEL_PATHS[normalize_algorithm(algorithm)]
+
+
+def load_rl_model(algorithm=DEFAULT_ALGORITHM, model_path=None):
+    """Load a saved SAC or TD3 model."""
+    algorithm = normalize_algorithm(algorithm)
+    path = model_path or get_model_path(algorithm)
+    return get_model_class(algorithm).load(path)
 
 
 def load_price_data():
@@ -113,13 +150,32 @@ def plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used):
     plt.show()
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate a trained Battery RL model")
+    parser.add_argument(
+        "--algorithm",
+        type=normalize_algorithm,
+        default=DEFAULT_ALGORITHM,
+        choices=tuple(MODEL_CLASSES),
+        help="RL algorithm used by the saved model",
+    )
+    parser.add_argument(
+        "--model-path",
+        default=None,
+        help="Path to the saved model without .zip",
+    )
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
+    args = _parse_args()
+
     # Load price data
     prices_full, global_price_scale = load_price_data()
     
     # Load trained model
-    model = SAC.load(DEFAULT_MODEL_PATH)
-    print("Model loaded successfully!")
+    model = load_rl_model(args.algorithm, args.model_path)
+    print(f"{normalize_algorithm(args.algorithm)} model loaded successfully!")
     
     # Evaluate
     prices_eval = prices_full[72:96]

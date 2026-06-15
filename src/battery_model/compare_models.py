@@ -2,26 +2,28 @@
 Comparison script: RL model vs Mathematical (Pyomo) model
 """
 
+import argparse
 import os
 import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from stable_baselines3 import SAC
 
-from Battery_model.Optimization_Pyomo.model_pyomo import optimize_battery_pyomo
+from Battery_model.Optimization_Pyomo.pyomo_battery_model import optimize_battery_pyomo
 from src.battery_model.evaluate import (
-    DEFAULT_MODEL_PATH,
+    DEFAULT_ALGORITHM,
     compute_total_cost,
     evaluate_model,
+    load_rl_model,
     load_price_data,
+    normalize_algorithm,
 )
 
 
 def run_pyomo_model(prices_window):
     """
     Run the Pyomo optimization model on given price window.
-    Uses optimize_battery_pyomo from model_pyomo.py to avoid code duplication.
+    Uses optimize_battery_pyomo from pyomo_battery_model.py to avoid code duplication.
     Returns cost and optimization time.
     """
     result = optimize_battery_pyomo(prices_window, verbose=False)
@@ -270,18 +272,43 @@ def print_comparison_stats(results, output_file=None):
         print(output_text)
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Compare a Battery RL model against Pyomo")
+    parser.add_argument(
+        "--algorithm",
+        type=normalize_algorithm,
+        default=DEFAULT_ALGORITHM,
+        choices=("SAC", "TD3"),
+        help="RL algorithm used by the saved model",
+    )
+    parser.add_argument(
+        "--model-path",
+        default=None,
+        help="Path to the saved RL model without .zip",
+    )
+    parser.add_argument(
+        "--comparisons",
+        type=int,
+        default=1000,
+        help="Number of random windows to compare",
+    )
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
+    args = _parse_args()
+
     # Load price data and model
     print("Loading data and model...")
     prices_full, global_price_scale = load_price_data()
     
-    rl_model = SAC.load(DEFAULT_MODEL_PATH)
-    print("Model loaded successfully!")
+    rl_model = load_rl_model(args.algorithm, args.model_path)
+    print(f"{args.algorithm} model loaded successfully!")
     
     # Run comparisons
     results = compare_models(
         prices_full, global_price_scale, rl_model,
-        window_len=24, n_comparisons=10
+        window_len=24, n_comparisons=args.comparisons
     )
     
     # Print results
