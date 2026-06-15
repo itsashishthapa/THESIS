@@ -7,6 +7,16 @@ Created on Tue Jun 24 14:52:23 2025
 # =============================================================================
 # # Imports:
 # =============================================================================
+import time
+
+import numpy as np
+
+# Pyomo 6.7 expects NumPy 1.x scalar aliases when NumPy is already imported.
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+if not hasattr(np, "complex_"):
+    np.complex_ = np.complex128
+
 from pyomo.core.expr.visitor import identify_variables
 from pyomo.environ import *
 
@@ -14,7 +24,7 @@ from pyomo.environ import *
 # =============================================================================
 # # Methods:
 # =============================================================================
-def get_battery_model(e_price):
+def build_battery_model(e_price):
     """
     Parameters
     ----------
@@ -27,7 +37,7 @@ def get_battery_model(e_price):
         mathematical model instance according to pyomo logic
 
     """
-    T = T = len(e_price)
+    T = len(e_price)
 
     model = ConcreteModel()
 
@@ -93,3 +103,50 @@ def get_battery_model(e_price):
 
     return model
 
+
+def get_battery_model(e_price, verbose=True):
+    """
+    Optimize battery charging/discharging using the v2 Pyomo model.
+
+    Returns a dictionary with the same main keys as
+    pyomo_battery_model.optimize_battery_pyomo:
+    cost, time, u, SOC, P, P_actual, and status.
+    """
+    try:
+        T = len(e_price)
+        model = build_battery_model(e_price)
+
+        solver = SolverFactory('ipopt')
+        solver.options['max_iter'] = 1000
+
+        start_time = time.time()
+        solver.solve(model, tee=verbose)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        u_opt = [float(value(model.u[t])) for t in range(T)]
+        soc_opt = [float(value(model.SOC[t])) for t in range(T)]
+        p_opt = [float(value(model.P[t])) for t in range(T)]
+        p_actual_opt = [float(value(model.P_actual[t])) for t in range(T)]
+        acc_cost_opt = [float(value(model.acc_cost[t])) for t in range(T)]
+        arg_opt = [float(value(model.arg[t])) for t in range(T)]
+
+        return {
+            'cost': float(value(model.obj)),
+            'time': elapsed_time,
+            'u': np.array(u_opt),
+            'SOC': np.array(soc_opt),
+            'P': np.array(p_opt),
+            'P_actual': np.array(p_actual_opt),
+            'acc_cost': np.array(acc_cost_opt),
+            'arg': np.array(arg_opt),
+            'status': 'success',
+        }
+
+    except Exception as e:
+        if verbose:
+            print(f"Pyomo v2 optimization failed: {str(e)}")
+        return {
+            'status': 'failed',
+            'error': str(e),
+        }
