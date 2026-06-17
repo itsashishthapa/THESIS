@@ -26,6 +26,7 @@ T3_S = -9.5016
 YEARLY_PERIOD_HOURS = 8760.0
 DAILY_PERIOD_HOURS = 24.0
 HALF_DAILY_PERIOD_HOURS = 12.0
+DEFAULT_PRICE_MODEL_HOURS = 8784
 
 # Ornstein-Uhlenbeck constants for the electricity price residual, Table B.1.
 LAMBDA_S = 0.2534
@@ -78,3 +79,40 @@ def sample_next_price(current_price, current_hour, dt_hours=1.0, rng=None):
     generator = np.random.default_rng() if rng is None else rng
     mean = expected_next_price(current_price, current_hour, dt_hours)
     return float(mean + price_shock_std(dt_hours) * generator.standard_normal())
+
+
+def load_price_model_data(
+    num_hours=DEFAULT_PRICE_MODEL_HOURS,
+    initial_price=None,
+    start_hour=0.0,
+    dt_hours=1.0,
+    seed=None,
+):
+    """Generate electricity price data using the stochastic price model."""
+    if num_hours <= 0:
+        raise ValueError("num_hours must be positive.")
+    if dt_hours <= 0.0:
+        raise ValueError("dt_hours must be positive.")
+
+    rng = np.random.default_rng(seed)
+    prices_full = np.empty(num_hours, dtype=float)
+    prices_full[0] = (
+        seasonality(start_hour) if initial_price is None else float(initial_price)
+    )
+
+    current_hour = float(start_hour)
+    for idx in range(1, num_hours):
+        prices_full[idx] = sample_next_price(
+            prices_full[idx - 1],
+            current_hour,
+            dt_hours=dt_hours,
+            rng=rng,
+        )
+        current_hour += dt_hours
+
+    global_price_scale = np.percentile(np.abs(prices_full), 95) + 1e-6
+
+    print(f"Generated price-model dataset length: {len(prices_full)} hours")
+    print(f"Global price scale (95th pct): {global_price_scale:.4f}")
+
+    return prices_full, global_price_scale

@@ -22,6 +22,10 @@ from src.battery_model.evaluate import (
     get_model_path,
     normalize_algorithm,
 )
+from src.battery_model.price_model import (
+    DEFAULT_PRICE_MODEL_HOURS,
+    load_price_model_data,
+)
 
 
 def load_price_data():
@@ -350,14 +354,58 @@ def _parse_args():
         default=None,
         help="Where to save the model without .zip",
     )
+    parser.add_argument(
+        "--use-price-model",
+        action="store_true",
+        help="Generate training prices with price_model instead of loading electricity_price.txt",
+    )
+    parser.add_argument(
+        "--price-model-hours",
+        type=int,
+        default=DEFAULT_PRICE_MODEL_HOURS,
+        help="Number of hourly prices to generate when --use-price-model is set",
+    )
+    parser.add_argument(
+        "--price-model-seed",
+        type=int,
+        default=None,
+        help="Random seed for price_model generation",
+    )
+    parser.add_argument(
+        "--price-model-initial-price",
+        type=float,
+        default=None,
+        help="Initial EUR/MWh price for price_model generation; defaults to seasonality(start_hour)",
+    )
+    parser.add_argument(
+        "--price-model-start-hour",
+        type=float,
+        default=0.0,
+        help="Starting hour used by price_model seasonality",
+    )
+    parser.add_argument(
+        "--price-model-dt-hours",
+        type=float,
+        default=1.0,
+        help="Time step in hours for price_model generation",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = _parse_args()
 
-    # Load price data
-    prices_full, global_price_scale = load_price_data()
+    # Load or generate price data
+    if args.use_price_model:
+        prices_full, global_price_scale = load_price_model_data(
+            num_hours=args.price_model_hours,
+            initial_price=args.price_model_initial_price,
+            start_hour=args.price_model_start_hour,
+            dt_hours=args.price_model_dt_hours,
+            seed=args.price_model_seed,
+        )
+    else:
+        prices_full, global_price_scale = load_price_data()
     prices_eval = prices_full[72:96]
     # optimize_battery_pyomo(prices_eval, verbose=False)
 
