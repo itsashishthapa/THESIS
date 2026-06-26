@@ -6,6 +6,10 @@ seasonality and Ornstein-Uhlenbeck residual. It does not calibrate parameters
 from data, and it intentionally omits the wind process and wind-price
 correlation term from the full paper model.
 
+The calibrated OU residual volatility in the paper is very small compared with
+the seasonal price component. The module-level constants below apply a fixed
+scenario volatility scale and level shift for generated price paths.
+
 Time is measured in hours. Prices are in EUR/MWh.
 """
 
@@ -27,6 +31,8 @@ YEARLY_PERIOD_HOURS = 8760.0
 DAILY_PERIOD_HOURS = 24.0
 HALF_DAILY_PERIOD_HOURS = 12.0
 DEFAULT_PRICE_MODEL_HOURS = 8784
+RESIDUAL_VOLATILITY_SCALE = 50.0
+PRICE_LEVEL_SHIFT = 30.0
 
 # Ornstein-Uhlenbeck constants for the electricity price residual, Table B.1.
 LAMBDA_S = 0.2534
@@ -46,19 +52,29 @@ def seasonality(hour):
     return float(value) if np.ndim(h) == 0 else value
 
 
+def seasonal_mean(hour):
+    """Return the seasonal mean price used by the simulated process."""
+    value = seasonality(hour) + PRICE_LEVEL_SHIFT
+    return float(value) if np.ndim(np.asarray(hour, dtype=float)) == 0 else value
+
+
 def residual(price, hour):
     """Return the price residual Y_S(t) = S(t) - mu_S(t)."""
-    return float(price - seasonality(hour))
+    return float(price - seasonal_mean(hour))
 
 
-def expected_next_price(current_price, current_hour, dt_hours=1.0):
+def expected_next_price(
+    current_price,
+    current_hour,
+    dt_hours=1.0,
+):
     """Return the mean next price E[S(t + dt) | S(t)]."""
     if dt_hours <= 0.0:
         raise ValueError("dt_hours must be positive.")
 
     current_residual = residual(current_price, current_hour)
     next_residual = math.exp(-LAMBDA_S * dt_hours) * current_residual
-    return float(seasonality(current_hour + dt_hours) + next_residual)
+    return float(seasonal_mean(current_hour + dt_hours) + next_residual)
 
 
 def price_shock_std(dt_hours=1.0):
@@ -71,14 +87,24 @@ def price_shock_std(dt_hours=1.0):
         / (2.0 * LAMBDA_S)
         * (1.0 - math.exp(-2.0 * LAMBDA_S * dt_hours))
     )
-    return math.sqrt(max(variance, 0.0))
+    return RESIDUAL_VOLATILITY_SCALE * math.sqrt(max(variance, 0.0))
 
 
-def sample_next_price(current_price, current_hour, dt_hours=1.0, rng=None):
+def sample_next_price(
+    current_price,
+    current_hour,
+    dt_hours=1.0,
+    rng=None,
+):
     """Sample one next price from the electricity price process."""
     generator = np.random.default_rng() if rng is None else rng
-    mean = expected_next_price(current_price, current_hour, dt_hours)
-    return float(mean + price_shock_std(dt_hours) * generator.standard_normal())
+    mean = expected_next_price(
+        current_price,
+        current_hour,
+        dt_hours,
+    )
+    shock = price_shock_std(dt_hours) * generator.standard_normal()
+    return float(mean + shock)
 
 
 def load_price_model_data(
@@ -97,7 +123,7 @@ def load_price_model_data(
     rng = np.random.default_rng(seed)
     prices_full = np.empty(num_hours, dtype=float)
     prices_full[0] = (
-        seasonality(start_hour) if initial_price is None else float(initial_price)
+        seasonal_mean(start_hour) if initial_price is None else float(initial_price)
     )
 
     current_hour = float(start_hour)
@@ -114,5 +140,9 @@ def load_price_model_data(
 
     print(f"Generated price-model dataset length: {len(prices_full)} hours")
     print(f"Global price scale (95th pct): {global_price_scale:.4f}")
+    print(
+        "Price-model residual shock std "
+        f"({dt_hours:g} h): {price_shock_std(dt_hours):.4f} EUR/MWh"
+    )
 
     return prices_full, global_price_scale
