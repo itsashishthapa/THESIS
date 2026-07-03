@@ -88,9 +88,15 @@ def train_model(
     )
     if algorithm == "TD3":
         n_actions = env_train.action_space.shape[-1]
-        model_init_kwargs["action_noise"] = NormalActionNoise(
-            mean=np.zeros(n_actions),
-            sigma=0.1 * np.ones(n_actions),
+        model_init_kwargs.update(
+            action_noise=NormalActionNoise(
+                mean=np.zeros(n_actions),
+                sigma=0.2 * np.ones(n_actions),
+            ),
+            policy_delay=2,
+            target_policy_noise=0.2,
+            target_noise_clip=0.5,
+            learning_starts=1000,
         )
     if model_kwargs:
         model_init_kwargs.update(model_kwargs)
@@ -375,13 +381,13 @@ def _parse_args():
         "--price-model-initial-price",
         type=float,
         default=None,
-        help="Initial EUR/MWh price for price_model generation; defaults to seasonality(start_hour)",
+        help="Initial EUR/MWh price for price_model generation; defaults to price_seasonality(start_hour)",
     )
     parser.add_argument(
         "--price-model-start-hour",
         type=float,
         default=0.0,
-        help="Starting hour used by price_model seasonality",
+        help="Starting hour used by price_model price seasonality",
     )
     parser.add_argument(
         "--price-model-dt-hours",
