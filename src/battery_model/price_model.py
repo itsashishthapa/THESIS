@@ -47,36 +47,21 @@ C_W = 0.5483
 LAMBDA_S = 0.2534
 SIGMA_S = 0.1072
 
-# The paper's calibrated price residual is small on the plotted EUR/MWh scale.
-# Keep this explicit scenario multiplier so generated price paths show visible
-# stochastic variation while retaining the paper's coupled dynamics.
-RESIDUAL_VOLATILITY_SCALE = 50.0
-PRICE_VOLATILITY_SCALE = RESIDUAL_VOLATILITY_SCALE
-WIND_VOLATILITY_SCALE = 1.0
-PRICE_LEVEL_SHIFT = 30.0
-
 
 def _return_scalar_if_scalar(value, reference):
     return float(value) if np.ndim(np.asarray(reference, dtype=float)) == 0 else value
 
 
-def seasonality(hour):
+def price_seasonality(hour):
     """Return the deterministic electricity-price seasonality mu_S(t)."""
     h = np.asarray(hour, dtype=float)
     two_pi = 2.0 * np.pi
     value = (
-        K0_S
-        + K1_S * np.cos(two_pi * (h - T1_S) / YEARLY_PERIOD_HOURS)
-        + K2_S * np.cos(two_pi * (h - T2_S) / DAILY_PERIOD_HOURS)
-        + K3_S * np.cos(two_pi * (h - T3_S) / HALF_DAILY_PERIOD_HOURS)
+        K3_S
+        + K0_S * np.cos(two_pi * (h - T1_S) / YEARLY_PERIOD_HOURS)
+        + K1_S * np.cos(two_pi * (h - T2_S) / DAILY_PERIOD_HOURS)
+        + K2_S * np.cos(two_pi * (h - T3_S) / HALF_DAILY_PERIOD_HOURS)
     )
-    return _return_scalar_if_scalar(value, h)
-
-
-def seasonal_mean(hour):
-    """Return the mean electricity price used by the simulated process."""
-    h = np.asarray(hour, dtype=float)
-    value = seasonality(h) + PRICE_LEVEL_SHIFT
     return _return_scalar_if_scalar(value, h)
 
 
@@ -99,9 +84,9 @@ def wind_seasonal_mean(hour):
     return _return_scalar_if_scalar(value, h)
 
 
-def residual(price, hour):
+def price_residual(price, hour):
     """Return the price residual Y_S(t) = S(t) - mu_S(t)."""
-    return float(price - seasonal_mean(hour))
+    return float(price - price_seasonality(hour))
 
 
 def wind_residual(wind_speed, hour):
@@ -110,23 +95,12 @@ def wind_residual(wind_speed, hour):
     return float(math.log(wind_speed) - wind_seasonality(hour))
 
 
-def _effective_sigmas(wind_volatility_scale=1.0):
-    return float(SIGMA_W) * float(wind_volatility_scale), float(SIGMA_S)
-
-
-def ou_covariance(
-    dt_hours=1.0,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
-):
+def ou_covariance(dt_hours=1.0):
     """Return covariance of (Y_W, Y_S) increments over one model step."""
     tau = float(dt_hours)
-    if tau <= 0.0:
-        raise ValueError("dt_hours must be positive.")
-    if math.isclose(LAMBDA_W, LAMBDA_S):
-        raise ValueError("LAMBDA_W and LAMBDA_S must differ for the closed form.")
 
-    sigma_w, sigma_s = _effective_sigmas(wind_volatility_scale=wind_volatility_scale)
+    sigma_w = float(SIGMA_W)
+    sigma_s = float(SIGMA_S)
     lambda_w = float(LAMBDA_W)
     lambda_s = float(LAMBDA_S)
     coupling = float(C_W)
@@ -152,11 +126,10 @@ def ou_covariance(
         var_w - sigma_w**2 / (lambda_s + lambda_w) * mixed_decay
     )
 
-    price_scale = float(price_volatility_scale)
     covariance = np.array(
         [
-            [var_w, cov_ws * price_scale],
-            [cov_ws * price_scale, var_s * price_scale**2],
+            [var_w, cov_ws],
+            [cov_ws, var_s],
         ],
         dtype=float,
     )
@@ -168,102 +141,48 @@ def transition_statistics(
     current_price,
     current_hour,
     dt_hours=1.0,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
 ):
     """Return mean and covariance for (log W_{n+1}, S_{n+1})."""
     tau = float(dt_hours)
-    if tau <= 0.0:
-        raise ValueError("dt_hours must be positive.")
 
     current_hour = float(current_hour)
     next_hour = current_hour + tau
     y_w = wind_residual(current_wind_speed, current_hour)
-    y_s = residual(current_price, current_hour)
+    y_s = price_residual(current_price, current_hour)
 
     exp_w = math.exp(-LAMBDA_W * tau)
     exp_s = math.exp(-LAMBDA_S * tau)
     m_y_w = y_w * exp_w
-    price_scale = float(price_volatility_scale)
-    m_y_s = y_s * exp_s - price_scale * (
-        LAMBDA_S * C_W / (LAMBDA_S - LAMBDA_W)
-    ) * y_w * (exp_w - exp_s)
+    m_y_s = y_s * exp_s - (LAMBDA_S * C_W / (LAMBDA_S - LAMBDA_W)) * y_w * (
+        exp_w - exp_s
+    )
 
     mean = np.array(
         [
             wind_seasonality(next_hour) + m_y_w,
-            seasonal_mean(next_hour) + m_y_s,
+            price_seasonality(next_hour) + m_y_s,
         ],
         dtype=float,
     )
-    covariance = ou_covariance(
-        dt_hours=tau,
-        wind_volatility_scale=wind_volatility_scale,
-        price_volatility_scale=price_volatility_scale,
-    )
+    covariance = ou_covariance(dt_hours=tau)
     return mean, covariance
 
 
-def expected_next_price(
-    current_price,
-    current_hour,
-    dt_hours=1.0,
-    current_wind_speed=None,
-):
-    """Return E[S(t + dt) | W(t), S(t)]."""
-    wind_speed = (
-        wind_seasonal_mean(current_hour)
-        if current_wind_speed is None
-        else float(current_wind_speed)
-    )
-    mean, _ = transition_statistics(
-        wind_speed,
-        current_price,
-        current_hour,
-        dt_hours=dt_hours,
-    )
-    return float(mean[1])
-
-
-def price_shock_std(
-    dt_hours=1.0,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
-):
+def price_shock_std(dt_hours=1.0):
     """Return std. dev. of the coupled price shock over one model step."""
-    covariance = ou_covariance(
-        dt_hours=dt_hours,
-        wind_volatility_scale=wind_volatility_scale,
-        price_volatility_scale=price_volatility_scale,
-    )
+    covariance = ou_covariance(dt_hours=dt_hours)
     return float(math.sqrt(max(covariance[1, 1], 0.0)))
 
 
-def wind_shock_std(
-    dt_hours=1.0,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
-):
+def wind_shock_std(dt_hours=1.0):
     """Return std. dev. of the log-wind shock over one model step."""
-    covariance = ou_covariance(
-        dt_hours=dt_hours,
-        wind_volatility_scale=wind_volatility_scale,
-        price_volatility_scale=price_volatility_scale,
-    )
+    covariance = ou_covariance(dt_hours=dt_hours)
     return float(math.sqrt(max(covariance[0, 0], 0.0)))
 
 
-def wind_price_correlation(
-    dt_hours=1.0,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
-):
+def wind_price_correlation(dt_hours=1.0):
     """Return the one-step correlation between log-wind and price shocks."""
-    covariance = ou_covariance(
-        dt_hours=dt_hours,
-        wind_volatility_scale=wind_volatility_scale,
-        price_volatility_scale=price_volatility_scale,
-    )
+    covariance = ou_covariance(dt_hours=dt_hours)
     denom = math.sqrt(max(covariance[0, 0] * covariance[1, 1], 0.0))
     return float(covariance[0, 1] / denom) if denom > 0.0 else 0.0
 
@@ -274,8 +193,6 @@ def sample_next_state(
     current_hour,
     dt_hours=1.0,
     rng=None,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
 ):
     """Sample the next wind speed and electricity price."""
     generator = np.random.default_rng() if rng is None else rng
@@ -284,34 +201,9 @@ def sample_next_state(
         current_price,
         current_hour,
         dt_hours=dt_hours,
-        wind_volatility_scale=wind_volatility_scale,
-        price_volatility_scale=price_volatility_scale,
     )
     log_wind, price = generator.multivariate_normal(mean, covariance)
     return float(math.exp(log_wind)), float(price)
-
-
-def sample_next_price(
-    current_price,
-    current_hour,
-    dt_hours=1.0,
-    rng=None,
-    current_wind_speed=None,
-):
-    """Sample one next price, using seasonal wind if no wind state is supplied."""
-    wind_speed = (
-        wind_seasonal_mean(current_hour)
-        if current_wind_speed is None
-        else float(current_wind_speed)
-    )
-    _, price = sample_next_state(
-        wind_speed,
-        current_price,
-        current_hour,
-        dt_hours=dt_hours,
-        rng=rng,
-    )
-    return price
 
 
 def load_price_model_data(
@@ -322,8 +214,6 @@ def load_price_model_data(
     seed=None,
     initial_wind_speed=None,
     return_wind=False,
-    wind_volatility_scale=WIND_VOLATILITY_SCALE,
-    price_volatility_scale=PRICE_VOLATILITY_SCALE,
 ):
     """Generate prices from the coupled stochastic wind-price model."""
 
@@ -338,7 +228,9 @@ def load_price_model_data(
         else float(initial_wind_speed)
     )
     prices_full[0] = (
-        seasonal_mean(current_hour) if initial_price is None else float(initial_price)
+        price_seasonality(current_hour)
+        if initial_price is None
+        else float(initial_price)
     )
 
     for idx in range(1, num_hours):
@@ -348,8 +240,6 @@ def load_price_model_data(
             current_hour,
             dt_hours=dt_hours,
             rng=rng,
-            wind_volatility_scale=wind_volatility_scale,
-            price_volatility_scale=price_volatility_scale,
         )
         current_hour += dt_hours
 
@@ -360,17 +250,13 @@ def load_price_model_data(
     print(
         "Coupled price shock std "
         f"({dt_hours:g} h): "
-        f"{price_shock_std(dt_hours, wind_volatility_scale, price_volatility_scale):.4f} EUR/MWh"
+        f"{price_shock_std(dt_hours):.4f} EUR/MWh"
     )
-    print(
-        "Log-wind shock std "
-        f"({dt_hours:g} h): "
-        f"{wind_shock_std(dt_hours, wind_volatility_scale, price_volatility_scale):.4f}"
-    )
+    print(f"Log-wind shock std ({dt_hours:g} h): {wind_shock_std(dt_hours):.4f}")
     print(
         "Wind-price shock correlation "
         f"({dt_hours:g} h): "
-        f"{wind_price_correlation(dt_hours, wind_volatility_scale, price_volatility_scale):.4f}"
+        f"{wind_price_correlation(dt_hours):.4f}"
     )
 
     if return_wind:
