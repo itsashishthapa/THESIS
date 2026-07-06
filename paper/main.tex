@@ -414,7 +414,49 @@ where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the action space, $p(s_
 Since the original engineering objective is cost minimization, the reward is defined as the negative operating cost, augmented by penalty terms for constraint violations where required. In this way, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
 
 \subsection{Reinforcement Learning Framework}
+
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
+
+The reinforcement-learning framework used in this thesis follows the same structure for both use cases. Each physical system is represented by a simulation environment with a \texttt{reset} function for initializing an episode and a \texttt{step} function for applying control action(s). At time step $k$, the environment returns an observation $s_k$, the SAC agent samples or predicts an action $a_k$, and the environment maps this action to admissible physical setpoints before computing the next state, reward, and termination signal. A transition is therefore generated as
+\[
+\tau_k = \left(s_k,a_k,r_k,s_{k+1},d_k\right),
+\]
+where $d_k$ indicates whether the episode has ended. These transitions are stored in a replay buffer and reused during training, which is the off-policy part of SAC.
+
+The policy is represented by a neural network $\pi_\theta(a_k\mid s_k)$ that outputs continuous setpoints. This is important for the considered systems because the relevant decisions are not naturally discrete: battery power, bypass positions, mass flow rates, compressor settings, and temperatures can vary continuously within their operating ranges. The critic is represented by action-value networks $Q_{\phi_i}(s_k,a_k)$, which estimate the expected future return of a state-action pair. SAC uses two critics and target networks to reduce overestimation bias and to stabilize the bootstrapped value estimates \cite{haarnoja2018soft}.
+
+During training, an action sampled from the stochastic actor is first processed by an environment-specific action map
+\[
+a_k^{\mathrm{phys}} = \mathcal{R}(s_k,a_k),
+\]
+where $\mathcal{R}$ converts the normalized policy output into physical setpoints and applies feasibility handling. For the battery system, this map scales the scalar action to charge or discharge power and limits the effective power near the SOC bounds. Thus, the RL policy proposes setpoints, while the environment remains responsible for enforcing engineering constraints.
+
+The reward has the same general form in both environments:
+\[
+r_k = -C_k - \sum_{\ell} \lambda_\ell v_{\ell,k} - \lambda_{\mathrm{T}} v_{\mathrm{T},k},
+\]
+where $C_k$ is the grid-electricity cost at time step $k$, $v_{\ell,k}$ are constraint-violation terms, and $\lambda_\ell$ are penalty weights. The terminal term $v_{\mathrm{T},k}$ is only active at the end of an episode. In the battery case it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the original cost-minimization problem into a return-maximization problem without removing the need for physical feasibility.
+
+The SAC update is based on mini-batches sampled from the replay buffer $\mathcal{D}$. For a sampled transition, the critic target is computed using the reward, the discounted target critic value, and the entropy term:
+\[
+y_k = r_k + \gamma_{\mathrm{RL}}(1-d_k)
+\left[
+\min_i Q_{\bar{\phi}_i}(s_{k+1},a_{k+1})
+- \alpha \log \pi_\theta(a_{k+1}\mid s_{k+1})
+\right],
+\]
+with $a_{k+1}\sim\pi_\theta(\cdot\mid s_{k+1})$. The critic parameters are updated by minimizing the squared difference between $Q_{\phi_i}(s_k,a_k)$ and $y_k$. The actor is updated to choose actions with high expected value while retaining entropy:
+\[
+J_\pi(\theta)
+= \mathbb{E}_{s_k\sim\mathcal{D},\,a_k\sim\pi_\theta}
+\left[
+\alpha \log \pi_\theta(a_k\mid s_k)
+- \min_i Q_{\phi_i}(s_k,a_k)
+\right].
+\]
+The temperature parameter $\alpha$ controls the trade-off between exploitation and exploration. A larger entropy contribution encourages broader exploration of the continuous setpoint space, while the critic gradually guides the actor toward actions that reduce cost and avoid constraint penalties.
+
+After training, the stochastic exploration behavior is no longer required for comparing schedules. The learned policy is therefore evaluated deterministically by selecting the mean action predicted by the actor at each time step. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical optimization baseline in terms of cost, constraint satisfaction, and computation time.
 
 \subsection{Training Setup}
 \textcolor{blue}{Describes the training environment, reward function, and hyperparameter configuration.}
