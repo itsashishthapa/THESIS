@@ -459,7 +459,41 @@ The temperature parameter $\alpha$ controls the trade-off between exploitation a
 After training, the stochastic exploration behavior is no longer required for comparing schedules. The learned policy is therefore evaluated deterministically by selecting the mean action predicted by the actor at each time step. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical optimization baseline in terms of cost, constraint satisfaction, and computation time.
 
 \subsection{Training Setup}
-\textcolor{blue}{Describes the training environment, reward function, and hyperparameter configuration.}
+
+Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. This is necessary because direct trial-and-error interaction with real energy utility systems would be unsafe and costly. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
+
+For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the same grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window. The forecast horizon is also set to 24 steps, so the observation contains the current operating state together with information about upcoming exogenous signals.
+
+The training environments are wrapped with monitoring and vectorized environment interfaces. Monitoring records episode rewards and lengths for later inspection, while the vectorized wrapper provides the interface expected by the Stable-Baselines3 implementation of SAC. Only one environment instance is used at a time in the current setup, so the vectorization is mainly an interface layer rather than a parallel simulation strategy.
+
+The BESS reward is the negative grid-side electricity cost at each time step, with an additional terminal penalty if the final SOC falls below the desired terminal level. The cookie factory reward also starts from the negative grid-electricity cost, but includes additional penalties for different constraint violations. The penalty terms are therefore more important in the second use case, because feasibility cannot be represented by simple action bounds alone.
+
+The main SAC hyperparameters used in the implementation are summarized in Table~\ref{tab:sac_training_setup}. The same learning-rate schedule and discount factor are used for both use cases to provide a consistent baseline configuration for continuous-control learning. Differences between the two training setups mainly arise from the different state variables, action spaces, and constraint structures of the two environments.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{p{0.36\textwidth}p{0.24\textwidth}p{0.26\textwidth}}
+\hline
+Parameter & Battery system & Cookie factory \\
+\hline
+Algorithm & SAC & SAC \\
+Policy & MLP policy & MLP policy \\
+Replay buffer size & 200000 & 200000 \\
+Batch size & 256 & 256 \\
+Learning rate & linear schedule from $3\cdot10^{-4}$ & linear schedule from $3\cdot10^{-4}$ \\
+Discount factor $\gamma_{\mathrm{RL}}$ & 0.99 & 0.99 \\
+Target smoothing coefficient $\tau$ & 0.005 & 0.005 \\
+Training frequency & 1 step & 1 step \\
+Gradient steps per update & 1 & 1 \\
+Episode length & 24 steps & 24 steps \\
+Forecast horizon & 24 steps & 24 steps \\
+\hline
+\end{tabular}
+\caption{Main SAC training settings used for the two reinforcement-learning environments.}
+\label{tab:sac_training_setup}
+\end{table}
+
+For the both battery system and cookie factory, the policy and critic networks use fully connected neural networks with two hidden layers of 256 neurons and ReLU activation functions. In both cases, trained models are saved after learning and are later loaded for deterministic evaluation. This separation between training and evaluation is important: stochastic actions are useful during learning, but deterministic actions are used for the final comparison with mathematical optimization.
 
 \subsection{Evaluation Metrics}
 \textcolor{blue}{Defines the metrics used to evaluate the performance of the RL agent and optimization baseline.}
