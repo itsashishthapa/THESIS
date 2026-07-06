@@ -535,6 +535,51 @@ Finally, computation time is used to assess practical applicability. For mathema
 
 \subsection{Battery Energy Storage System}
 
+The battery case study was first used to compare different learning-rate schedules for SAC. Each configuration was trained and evaluated over 32 runs on the same battery environment and evaluation setup. Table~\ref{tab:battery_lr_schedule_results} summarizes the mean cumulative reward and the corresponding total grid-side objective. Lower objective values are better, while higher rewards are better.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.28\textwidth}>{\raggedright\arraybackslash}p{0.30\textwidth}}
+\hline
+Learning-rate schedule & Cumulative reward & Total objective [EUR] \\
+\hline
+Constant & $8.9891 \pm 0.0325$ & $-8.9891 \pm 0.0325$ \\
+Linear & $8.9962 \pm 0.0286$ & $-8.9962 \pm 0.0286$ \\
+Power-law & $8.9809 \pm 0.0439$ & $-8.9809 \pm 0.0439$ \\
+\hline
+\end{tabular}
+\caption{Battery SAC performance for different learning-rate schedules over 32 runs.}
+\label{tab:battery_lr_schedule_results}
+\end{table}
+
+The linear schedule achieved the best mean reward and the lowest mean objective value among the tested configurations. However, the differences between the three schedules are small compared with the observed run-to-run variation. This indicates that the battery environment is not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore used as a stable baseline for the subsequent comparison against mathematical optimization.
+
+The trained SAC policy was then compared with the Pyomo optimization model over 1000 randomly sampled 24-hour price windows. Both methods used the same price windows and the same grid-side objective. Table~\ref{tab:battery_pyomo_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.30\textwidth}>{\raggedright\arraybackslash}p{0.26\textwidth}>{\raggedright\arraybackslash}p{0.26\textwidth}}
+\hline
+Metric & SAC policy & Pyomo optimization \\
+\hline
+Mean objective [EUR] & $-7.9557 \pm 0.8811$ & $-8.2391 \pm 0.8410$ \\
+Objective range [EUR] & $[-10.3298,\;-5.2038]$ & $[-10.5381,\;-5.6214]$ \\
+Mean computation time [s] & $0.0180 \pm 0.0086$ & $0.3041 \pm 0.1859$ \\
+Time range [s] & $[0.0104,\;0.1305]$ & $[0.0779,\;1.8481]$ \\
+Mean maximum SOC & $0.7767 \pm 0.1533$ & $0.8001 \pm 0.1543$ \\
+Mean minimum SOC & $0.2116 \pm 0.1524$ & $0.1968 \pm 0.1493$ \\
+\hline
+\end{tabular}
+\caption{Comparison between the trained SAC policy and the Pyomo battery optimization model over 1000 random 24-hour windows.}
+\label{tab:battery_pyomo_comparison}
+\end{table}
+
+The Pyomo model achieved a slightly lower mean objective value than the trained SAC policy. The mean signed objective gap was $0.2834 \pm 0.1536$ EUR, and the mean absolute gap was $0.3040 \pm 0.1072$ EUR. This corresponds to a mean relative absolute gap of $3.76 \pm 1.46\%$. Since the objective is minimized, this shows that the RL policy remained slightly less cost-optimal than the mathematical optimizer, but the economic gap was small in the current comparison.
+
+The SOC trajectories are also similar in the current comparison. The SAC policy reached a mean minimum SOC of 0.2116 and a mean maximum SOC of 0.7767, while the Pyomo solution reached a mean minimum SOC of 0.1968 and a mean maximum SOC of 0.8001. This indicates that both methods used a comparable portion of the available storage flexibility, with the optimization baseline still finding slightly better charge and discharge timing on average.
+
+The main advantage of the SAC policy was computation time. The trained policy required on average 0.0180~s for a 24-hour rollout, while the Pyomo model required 0.3041~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $16.86\times$. The result therefore illustrates the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and approaches the mathematical optimization result closely, while the direct optimizer still provides the best objective value.
+
 \subsection{Cookie Production Factory}
 
 \subsection{Key Findings}
