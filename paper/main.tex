@@ -16,6 +16,7 @@
 \usepackage{setspace}
 \usepackage{amssymb}
 \usepackage{xcolor}
+\usepackage{array}
 
  
 %--------------------------------------------%
@@ -460,6 +461,8 @@ After training, the stochastic exploration behavior is no longer required for co
 
 \subsection{Training Setup}
 
+\textcolor{blue}{Describes the training environment, reward function, and hyperparameter configuration.}
+
 Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. This is necessary because direct trial-and-error interaction with real energy utility systems would be unsafe and costly. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
 
 For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the same grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window. The forecast horizon is also set to 24 steps, so the observation contains the current operating state together with information about upcoming exogenous signals.
@@ -496,7 +499,36 @@ Forecast horizon & 24 steps & 24 steps \\
 For the both battery system and cookie factory, the policy and critic networks use fully connected neural networks with two hidden layers of 256 neurons and ReLU activation functions. In both cases, trained models are saved after learning and are later loaded for deterministic evaluation. This separation between training and evaluation is important: stochastic actions are useful during learning, but deterministic actions are used for the final comparison with mathematical optimization.
 
 \subsection{Evaluation Metrics}
-\textcolor{blue}{Defines the metrics used to evaluate the performance of the RL agent and optimization baseline.}
+
+The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. Deterministic evaluation means that the actor returns one action for each observation without sampling exploration noise. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with the mathematical optimization baseline on the same grid-price and wind-availability profiles.
+
+The primary economic metric is the total grid-electricity cost over the evaluation horizon:
+\[
+J_{\mathrm{grid}} = \sum_{k=0}^{N-1} C_k,
+\]
+where $C_k$ is the grid-electricity cost at time step $k$. For the battery system, this cost is computed from the electricity price and the battery power exchanged with the grid. For the cookie factory, it is computed from the grid power required by the heat-pump system after accounting for available wind power. Since the engineering objective is cost minimization, a lower value of $J_{\mathrm{grid}}$ indicates better economic performance.
+
+The cumulative reward is reported as a secondary metric:
+\[
+R_{\mathrm{ep}} = \sum_{k=0}^{N-1} r_k.
+\]
+This value is useful for analyzing the RL objective because it combines operating cost with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical operating cost. Therefore, total cost and constraint satisfaction are evaluated separately.
+
+Constraint satisfaction is measured by aggregating the violation terms recorded during the rollout. For a set of constraint residuals or violation magnitudes $v_{\ell,k}$, the total violation is defined as
+\[
+V_{\mathrm{tot}} = \sum_{k=0}^{N-1}\sum_{\ell} v_{\ell,k}.
+\]
+In addition, the number or frequency of time steps with nonzero violations is considered:
+\[
+f_{\mathrm{viol}} =
+\frac{1}{N}\sum_{k=0}^{N-1}
+\mathbb{I}\left(\sum_{\ell} v_{\ell,k} > \varepsilon\right),
+\]
+where $\varepsilon$ is a small numerical tolerance. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
+
+The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, terminal SOC, and cumulative cost.
+
+Finally, computation time is used to assess practical applicability. For mathematical optimization, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. After training, the relevant online cost is the time required for a policy forward pass and one environment step at each decision time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
 
 \section{Results and Discussion}
 \textcolor{blue}{Presents and analyzes the experimental results.}
