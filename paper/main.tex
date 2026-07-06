@@ -169,43 +169,30 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 \section{Introduction}
 \label{Section1}
-\textcolor{blue}{Introduces the research problem, motivation, and objectives of the thesis.}
 
-% This is a chapter (see Sec.\ \ref{Section1}) with a figure (see Fig.\ \ref{IMG:ANN}).
+Energy utility systems are increasingly operated under dynamic and uncertain conditions. Electricity prices vary over time, renewable generation is weather-dependent, and storage systems couple current decisions with future operating flexibility. At the same time, industrial energy systems often contain nonlinear component behavior, operating limits, and coupling constraints that must be respected at every time step. The resulting setpoint selection problem is therefore not only an economic problem, but also a constrained sequential decision-making problem.
 
-% \begin{figure}[!h]
-% \centering
-% \includegraphics[scale=0.5]{TESTIMAGE}
-% \caption{\label{IMG:ANN} Feedforward neural network. Source: \cite{schneidereit2022computational}}
-% \end{figure}
+In many engineering applications, such setpoints are determined using mathematical optimization. This approach is attractive because physical constraints and objective functions can be formulated explicitly, and mature solvers can compute high-quality solutions for well-defined models. For energy conversion systems, nonlinear programming methods such as IPOPT are commonly used when component models, storage dynamics, and operational constraints are nonlinear \cite{wachter2006implementation,walden2023nonlinear}. However, optimization-based operation can become computationally demanding when the model is large, nonlinear, or repeatedly solved over short horizons. In addition, model-plant mismatch and uncertain exogenous signals may reduce the practical reliability of a purely model-based strategy.
 
-% \subsection{This is a subsection}
+Reinforcement learning (RL) provides a different perspective. Instead of solving an optimization problem from scratch for every operating horizon, an RL agent learns a policy through interaction with an environment. Once trained, the policy maps the current observation directly to an action and can therefore generate setpoints very quickly. This makes RL attractive for real-time or repeated decision-making problems, especially when the action space is continuous and the operating environment changes over time \cite{sutton2018reinforcement,pilling2025rl}. Nevertheless, RL does not automatically guarantee feasibility or optimality. For engineering use, a learned policy must be evaluated not only by its reward, but also by its operating cost, constraint satisfaction, and computation time relative to established optimization methods.
 
-% This is a subsection with a table (see Tab.\ \ref{TAB:NEURON}).
+This thesis investigates whether RL can be used for optimal setpoint determination in energy utility systems. The focus is not on replacing physical models or constraints, but on studying whether a learned policy can approximate useful operating decisions after training. Two case studies are considered. The first is a battery energy storage system (BESS), which represents a comparatively low-dimensional storage-control problem with time-varying electricity prices. The second is a nonlinear cookie production factory with an electrified steam-generation utility system, wind-power availability, thermal energy storage, and coupled process constraints based on the benchmark systems described by Walden et al. and Kyriakidis et al. \cite{walden2023nonlinear,kyriakidis2024hybrid}.
 
-% \begin{table}[!h]
-% \centering
-% \begin{tabular}{c|c}
-% Layer & Number of neurons \\\hline
-% 1 & 5 \\
-% 2 & 13 \\
-% 3 & 10
-% \end{tabular}
-% \caption{\label{TAB:NEURON} Number of neurons in each layer.}
-% \end{table}
+The central research question of this thesis is:
+\begin{quote}
+\itshape Can reinforcement learning determine feasible and cost-effective operating setpoints for energy utility systems?
+\end{quote}
+This question is addressed through the following subquestions:
+\begin{itemize}
+    \item How can the setpoint optimization problem be formulated as a Markov decision process with suitable states, actions, and rewards?
+    \item Can a Soft Actor-Critic policy learn continuous setpoint decisions that respect the operational structure of the two systems?
+    \item How does the learned policy compare with mathematical optimization in terms of operating cost, constraint satisfaction, and computation time?
+    \item Under which conditions does RL offer a practical advantage, and where do classical optimization methods remain superior?
+\end{itemize}
 
-% \subsubsection{This is a subsubsection}
+The thesis evaluates RL policies through deterministic rollouts in reinforcement-learning environments and compares the resulting schedules with mathematical optimization baselines. The comparison is based on total grid-electricity cost, constraint violations, trajectory behavior, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
 
-% This is a subsubsection with an equation (see Eq.\ \eqref{EQ:SUM})
-
-% \begin{equation}
-% N(x)=\sum_{i=1}^5 x^2
-% \label{EQ:SUM}
-% \end{equation}
-
-% \paragraph{This is a paragraph.}
-
-% This is a paragraph.
+The remainder of this thesis is organized as follows. Section~\ref{sec:theory_background} introduces the theoretical background on setpoint optimization, mathematical optimization, reinforcement learning, and Soft Actor-Critic. Section~3 describes the two use cases: the battery energy storage system and the nonlinear cookie production factory. Section~4 presents the methodology, including the MDP formulation, RL framework, training setup, and evaluation metrics. Section~5 discusses the experimental results and compares RL with mathematical optimization. Finally, Section~6 summarizes the main findings and outlines directions for future work.
 
 \newpage
 \section{Theory and Background}
@@ -418,11 +405,25 @@ Since the original engineering objective is cost minimization, the reward is def
 
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
 
-The reinforcement-learning framework used in this thesis follows the same structure for both use cases. Each physical system is represented by a simulation environment with a \texttt{reset} function for initializing an episode and a \texttt{step} function for applying control action(s). At time step $k$, the environment returns an observation $s_k$, the SAC agent samples or predicts an action $a_k$, and the environment maps this action to admissible physical setpoints before computing the next state, reward, and termination signal. A transition is therefore generated as
+The reinforcement-learning framework used in this thesis follows the same structure for both use cases. Each physical system is represented by an RL environment with a \texttt{reset} function for initializing an episode and a \texttt{step} function for applying control action(s). At time step $k$, the environment returns an observation $s_k$, the SAC agent samples or predicts an action $a_k$, and the environment maps this action to admissible physical setpoints before computing the next state, reward, and termination signal. A transition is therefore generated as
 \[
 \tau_k = \left(s_k,a_k,r_k,s_{k+1},d_k\right),
 \]
 where $d_k$ indicates whether the episode has ended. These transitions are stored in a replay buffer and reused during training, which is the off-policy part of SAC.
+
+\begin{figure}[htbp]
+    \centering
+    \fbox{
+        \begin{minipage}[c][5.5cm][c]{0.82\textwidth}
+            \centering
+            Placeholder for reinforcement-learning interaction loop
+        \end{minipage}
+    }
+    % Replace the placeholder with the final RL interaction-loop figure, for example:
+    % \includegraphics[width=0.82\textwidth]{figures/rl_interaction_loop.pdf}
+    \caption{Interaction loop between the reinforcement-learning agent and the environment.}
+    \label{fig:rl_interaction_loop}
+\end{figure}
 
 The policy is represented by a neural network $\pi_\theta(a_k\mid s_k)$ that outputs continuous setpoints. This is important for the considered systems because the relevant decisions are not naturally discrete: battery power, bypass positions, mass flow rates, compressor settings, and temperatures can vary continuously within their operating ranges. The critic is represented by action-value networks $Q_{\phi_i}(s_k,a_k)$, which estimate the expected future return of a state-action pair. SAC uses two critics and target networks to reduce overestimation bias and to stabilize the bootstrapped value estimates \cite{haarnoja2018soft}.
 
