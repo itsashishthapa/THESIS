@@ -1,18 +1,4 @@
-"""
-Coupled wind-speed and electricity-price model from Pilling et al. (2025).
-
-The paper models the exogenous states as
-
-    log W(t) = mu_W(t) + Y_W(t)
-    S(t)     = mu_S(t) + Y_S(t)
-
-where the residuals follow coupled Ornstein-Uhlenbeck dynamics. The price
-residual is driven by its own Brownian shock and by the wind residual, producing
-the wind-price dependence that was missing from the earlier electricity-only
-model.
-
-Time is measured in hours. Prices are in EUR/MWh.
-"""
+"""Coupled wind and electricity price process used as the price model."""
 
 from __future__ import annotations
 
@@ -26,12 +12,8 @@ LAM_W = 0.1444180172085898
 SIG_W_2 = 0.08396670351568147
 
 CW = 2.382279201991361
-DEFAULT_DT_HOURS = 1.0
+DELTA_T = 1.0
 DEFAULT_PRICE_MODEL_HOURS = 8784
-
-
-def _return_scalar_if_scalar(value, reference):
-    return float(value) if np.ndim(np.asarray(reference, dtype=float)) == 0 else value
 
 
 def var_y_w(t_n: float, t: float) -> float:
@@ -66,35 +48,27 @@ def covariance_ws(t_n: float, t: float) -> float:
     )
 
 
-def _step_statistics(dt_hours: float) -> tuple[float, float, float, float]:
-    sigma_2_w = var_w(0.0, dt_hours)
-    sigma_2_s = var_s(0.0, dt_hours)
-    sigma_2_ws = covariance_ws(0.0, dt_hours)
-    denom = np.sqrt(sigma_2_w) * np.sqrt(sigma_2_s)
-    rho = sigma_2_ws / denom if denom > 0.0 else 0.0
-    return float(sigma_2_w), float(sigma_2_s), float(sigma_2_ws), float(rho)
+SIGMA_2_W = var_w(0.0, DELTA_T)
+SIGMA_2_S = var_s(0.0, DELTA_T)
+SIGMA_2_WS = covariance_ws(0.0, DELTA_T)
+RHO = SIGMA_2_WS / (np.sqrt(SIGMA_2_W) * np.sqrt(SIGMA_2_S))
 
 
-SIGMA_2_W, SIGMA_2_S, SIGMA_2_WS, RHO = _step_statistics(DEFAULT_DT_HOURS)
-
-
-def g_w(x):
+def g_w(x: np.ndarray | float) -> np.ndarray | float:
     a = 0.13574545681905442
     b = -0.3286669816831083
     c = 1.6496304557720327
     t1 = 1034.526102455241
     t2 = 1.1707259416700286
 
-    hour = np.asarray(x, dtype=float)
-    value = (
-        a * np.cos(2.0 * np.pi * (hour - t1) / (365.0 * 24.0))
-        + b * np.cos(2.0 * np.pi * (hour - t2) / 24.0)
+    return (
+        a * np.cos(2.0 * np.pi * (x - t1) / (365.0 * 24.0))
+        + b * np.cos(2.0 * np.pi * (x - t2) / 24.0)
         + c
     )
-    return _return_scalar_if_scalar(value, x)
 
 
-def g_s(x):
+def g_s(x: np.ndarray | float) -> np.ndarray | float:
     a = -11.203811091724104
     b = 4.257077726408406
     c = -6.664242994338143
@@ -103,128 +77,55 @@ def g_s(x):
     t2 = -6.7823380716985815
     t3 = -9.501631670758995
 
-    hour = np.asarray(x, dtype=float)
-    value = (
-        a * np.cos(2.0 * np.pi * (hour - t1) / (365.0 * 24.0))
-        + b * np.cos(2.0 * np.pi * (hour - t2) / 24.0)
-        + c * np.cos(2.0 * np.pi * (hour - t3) / 12.0)
+    return (
+        a * np.cos(2.0 * np.pi * (x - t1) / (365.0 * 24.0))
+        + b * np.cos(2.0 * np.pi * (x - t2) / 24.0)
+        + c * np.cos(2.0 * np.pi * (x - t3) / 12.0)
         + d
     )
-    return _return_scalar_if_scalar(value, x)
-
-
-def wind_seasonality(hour):
-    """Return the deterministic log-wind seasonality g_W(t)."""
-    return g_w(hour)
-
-
-def price_seasonality(hour):
-    """Return the deterministic electricity-price seasonality g_S(t)."""
-    return g_s(hour)
-
-
-def seasonality(hour):
-    """Compatibility alias for the deterministic price seasonality."""
-    return price_seasonality(hour)
-
-
-def wind_seasonal_mean(hour):
-    """Return the seasonal mean wind speed exp(g_W(t))."""
-    h = np.asarray(hour, dtype=float)
-    value = np.exp(g_w(h))
-    return _return_scalar_if_scalar(value, hour)
-
-
-def price_residual(price, hour):
-    """Return the price residual Y_S(t) = S(t) - g_S(t)."""
-    return float(price - price_seasonality(hour))
-
-
-def wind_residual(wind_speed, hour):
-    """Return the log-wind residual Y_W(t) = log(W(t)) - g_W(t)."""
-    return float(np.log(max(float(wind_speed), 1e-12)) - wind_seasonality(hour))
-
-
-def wind_price_correlation(dt_hours: float = DEFAULT_DT_HOURS) -> float:
-    """Return the one-step correlation between log-wind and price shocks."""
-    return _step_statistics(dt_hours)[3]
-
-
-def wind_shock_std(dt_hours: float = DEFAULT_DT_HOURS) -> float:
-    """Return the standard deviation of the log-wind shock."""
-    return float(np.sqrt(max(var_w(0.0, dt_hours), 0.0)))
-
-
-def price_shock_std(dt_hours: float = DEFAULT_DT_HOURS) -> float:
-    """Return the standard deviation of the price shock."""
-    return float(np.sqrt(max(var_s(0.0, dt_hours), 0.0)))
 
 
 def transition(
-    n: float,
+    n: int,
     yw: float,
     ys: float,
     rng: np.random.Generator,
-    dt_hours: float = DEFAULT_DT_HOURS,
 ) -> tuple[float, float, float, float]:
-    """Sample one transition of the coupled wind-price process."""
-    sigma_2_w, sigma_2_s, _, rho = _step_statistics(dt_hours)
     b = rng.normal(0.0, 1.0, size=2)
-    next_hour = n + dt_hours
-    exp_w = np.exp(-LAM_W * dt_hours)
-    exp_s = np.exp(-LAM_S * dt_hours)
-
-    yw_new = g_w(next_hour) + yw * exp_w + np.sqrt(sigma_2_w) * b[0]
+    yw_new = (
+        g_w(n + 1)
+        + yw * np.exp(-LAM_W * DELTA_T)
+        + np.sqrt(SIGMA_2_W) * b[0]
+    )
     ys_new = (
-        ys * exp_s
-        - ((LAM_S * CW * yw) / (LAM_S - LAM_W)) * (exp_w - exp_s)
-        + np.sqrt(sigma_2_s) * (rho * b[0] + np.sqrt(max(1.0 - rho**2, 0.0)) * b[1])
+        ys * np.exp(-LAM_S * DELTA_T)
+        - ((LAM_S * CW * yw) / (LAM_S - LAM_W))
+        * (np.exp(-LAM_W * DELTA_T) - np.exp(-LAM_S * DELTA_T))
+        + np.sqrt(SIGMA_2_S) * (RHO * b[0] + np.sqrt(1.0 - RHO**2) * b[1])
     )
     w_new = np.exp(yw_new)
-    s_new = ys_new + g_s(next_hour)
-    return float(yw_new), float(w_new), float(ys_new), float(s_new)
+    s_new = ys_new + g_s(n + 1)
+    return yw_new, w_new, ys_new, s_new
 
 
-def simulate(
-    hours: int,
-    seed: int | None = None,
-    start_hour: float = 0.0,
-    dt_hours: float = DEFAULT_DT_HOURS,
-    initial_price: float | None = None,
-    initial_wind_speed: float | None = None,
-) -> dict[str, np.ndarray]:
-    """Generate one coupled wind-price path."""
-    if hours < 0:
-        raise ValueError("hours must be non-negative.")
-    if dt_hours <= 0.0:
-        raise ValueError("dt_hours must be positive.")
-
+def simulate(hours: int, seed: int | None) -> dict[str, np.ndarray]:
     rng = np.random.default_rng(seed)
-    hour = start_hour + np.arange(hours + 1, dtype=float) * dt_hours
+    hour = np.arange(hours + 1)
 
     yw = np.zeros(hours + 1)
     wind = np.zeros(hours + 1)
     ys = np.zeros(hours + 1)
     price = np.zeros(hours + 1)
 
-    wind[0] = (
-        wind_seasonal_mean(start_hour)
-        if initial_wind_speed is None
-        else float(initial_wind_speed)
-    )
-    yw[0] = wind_residual(wind[0], start_hour)
-    price[0] = (
-        price_seasonality(start_hour) if initial_price is None else float(initial_price)
-    )
-    ys[0] = price_residual(price[0], start_hour)
+    wind[0] = np.exp(yw[0])
+    price[0] = ys[0] + g_s(0)
 
-    for idx in range(hours):
-        yw[idx + 1], wind[idx + 1], ys[idx + 1], price[idx + 1] = transition(
-            hour[idx],
-            yw[idx],
-            ys[idx],
+    for n in range(hours):
+        yw[n + 1], wind[n + 1], ys[n + 1], price[n + 1] = transition(
+            n,
+            yw[n],
+            ys[n],
             rng,
-            dt_hours=dt_hours,
         )
 
     return {
@@ -242,41 +143,23 @@ def load_price_model_data(
     num_hours=DEFAULT_PRICE_MODEL_HOURS,
     initial_price=None,
     start_hour=0.0,
-    dt_hours=DEFAULT_DT_HOURS,
+    dt_hours=DELTA_T,
     seed=None,
-    initial_wind_speed=None,
-    return_wind=False,
 ):
-    """Generate prices from the coupled stochastic wind-price process."""
     if num_hours <= 0:
         raise ValueError("num_hours must be positive.")
-    if dt_hours <= 0.0:
-        raise ValueError("dt_hours must be positive.")
+    if initial_price is not None:
+        raise ValueError("initial_price is not supported by the coupled plot process.")
+    if start_hour != 0.0:
+        raise ValueError("start_hour is not supported by the coupled plot process.")
+    if dt_hours != DELTA_T:
+        raise ValueError("dt_hours must be 1.0 for the coupled plot process.")
 
-    path = simulate(
-        num_hours - 1,
-        seed=seed,
-        start_hour=start_hour,
-        dt_hours=dt_hours,
-        initial_price=initial_price,
-        initial_wind_speed=initial_wind_speed,
-    )
+    path = simulate(num_hours - 1, seed)
     prices_full = path["price"]
-    wind_full = path["wind"]
     global_price_scale = np.percentile(np.abs(prices_full), 95) + 1e-6
 
     print(f"Generated coupled wind-price dataset length: {len(prices_full)} hours")
     print(f"Global price scale (95th pct): {global_price_scale:.4f}")
-    print(
-        "Coupled price shock std "
-        f"({dt_hours:g} h): {price_shock_std(dt_hours):.4f} EUR/MWh"
-    )
-    print(f"Log-wind shock std ({dt_hours:g} h): {wind_shock_std(dt_hours):.4f}")
-    print(
-        "Wind-price shock correlation "
-        f"({dt_hours:g} h): {wind_price_correlation(dt_hours):.4f}"
-    )
 
-    if return_wind:
-        return prices_full, wind_full, global_price_scale
     return prices_full, global_price_scale
