@@ -321,14 +321,8 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 
 \begin{figure}[htbp]
     \centering
-    \fbox{
-        \begin{minipage}[c][6cm][c]{0.85\textwidth}
-            \centering
-            Placeholder for schematic of the electrified steam-generation system
-        \end{minipage}
-    }
-	% \includegraphics[width=0.9\textwidth]{figures/cookie_steam_system.pdf} later replace \fbox with the actual figure
-    \caption{Schematic representation of the electrified steam-generation system serving the cookie production factory, adapted from the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and the renewable steam-generation benchmark described by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.}
+    \includegraphics[width=0.95\textwidth,clip]{figures/cookie_steam_system.pdf}
+    \caption{Schematic representation of the electrified steam-generation system serving the cookie production factory. Reproduced from Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
     \label{fig:cookie_steam_system}
 \end{figure}
 
@@ -383,7 +377,7 @@ This use case is more complex than the battery system because it combines non-li
 \section{Methodology}
 \textcolor{blue}{Describes how the optimization problem is formulated as a reinforcement learning problem.}
 
-The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In particular, the setpoint optimization task is expressed as a finite-horizon sequential decision problem, where an agent observes the current system state, selects continuous control actions, and receives a reward based on operating cost and constraint satisfaction.
+The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In particular, the setpoint optimization task is expressed as a finite-horizon sequential decision problem, where an agent observes the current physical system state together with current and forecast exogenous variables, such as electricity prices and available wind power, selects continuous control actions, and receives a reward based on operating cost and constraint satisfaction.
 
 \subsection{Problem Formulation}
 \textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
@@ -413,15 +407,8 @@ where $d_k$ indicates whether the episode has ended. These transitions are store
 
 \begin{figure}[htbp]
     \centering
-    \fbox{
-        \begin{minipage}[c][5.5cm][c]{0.82\textwidth}
-            \centering
-            Placeholder for reinforcement-learning interaction loop
-        \end{minipage}
-    }
-    % Replace the placeholder with the final RL interaction-loop figure, for example:
-    % \includegraphics[width=0.82\textwidth]{figures/rl_interaction_loop.pdf}
-    \caption{Interaction loop between the reinforcement-learning agent and the environment.}
+    \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
+    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process. Created by EBatlleP, via \href{https://commons.wikimedia.org/wiki/File:Markov_diagram_v2.svg}{Wikimedia Commons}, licensed under \href{https://creativecommons.org/licenses/by-sa/4.0/}{CC BY-SA 4.0}; reproduced without modification.}
     \label{fig:rl_interaction_loop}
 \end{figure}
 
