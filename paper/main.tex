@@ -235,6 +235,13 @@ Nonlinear constrained problems are usually solved with dedicated numerical solve
 
 Reinforcement learning (RL) offers a different view of the same setpoint problem. Instead of solving an optimization problem from scratch at every decision time, an agent learns from repeated interaction with an environment. At each time step, the agent observes the current state, selects an action, receives a reward, and observes the next state. Over time, it adapts its policy so that actions leading to high long-term reward become more likely \cite{sutton2018reinforcement}.
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
+    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process. Created by EBatlleP, via \href{https://commons.wikimedia.org/wiki/File:Markov_diagram_v2.svg}{Wikimedia Commons}, licensed under \href{https://creativecommons.org/licenses/by-sa/4.0/}{CC BY-SA 4.0}; reproduced without modification.}
+    \label{fig:rl_interaction_loop}
+\end{figure}
+
 Formally, RL problems are commonly modeled as a Markov Decision Process (MDP), defined by the tuple
 \[
 \left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
@@ -281,6 +288,27 @@ In standard RL, the policy is usually trained to maximize expected return. SAC a
 \left(r(s_k,a_k)+\alpha \mathcal{H}(\pi(\cdot \mid s_k))\right)\right],
 \]
 where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce the risk that the agent converges too early to a narrow operating strategy.
+
+The SAC policy is represented by a stochastic actor $\pi_\theta(a_k\mid s_k)$, while two action-value networks $Q_{\phi_i}(s_k,a_k)$ estimate the expected future return of state--action pairs. The use of two critics and slowly updated target networks reduces overestimation bias and stabilizes bootstrapped value estimates \cite{haarnoja2018soft}. Because SAC is off-policy, transitions can be stored in a replay buffer $\mathcal{D}$ and reused in multiple parameter updates.
+
+For a transition sampled from the replay buffer, the critic target is
+\[
+y_k = r_k + \gamma_{\mathrm{RL}}(1-d_k)
+\left[
+\min_i Q_{\bar{\phi}_i}(s_{k+1},a_{k+1})
+- \alpha \log \pi_\theta(a_{k+1}\mid s_{k+1})
+\right],
+\]
+where $a_{k+1}\sim\pi_\theta(\cdot\mid s_{k+1})$ and $d_k$ indicates a terminal transition. Each critic is trained by minimizing the squared difference between $Q_{\phi_i}(s_k,a_k)$ and $y_k$. The actor objective is
+\[
+J_\pi(\theta)
+= \mathbb{E}_{s_k\sim\mathcal{D},\,a_k\sim\pi_\theta}
+\left[
+\alpha \log \pi_\theta(a_k\mid s_k)
+- \min_i Q_{\phi_i}(s_k,a_k)
+\right].
+\]
+Minimizing this objective favors actions with high estimated value while retaining policy entropy. The temperature parameter $\alpha$ determines the relative importance of exploration and reward maximization.
 
 SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, and storage dynamics.
 
@@ -399,26 +427,20 @@ Since the original engineering objective is cost minimization, the reward is def
 
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
 
-The reinforcement-learning framework used in this thesis follows the same structure for both use cases. Each physical system is represented by an RL environment with a \texttt{reset} function for initializing an episode and a \texttt{step} function for applying control action(s). At time step $k$, the environment returns an observation $s_k$, the SAC agent samples or predicts an action $a_k$, and the environment maps this action to admissible physical setpoints before computing the next state, reward, and termination signal. A transition is therefore generated as
+The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium, while the continuous-control policies are trained using Stable-Baselines3. At time step $k$, the environment supplies the agent with a forecast-augmented state $s_k$, comprising the current physical system state, current exogenous information, a normalized time indicator, and look-ahead information for the relevant exogenous variables. The agent selects a normalized continuous action $a_k$, which the environment maps to physical control setpoints. The environment then advances the system dynamics and returns the next state $s_{k+1}$, the reward $r_k$, and the Gymnasium termination signals. A transition is therefore generated as
 \[
 \tau_k = \left(s_k,a_k,r_k,s_{k+1},d_k\right),
 \]
-where $d_k$ indicates whether the episode has ended. These transitions are stored in a replay buffer and reused during training, which is the off-policy part of SAC.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
-    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process. Created by EBatlleP, via \href{https://commons.wikimedia.org/wiki/File:Markov_diagram_v2.svg}{Wikimedia Commons}, licensed under \href{https://creativecommons.org/licenses/by-sa/4.0/}{CC BY-SA 4.0}; reproduced without modification.}
-    \label{fig:rl_interaction_loop}
-\end{figure}
-
-The policy is represented by a neural network $\pi_\theta(a_k\mid s_k)$ that outputs continuous setpoints. This is important for the considered systems because the relevant decisions are not naturally discrete: battery power, bypass positions, mass flow rates, compressor settings, and temperatures can vary continuously within their operating ranges. The critic is represented by action-value networks $Q_{\phi_i}(s_k,a_k)$, which estimate the expected future return of a state-action pair. SAC uses two critics and target networks to reduce overestimation bias and to stabilize the bootstrapped value estimates \cite{haarnoja2018soft}.
+where $d_k$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC. SAC augments the conventional return-maximization objective with an entropy term during training to encourage exploration of the continuous action space.
+This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
 
 During training, an action sampled from the stochastic actor is first processed by an environment-specific action map
 \[
 a_k^{\mathrm{phys}} = \mathcal{R}(s_k,a_k),
 \]
-where $\mathcal{R}$ converts the normalized policy output into physical setpoints and applies feasibility handling. For the battery system, this map scales the scalar action to charge or discharge power and limits the effective power near the SOC bounds. Thus, the RL policy proposes setpoints, while the environment remains responsible for enforcing engineering constraints.
+where $\mathcal{R}$ converts the normalized policy output into physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
+
+For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current electricity price, the normalized position within the scheduling horizon, and a normalized 24-step window of future electricity prices. Close to the end of an episode, unavailable entries in the look-ahead window are padded with the final price of that episode. The continuous scalar action $u_k\in[-0.8,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits. The resulting grid-side power determines the electricity cost, whereas the efficiency-adjusted battery-side power determines the SOC transition.
 
 The reward has the same general form in both environments:
 \[
@@ -426,24 +448,13 @@ r_k = -C_k - \sum_{\ell} \lambda_\ell v_{\ell,k} - \lambda_{\mathrm{T}} v_{\math
 \]
 where $C_k$ is the grid-electricity cost at time step $k$, $v_{\ell,k}$ are constraint-violation terms, and $\lambda_\ell$ are penalty weights. The terminal term $v_{\mathrm{T},k}$ is only active at the end of an episode. In the battery case it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the original cost-minimization problem into a return-maximization problem without removing the need for physical feasibility.
 
-The SAC update is based on mini-batches sampled from the replay buffer $\mathcal{D}$. For a sampled transition, the critic target is computed using the reward, the discounted target critic value, and the entropy term:
+More specifically, the battery reward implemented in the environment is
 \[
-y_k = r_k + \gamma_{\mathrm{RL}}(1-d_k)
-\left[
-\min_i Q_{\bar{\phi}_i}(s_{k+1},a_{k+1})
-- \alpha \log \pi_\theta(a_{k+1}\mid s_{k+1})
-\right],
+r_k = -\frac{c_k P_k\Delta t}{1000}
+-\mathbf{1}_{\{k=N-1\}}\lambda_{\mathrm{SOC}}
+\max\!\left(SOC_{\min}^{\mathrm{terminal}}-SOC_N,0\right),
 \]
-with $a_{k+1}\sim\pi_\theta(\cdot\mid s_{k+1})$. The critic parameters are updated by minimizing the squared difference between $Q_{\phi_i}(s_k,a_k)$ and $y_k$. The actor is updated to choose actions with high expected value while retaining entropy:
-\[
-J_\pi(\theta)
-= \mathbb{E}_{s_k\sim\mathcal{D},\,a_k\sim\pi_\theta}
-\left[
-\alpha \log \pi_\theta(a_k\mid s_k)
-- \min_i Q_{\phi_i}(s_k,a_k)
-\right].
-\]
-The temperature parameter $\alpha$ controls the trade-off between exploitation and exploration. A larger entropy contribution encourages broader exploration of the continuous setpoint space, while the critic gradually guides the actor toward actions that reduce cost and avoid constraint penalties.
+where $c_k$ is the electricity price in EUR/MWh, $P_k$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
 
 After training, the stochastic exploration behavior is no longer required for comparing schedules. The learned policy is therefore evaluated deterministically by selecting the mean action predicted by the actor at each time step. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical optimization baseline in terms of cost, constraint satisfaction, and computation time.
 
@@ -472,7 +483,7 @@ Policy & MLP policy & MLP policy \\
 Replay buffer size & 200000 & 200000 \\
 Batch size & 256 & 256 \\
 Learning rate & linear schedule from $3\cdot10^{-4}$ & linear schedule from $3\cdot10^{-4}$ \\
-Discount factor $\gamma_{\mathrm{RL}}$ & 0.99 & 0.99 \\
+Discount factor $\gamma_{\mathrm{RL}}$ & 0.9999 & 0.99 \\
 Target smoothing coefficient $\tau$ & 0.005 & 0.005 \\
 Training frequency & 1 step & 1 step \\
 Gradient steps per update & 1 & 1 \\
@@ -484,7 +495,7 @@ Forecast horizon & 24 steps & 24 steps \\
 \label{tab:sac_training_setup}
 \end{table}
 
-For the both battery system and cookie factory, the policy and critic networks use fully connected neural networks with two hidden layers of 256 neurons and ReLU activation functions. In both cases, trained models are saved after learning and are later loaded for deterministic evaluation. This separation between training and evaluation is important: stochastic actions are useful during learning, but deterministic actions are used for the final comparison with mathematical optimization.
+For the both cases we use the Stable-Baselines3 SAC default architecture, consisting of two hidden layers of 256 neurons with ReLU activation functions for actor and critic networks. In both cases, trained models are saved after learning and are later loaded for deterministic evaluation. This separation between training and evaluation is important: stochastic actions are useful during learning, but deterministic actions are used for the final comparison with mathematical optimization.
 
 \subsection{Evaluation Metrics}
 
