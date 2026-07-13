@@ -255,9 +255,9 @@ where
     \item $\gamma_{\mathrm{RL}} \in [0,1]$ is the discount factor.
 \end{itemize}
 
-The Markov property means that the current state contains the information needed to describe the probability distribution of the next state. A policy $\pi(a \mid s)$ describes how the agent selects actions. The return from time step $k$ is the discounted cumulative reward
+The Markov property means that the current state contains the information needed to describe the probability distribution of the next state. A policy $\pi(a \mid s)$ describes how the agent selects actions. The return from time step $t$ is the discounted cumulative reward
 \[
-G_k = \sum_{i=0}^{N-k-1} \gamma_{\mathrm{RL}}^i r(s_{k+i},a_{k+i}),
+G_t = \sum_{i=0}^{N-t-1} \gamma_{\mathrm{RL}}^i r(s_{t+i},a_{t+i}),
 \]
 and the learning objective is to find a policy that maximizes the expected return. Value functions estimate the expected return from a state, while action-value functions estimate the expected return from a state-action pair. These estimates are important because they allow the agent to consider the future consequences of a decision, not only its immediate reward \cite{sutton2018reinforcement}.
 
@@ -284,28 +284,28 @@ SAC is used in this thesis because it extends the model-free actor-critic framew
 
 In standard RL, the policy is usually trained to maximize expected return. SAC adds an entropy term to this objective. Intuitively, this means that the policy is encouraged to keep exploring when several actions appear useful, instead of becoming too deterministic too early. The objective can be interpreted as maximizing both reward and stochasticity:
 \[
-\mathbb{E}_{\pi}\left[\sum_{k=0}^{N-1}\gamma_{\mathrm{RL}}^k
-\left(r(s_k,a_k)+\alpha \mathcal{H}(\pi(\cdot \mid s_k))\right)\right],
+\mathbb{E}_{\pi}\left[\sum_{t=0}^{N-1}\gamma_{\mathrm{RL}}^t
+\left(r(s_t,a_t)+\alpha \mathcal{H}(\pi(\cdot \mid s_t))\right)\right],
 \]
 where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce the risk that the agent converges too early to a narrow operating strategy.
 
-The SAC policy is represented by a stochastic actor $\pi_\theta(a_k\mid s_k)$, while two action-value networks $Q_{\phi_i}(s_k,a_k)$ estimate the expected future return of state--action pairs. The use of two critics and slowly updated target networks reduces overestimation bias and stabilizes bootstrapped value estimates \cite{haarnoja2018soft}. Because SAC is off-policy, transitions can be stored in a replay buffer $\mathcal{D}$ and reused in multiple parameter updates.
+The SAC policy is represented by a stochastic actor $\pi_\theta(a_t\mid s_t)$, while two action-value networks $Q_{\phi_i}(s_t,a_t)$ estimate the expected future return of state--action pairs. The use of two critics and slowly updated target networks reduces overestimation bias and stabilizes bootstrapped value estimates \cite{haarnoja2018soft}. Because SAC is off-policy, transitions can be stored in a replay buffer $\mathcal{D}$ and reused in multiple parameter updates.
 
 For a transition sampled from the replay buffer, the critic target is
 \[
-y_k = r_k + \gamma_{\mathrm{RL}}(1-d_k)
+y_t = r_t + \gamma_{\mathrm{RL}}(1-d_t)
 \left[
-\min_i Q_{\bar{\phi}_i}(s_{k+1},a_{k+1})
-- \alpha \log \pi_\theta(a_{k+1}\mid s_{k+1})
+\min_i Q_{\bar{\phi}_i}(s_{t+1},a_{t+1})
+- \alpha \log \pi_\theta(a_{t+1}\mid s_{t+1})
 \right],
 \]
-where $a_{k+1}\sim\pi_\theta(\cdot\mid s_{k+1})$ and $d_k$ indicates a terminal transition. Each critic is trained by minimizing the squared difference between $Q_{\phi_i}(s_k,a_k)$ and $y_k$. The actor objective is
+where $a_{t+1}\sim\pi_\theta(\cdot\mid s_{t+1})$ and $d_t$ indicates a terminal transition. Each critic is trained by minimizing the squared difference between $Q_{\phi_i}(s_t,a_t)$ and $y_t$. The actor objective is
 \[
 J_\pi(\theta)
-= \mathbb{E}_{s_k\sim\mathcal{D},\,a_k\sim\pi_\theta}
+= \mathbb{E}_{s_t\sim\mathcal{D},\,a_t\sim\pi_\theta}
 \left[
-\alpha \log \pi_\theta(a_k\mid s_k)
-- \min_i Q_{\phi_i}(s_k,a_k)
+\alpha \log \pi_\theta(a_t\mid s_t)
+- \min_i Q_{\phi_i}(s_t,a_t)
 \right].
 \]
 Minimizing this objective favors actions with high estimated value while retaining policy entropy. The temperature parameter $\alpha$ determines the relative importance of exploration and reward maximization.
@@ -322,18 +322,18 @@ Battery energy storage systems (BESS) are electrochemical devices that store ele
 
 BESS presents several challenges. Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
 
-A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and a forecast window of upcoming prices; the action is a continuous charge/discharge command $a\in[-1,1]$ scaled to real power $P\in[-P_{\max},P_{\max}]$.
+A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and a forecast window of upcoming prices; the action is a continuous charge/discharge command $a\in[-1,1]$ scaled to grid-side power $P_t^{\mathrm S}\in[-P_{\max},P_{\max}]$.
 
 The SOC dynamics are modeled as
 \[
 \mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t}{E_{\max}},
 \]
-where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The implemented environment uses the sign convention $P_t>0$ for charging and $P_t<0$ for discharging, with a simplified symmetric efficiency coefficient $\eta$. The system is subject to the following operational constraints:
+where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The implemented environment uses the sign convention $P_t^{\mathrm S}>0$ for charging and $P_t^{\mathrm S}<0$ for discharging, with a simplified symmetric efficiency coefficient $\eta$. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The system is subject to the following operational constraints:
 
 \begin{align}
 0 \le \mathrm{SOC}_t \le 1, \quad \forall t, \label{eq:soc_bounds} \\
--P_{\max} \le P_t \le P_{\max}, \quad \forall t, \label{eq:power_limits} \\
-P_{\text{actual},t} = \eta P_t, \quad \forall t. \label{eq:efficiency}
+-P_{\max} \le P_t^{\mathrm S} \le P_{\max}, \quad \forall t, \label{eq:power_limits} \\
+P_{\text{actual},t} = \eta P_t^{\mathrm S}, \quad \forall t. \label{eq:efficiency}
 \end{align}
 
 where $P_{\max}$ is the maximum charge/discharge power. Constraint~\eqref{eq:soc_bounds} ensures the battery operates within safe operating levels, Constraint~\eqref{eq:power_limits} enforces physical power limitations, and Constraint~\eqref{eq:efficiency} models the efficiency losses used in the RL environment. The environment enforces feasibility by dynamically limiting the commanded power at each step so that the SOC remains within bounds.
@@ -355,50 +355,50 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 \end{figure}
 
 
-The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $k \in \{1,\ldots,n\}$:
+The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{1,\ldots,n\}$:
 \begin{align}
 \min_{\mathbf{x}} \quad J
-&= \sum_{k=1}^{n} P_{\mathrm{grid}}^k g_{\mathrm{grid}}^k \Delta t, \label{eq:cookie_objective} \\
+&= \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t, \label{eq:cookie_objective} \\
 \text{s.t.} \quad
-P_{\mathrm{grid}}^k + P_{\mathrm{WT}}^k
-&= 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \label{eq:cookie_power_balance} \\
-T_{\mathrm{II}}^k
-&= F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \\
-T_{\mathrm{IV}}^k
-&= F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^k,\dot{m}_{\mathrm{I}}^k,T_{\mathrm{III}}^k,R^k\right), \\
-T_2^k
-&= \beta_1^k T_{\mathrm{II}}^k + \left(1-\beta_1^k\right)T_1^k, \\
-T_{\mathrm{I}}^k
-&= \beta_2^k T_3^k + \left(1-\beta_2^k\right)T_4^k, \\
-T_2^k
-&= 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^k}, \\
-T_3^k
-&= 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^k}, \\
-\dot{Q}_{s,\mathrm{ch}}^k
-&= 3\dot{m}_{\mathrm{II}}^k c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^k-T_1^k\right)\left(1-\beta_1^k\right), \\
-\dot{Q}_{s,\mathrm{dch}}^k
-&= 3\dot{m}_{\mathrm{I}}^k c_{p,\mathrm{f}}\left(T_4^k-T_3^k\right)\left(1-\beta_2^k\right), \\
-\dot{Q}_{s,\mathrm{ch}}^k \dot{Q}_{s,\mathrm{dch}}^k
+P_t^{\mathrm S} + P_t^{\mathrm W}
+&= 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
+T_{\mathrm{II}}^t
+&= F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
+T_{\mathrm{IV}}^t
+&= F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
+T_2^t
+&= \beta_1^t T_{\mathrm{II}}^t + \left(1-\beta_1^t\right)T_1^t, \\
+T_{\mathrm{I}}^t
+&= \beta_2^t T_3^t + \left(1-\beta_2^t\right)T_4^t, \\
+T_2^t
+&= 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^t}, \\
+T_3^t
+&= 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^t}, \\
+\dot{Q}_{s,\mathrm{ch}}^t
+&= 3\dot{m}_{\mathrm{II}}^t c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^t-T_1^t\right)\left(1-\beta_1^t\right), \\
+\dot{Q}_{s,\mathrm{dch}}^t
+&= 3\dot{m}_{\mathrm{I}}^t c_{p,\mathrm{f}}\left(T_4^t-T_3^t\right)\left(1-\beta_2^t\right), \\
+\dot{Q}_{s,\mathrm{ch}}^t \dot{Q}_{s,\mathrm{dch}}^t
 &\leq \gamma, \\
-T_1^k
-&= T_{\mathrm{II}}^k - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^k-T_s^{k-1}\right), \\
-T_4^k
-&= T_3^k - \epsilon_{\mathrm{dch}}\left(T_3^k-T_s^{k-1}\right), \\
-T_s^k
-&= T_s^{k-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^k-\dot{Q}_{s,\mathrm{dch}}^k}{m_s c_{p,\mathrm{s}}}\Delta t, \\
+T_1^t
+&= T_{\mathrm{II}}^t - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^t-T_s^{t-1}\right), \\
+T_4^t
+&= T_3^t - \epsilon_{\mathrm{dch}}\left(T_3^t-T_s^{t-1}\right), \\
+T_s^t
+&= T_s^{t-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^t-\dot{Q}_{s,\mathrm{dch}}^t}{m_s c_{p,\mathrm{s}}}\Delta t, \\
 T_s^0
 &= \tilde{T}_0, \qquad T_s^n = T_s^0, \\
-T_{\mathrm{I}}^k
-&\in [177,250], \qquad \dot{m}_{\mathrm{I}}^k \in [5,16], \\
-T_{\mathrm{III}}^k
-&\in [60,100], \qquad R^k \in [0.8,1.53], \qquad \beta_1^k,\beta_2^k \in [0,1].
+T_{\mathrm{I}}^t
+&\in [177,250], \qquad \dot{m}_{\mathrm{I}}^t \in [5,16], \\
+T_{\mathrm{III}}^t
+&\in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
-Here, the objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
+Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $P_t^{\mathrm W}$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
 
 The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
-In the reinforcement-learning environment, the agent observes the normalized TES temperature, current electricity price, available wind power, the previous operating mode, and forecast information for price and wind availability. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
+In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $P_t^{\mathrm W}$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $P_{t+1:t+H}^{\mathrm W}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
 This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, multiple coupled continuous control variables, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
@@ -410,15 +410,15 @@ The previous section introduced the two energy utility systems considered in thi
 \subsection{Problem Formulation}
 \textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
 
-For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $k \in \{0,\ldots,N-1\}$ denote the discrete time index. At each time step, the system is described by a state vector $s_k$, the controller selects an action vector $a_k$, and the system evolves to the next state $s_{k+1}$ according to the underlying system dynamics and exogenous inputs such as electricity prices and renewable generation.
+For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $P_t^{\mathrm W}$ the available wind power. At each time step, the system is described by a state vector $s_t$, the controller selects an action vector $a_t$, and the system evolves to the next state $s_{t+1}$ according to the underlying system dynamics and the exogenous inputs $S_t$ and, for the cookie-factory use case, $P_t^{\mathrm W}$.
 
 The resulting decision problem is formulated as a Markov decision process (MDP)
 \[
 \mathcal{M} = \left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
 \]
-where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the action space, $p(s_{k+1}\mid s_k,a_k)$ denotes the transition dynamics, $r(s_k,a_k)$ is the reward function, and $\gamma_{\mathrm{RL}}$ is the discount factor. The agent aims to learn a policy $\pi(a_k\mid s_k)$ that maximizes the expected cumulative reward \cite{sutton2018reinforcement}:
+where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the action space, $p(s_{t+1}\mid s_t,a_t)$ denotes the transition dynamics, $r(s_t,a_t)$ is the reward function, and $\gamma_{\mathrm{RL}}$ is the discount factor. The agent aims to learn a policy $\pi(a_t\mid s_t)$ that maximizes the expected cumulative reward \cite{sutton2018reinforcement}:
 \[
-\max_{\pi} \; \mathbb{E}_{\pi}\left[\sum_{k=0}^{N-1} \gamma_{\mathrm{RL}}^k r(s_k,a_k)\right].
+\max_{\pi} \; \mathbb{E}_{\pi}\left[\sum_{t=0}^{N-1} \gamma_{\mathrm{RL}}^t r(s_t,a_t)\right].
 \]
 
 Since the original engineering objective is cost minimization, the reward is defined as the negative operating cost, augmented by penalty terms for constraint violations where required. In this way, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
@@ -427,34 +427,34 @@ Since the original engineering objective is cost minimization, the reward is def
 
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
 
-The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium, while the continuous-control policies are trained using Stable-Baselines3. At time step $k$, the environment supplies the agent with a forecast-augmented state $s_k$, comprising the current physical system state, current exogenous information, a normalized time indicator, and look-ahead information for the relevant exogenous variables. The agent selects a normalized continuous action $a_k$, which the environment maps to physical control setpoints. The environment then advances the system dynamics and returns the next state $s_{k+1}$, the reward $r_k$, and the Gymnasium termination signals. A transition is therefore generated as
+The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium, while the continuous-control policies are trained using Stable-Baselines3. At time step $t$, the environment supplies the agent with a forecast-augmented state $s_t$, comprising the current physical system state, current exogenous information, a normalized time indicator, and look-ahead information for the relevant exogenous variables. The agent selects a normalized continuous action $a_t$, which the environment maps to physical control setpoints. The environment then advances the system dynamics and returns the next state $s_{t+1}$, the reward $r_t$, and the Gymnasium termination signals. A transition is therefore generated as
 \[
-\tau_k = \left(s_k,a_k,r_k,s_{k+1},d_k\right),
+\tau_t = \left(s_t,a_t,r_t,s_{t+1},d_t\right),
 \]
-where $d_k$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC. SAC augments the conventional return-maximization objective with an entropy term during training to encourage exploration of the continuous action space.
+where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC. SAC augments the conventional return-maximization objective with an entropy term during training to encourage exploration of the continuous action space.
 This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
 
 During training, an action sampled from the stochastic actor is first processed by an environment-specific action map
 \[
-a_k^{\mathrm{phys}} = \mathcal{R}(s_k,a_k),
+a_t^{\mathrm{phys}} = \mathcal{R}(s_t,a_t),
 \]
 where $\mathcal{R}$ converts the normalized policy output into physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
 
-For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current electricity price, the normalized position within the scheduling horizon, and a normalized 24-step window of future electricity prices. Close to the end of an episode, unavailable entries in the look-ahead window are padded with the final price of that episode. The continuous scalar action $u_k\in[-0.8,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits. The resulting grid-side power determines the electricity cost, whereas the efficiency-adjusted battery-side power determines the SOC transition.
+For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current spot electricity price $S_t$, the normalized position within the scheduling horizon, and a normalized 24-step look-ahead window $S_{t+1:t+H}$. Close to the end of an episode, unavailable entries in the look-ahead window are padded with the final price of that episode. The continuous scalar action $u_t\in[-0.8,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits. The resulting grid-side power determines the electricity cost, whereas the efficiency-adjusted battery-side power determines the SOC transition.
 
 The reward has the same general form in both environments:
 \[
-r_k = -C_k - \sum_{\ell} \lambda_\ell v_{\ell,k} - \lambda_{\mathrm{T}} v_{\mathrm{T},k},
+r_t = -C_t - \sum_{\ell} \lambda_\ell v_{\ell,t} - \lambda_{\mathrm{T}} v_{\mathrm{T},t},
 \]
-where $C_k$ is the grid-electricity cost at time step $k$, $v_{\ell,k}$ are constraint-violation terms, and $\lambda_\ell$ are penalty weights. The terminal term $v_{\mathrm{T},k}$ is only active at the end of an episode. In the battery case it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the original cost-minimization problem into a return-maximization problem without removing the need for physical feasibility.
+where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are constraint-violation terms, and $\lambda_\ell$ are penalty weights. The terminal term $v_{\mathrm{T},t}$ is only active at the end of an episode. In the battery case it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the original cost-minimization problem into a return-maximization problem without removing the need for physical feasibility.
 
 More specifically, the battery reward implemented in the environment is
 \[
-r_k = -\frac{c_k P_k\Delta t}{1000}
--\mathbf{1}_{\{k=N-1\}}\lambda_{\mathrm{SOC}}
+r_t = -\frac{S_t P_t^{\mathrm S}\Delta t}{1000}
+-\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(SOC_{\min}^{\mathrm{terminal}}-SOC_N,0\right),
 \]
-where $c_k$ is the electricity price in EUR/MWh, $P_k$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
+where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
 
 After training, the stochastic exploration behavior is no longer required for comparing schedules. The learned policy is therefore evaluated deterministically by selecting the mean action predicted by the actor at each time step. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical optimization baseline in terms of cost, constraint satisfaction, and computation time.
 
@@ -503,25 +503,25 @@ The trained RL policies are evaluated through deterministic rollouts on fixed 24
 
 The primary economic metric is the total grid-electricity cost over the evaluation horizon:
 \[
-J_{\mathrm{grid}} = \sum_{k=0}^{N-1} C_k,
+J_{\mathrm{grid}} = \sum_{t=0}^{N-1} C_t,
 \]
-where $C_k$ is the grid-electricity cost at time step $k$. For the battery system, this cost is computed from the electricity price and the battery power exchanged with the grid. For the cookie factory, it is computed from the grid power required by the heat-pump system after accounting for available wind power. Since the engineering objective is cost minimization, a lower value of $J_{\mathrm{grid}}$ indicates better economic performance.
+where $C_t$ is the grid-electricity cost at time step $t$. For the battery system, this cost is computed from the electricity price and the battery power exchanged with the grid. For the cookie factory, it is computed from the grid power required by the heat-pump system after accounting for available wind power. Since the engineering objective is cost minimization, a lower value of $J_{\mathrm{grid}}$ indicates better economic performance.
 
 The cumulative reward is reported as a secondary metric:
 \[
-R_{\mathrm{ep}} = \sum_{k=0}^{N-1} r_k.
+R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t.
 \]
 This value is useful for analyzing the RL objective because it combines operating cost with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical operating cost. Therefore, total cost and constraint satisfaction are evaluated separately.
 
-Constraint satisfaction is measured by aggregating the violation terms recorded during the rollout. For a set of constraint residuals or violation magnitudes $v_{\ell,k}$, the total violation is defined as
+Constraint satisfaction is measured by aggregating the violation terms recorded during the rollout. For a set of constraint residuals or violation magnitudes $v_{\ell,t}$, the total violation is defined as
 \[
-V_{\mathrm{tot}} = \sum_{k=0}^{N-1}\sum_{\ell} v_{\ell,k}.
+V_{\mathrm{tot}} = \sum_{t=0}^{N-1}\sum_{\ell} v_{\ell,t}.
 \]
 In addition, the number or frequency of time steps with nonzero violations is considered:
 \[
 f_{\mathrm{viol}} =
-\frac{1}{N}\sum_{k=0}^{N-1}
-\mathbb{I}\left(\sum_{\ell} v_{\ell,k} > \varepsilon\right),
+\frac{1}{N}\sum_{t=0}^{N-1}
+\mathbb{I}\left(\sum_{\ell} v_{\ell,t} > \varepsilon\right),
 \]
 where $\varepsilon$ is a small numerical tolerance. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
 
