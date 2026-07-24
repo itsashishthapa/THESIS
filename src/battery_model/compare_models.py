@@ -317,13 +317,13 @@ def _parse_args():
         "--price-model-initial-price",
         type=float,
         default=None,
-        help="Initial EUR/MWh price for price_model generation; defaults to seasonality(start_hour)",
+        help="Initial EUR/MWh price for price_model generation; defaults to price_seasonality(start_hour)",
     )
     parser.add_argument(
         "--price-model-start-hour",
         type=float,
         default=0.0,
-        help="Starting hour used by price_model seasonality",
+        help="Starting hour used by price_model price seasonality",
     )
     parser.add_argument(
         "--price-model-dt-hours",
