@@ -25,6 +25,7 @@ paper/build/
 paper/*.run.xml
 paper/*.bbl-SAVE-ERROR
 *.aux
+*.xdv
 *.bbl
 *.bcf
 *.blg
