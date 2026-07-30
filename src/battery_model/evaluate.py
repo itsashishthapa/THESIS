@@ -72,27 +72,17 @@ def compute_total_cost(prices, power, dt=1.0, price_unit_scale=1000.0):
 def evaluate_model(model, prices_eval, price_scale):
     """Evaluate the trained model on given price data"""
     env_eval = BatteryEnv(prices_eval, price_scale=price_scale)
-    model_obs_shape = getattr(getattr(model, "observation_space", None), "shape", None)
-    if model_obs_shape is not None and env_eval.observation_space.shape != model_obs_shape:
-        raise ValueError(
-            "Model observation shape "
-            f"{model_obs_shape} does not match BatteryEnv shape "
-            f"{env_eval.observation_space.shape}. Use the same BatteryEnv "
-            "observation features and forecast_h as training, or retrain the model."
-        )
     obs, _ = env_eval.reset()
     
-    P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = [], [], [], [], [], []
+    u, Ps, P_actuals, SOCs, rewards, prices_used = [], [], [], [], [], []
     
     for _ in range(env_eval.T):
         action, _ = model.predict(obs, deterministic=True)
-        # commanded power before env smooth mapping
-        P_cmd = float(np.asarray(action, dtype=np.float32).reshape(-1)[0]) * env_eval.P_max
         obs, reward, terminated, truncated, info = env_eval.step(action)
         
-        P_cmds.append(P_cmd)
-        Ps.append(info['P'])  # P before eta
-        P_actuals.append(info.get('P_actual', info['P']))  # P_actual used in reward calc (post-eta)
+        u.append(info['u'])
+        Ps.append(info['P'])
+        P_actuals.append(info.get('P_actual', info['P']))  # SOC-side power after efficiency
         SOCs.append(info['SOC'])
         rewards.append(reward)
         prices_used.append(info['price'])
@@ -101,17 +91,17 @@ def evaluate_model(model, prices_eval, price_scale):
             break
     
     # Convert to numpy arrays
-    P_cmds = np.array(P_cmds)
+    u = np.array(u)
     Ps = np.array(Ps)
     P_actuals = np.array(P_actuals)
     SOCs = np.array(SOCs)
     rewards = np.array(rewards)
     prices_used = np.array(prices_used)
     
-    return P_cmds, Ps, P_actuals, SOCs, rewards, prices_used
+    return u, Ps, P_actuals, SOCs, rewards, prices_used
 
 
-def plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used):
+def plot_evaluation_results(u, Ps, P_actuals, SOCs, rewards, prices_used):
     """Plot evaluation results"""
     cum_cost_preeta = compute_total_cost(prices_used, Ps)
     cum_cost_posteta = compute_total_cost(prices_used, P_actuals)
@@ -128,7 +118,7 @@ def plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used):
     axs[0].grid(True)
     
     # Plot power
-    axs[1].plot(P_cmds, label='P_cmd')
+    axs[1].plot(u, label='u')
     axs[1].plot(Ps, label='P (pre-eta)')
     axs[1].plot(P_actuals, label='P_actual')
     axs[1].set_ylabel('P [kW]')
@@ -182,10 +172,10 @@ if __name__ == '__main__':
     print(f'Evaluation window: {len(prices_eval)} hours')
     
     # Run evaluation
-    P_cmds, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(
+    u, Ps, P_actuals, SOCs, rewards, prices_used = evaluate_model(
         model, prices_eval, global_price_scale
     )
     
     # Plot results
-    plot_evaluation_results(P_cmds, Ps, P_actuals, SOCs, rewards, prices_used)
+    plot_evaluation_results(u, Ps, P_actuals, SOCs, rewards, prices_used)
     
