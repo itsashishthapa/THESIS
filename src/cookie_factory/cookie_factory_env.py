@@ -45,8 +45,9 @@ class SteamEnv(gym.Env):
     ACTION VECTOR
     -------------------------------------------------------------------------------
     In the mathematical model:
-    a_k = [beta1_k, beta2_k, R_k, m_I_k, T_I_k]
-    R_k is HTHP surrogate variable (compressor speed) 
+    a_k = [beta1_k, R_k, m_I_k, T_I_k]
+    beta2_k is derived as 1 - beta1_k rather than supplied by the policy.
+    R_k is the HTHP surrogate variable (compressor speed),
     where beta1_k and beta2_k are the bypass variables x1 and x2,
     T_I_k is the hot-side inlet temperature decision variable,
     and T_III_k is the cold-side inlet temperature (fixed).
@@ -84,7 +85,7 @@ class SteamEnv(gym.Env):
         lambda_grid=10.0, # penalty for grid power bound violations
         eps_comp=1.0e-6, # small tolerance for the Qch*Qdch complementarity constraint
         Q_flow_max=5000.0, # Qch/Qdch upper bound from the NLP model
-        hard_bypass=True, # F10 / penalty_mode_k: repair beta1 + beta2 >= 1
+        hard_bypass=True, # F10 / penalty_mode_k: retained for compatibility; beta1 + beta2 = 1
         hard_complementarity=True, # F11 / penalty_comp_k: prevent simultaneous charge and discharge
         hard_flow_bounds=True, # Qch/Qdch variable bounds: enforce [0, Q_flow_max] (diagnostic only; no penalty term)
         hard_storage_bounds=True, # storage bounds / penalty_bound_k: keep storage temperature inside bounds
@@ -104,6 +105,12 @@ class SteamEnv(gym.Env):
             raise ValueError("g_grid and P_WT must have same length")
 
         self.forecast_h = int(forecast_h)
+        if self.forecast_h <= 0:
+            raise ValueError("forecast_h must be positive.")
+        if self.forecast_h > self.K:
+            raise ValueError(
+                "forecast_h cannot be larger than the supplied price and wind trajectories."
+            )
         self.Delta_t = float(Delta_t)
 
         # TES parameters
@@ -141,7 +148,7 @@ class SteamEnv(gym.Env):
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
         self.debug_reward_terms = bool(debug_reward_terms)
 
-        # Observation = [T_s_k, g_grid_k, P_WT_k, last_mode] + forecast
+        # Observation = current state + the same complete forecast at every step.
         base_low = np.array([0.0, -1.0, 0.0, -1.0], dtype=np.float32)
         base_high = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
         fc_low = -np.ones(2 * self.forecast_h, dtype=np.float32)
@@ -152,11 +159,11 @@ class SteamEnv(gym.Env):
             dtype=np.float32,
         )
 
-        # Action = [beta1_k, beta2_k, R_k, m_I_k, T_I_k]
-        # x1,x2 in [0,1], N in [0.8,1.53], M1 in [5,16], T_I in [177,250]
+        # Action = [beta1_k, R_k, m_I_k, T_I_k]; beta2_k = 1 - beta1_k.
+        # x1 in [0,1], N in [0.8,1.53], M1 in [5,16], T_I in [177,250]
         self.action_space = spaces.Box(
-            low=np.array([0.0, 0.0, 0.8, 5.0, 177.0], dtype=np.float32),
-            high=np.array([1.0, 1.0, 1.53, 16.0, 250.0], dtype=np.float32),
+            low=np.array([0.0, 0.8, 5.0, 177.0], dtype=np.float32),
+            high=np.array([1.0, 1.53, 16.0, 250.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -169,17 +176,9 @@ class SteamEnv(gym.Env):
         return float(np.clip((x - lo) / max(hi - lo, 1e-6), 0.0, 1.0))
 
     def _forecast_window(self):
-        k = min(self.k, self.K - 1)
-        g = self.g_grid[k + 1: k + 1 + self.forecast_h] # forecast horizon of grid prices
-        pwt = self.P_WT[k + 1: k + 1 + self.forecast_h] # forecast horizon of wind turbine availability
-
-        def pad(arr, pad_val):
-            if len(arr) < self.forecast_h:
-                arr = np.concatenate([arr, np.full(self.forecast_h - len(arr), pad_val, dtype=np.float32)])
-            return arr
-
-        g = pad(g, self.g_grid[-1])
-        pwt = pad(pwt, self.P_WT[-1])
+        """Return the complete configured price and wind forecast at every step."""
+        g = self.g_grid[:self.forecast_h]
+        pwt = self.P_WT[:self.forecast_h]
 
         out = np.empty(2 * self.forecast_h, dtype=np.float32)
         out[0::2] = np.tanh(g / self.price_scale)
@@ -257,16 +256,19 @@ class SteamEnv(gym.Env):
         return self._obs(), {}
 
     def step(self, action):
-        # a_k = [beta1_k, beta2_k, R_k, m_I_k, T_I_k]
+        # a_k = [beta1_k, R_k, m_I_k, T_I_k]; beta2_k = 1 - beta1_k.
         action = np.asarray(action, dtype=np.float32)
+        if action.shape != self.action_space.shape:
+            raise ValueError(f"Expected action shape {self.action_space.shape}, got {action.shape}")
+
         beta1_raw = float(action[0])
-        beta2_raw = float(action[1])
-        R_raw = float(action[2])
-        m_I_raw = float(action[3])
-        T_I_raw = float(action[4])
+        beta2_raw = 1.0 - beta1_raw
+        R_raw = float(action[1])
+        m_I_raw = float(action[2])
+        T_I_raw = float(action[3])
 
         beta1_k = float(np.clip(beta1_raw, 0.0, 1.0))
-        beta2_k = float(np.clip(beta2_raw, 0.0, 1.0))
+        beta2_k = 1.0 - beta1_k
         # C 15 (bounds)
         R_k = float(np.clip(R_raw, 0.8, 1.53))
         m_I_k = float(np.clip(m_I_raw, 5.0, 16.0))
@@ -283,7 +285,6 @@ class SteamEnv(gym.Env):
 
         if (
             abs(beta1_raw - beta1_k) > 1e-9
-            or abs(beta2_raw - beta2_k) > 1e-9
             or abs(R_raw - R_k) > 1e-9
             or abs(m_I_raw - m_I_k) > 1e-9
             or abs(T_I_raw - T_I_k) > 1e-9
@@ -685,6 +686,19 @@ class SteamEnv(gym.Env):
                 f4_infeasible_reasons_k = tuple(
                     list(f4_infeasible_reasons_k) + ["no_joint_mode_candidate"]
                 )
+
+        beta1_k = float(np.clip(beta1_k, 0.0, 1.0))
+        beta2_k = 1.0 - beta1_k
+        if self.hard_f5_coupling:
+            T_I_k = f5_implied_T_I(beta2_k)
+            P_HP_k, _, T_II_k = self._HTHP_surrogate(
+                T_I_k=T_I_k,
+                m_I_k=m_I_k,
+                T_III_k=T_III_k,
+                R_k=R_k,
+            )
+            T_1_k = T_II_k - self.epsilon_ch * (T_II_k - T_0_k)
+            q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
 
         # F6: Q_s_ch_k = 3 * m_II_k * c_p_f * (T_II_k - T_1_k) * (1 - beta1_k)
         # F7: Q_s_dch_k = 3 * m_I_k * c_p_f * (T_4_k - T_3_k) * (1 - beta2_k)

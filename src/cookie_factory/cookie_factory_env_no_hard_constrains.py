@@ -84,6 +84,12 @@ class SteamEnv(gym.Env):
             raise ValueError("g_grid and P_WT must have same length")
 
         self.forecast_h = int(forecast_h)
+        if self.forecast_h <= 0:
+            raise ValueError("forecast_h must be positive.")
+        if self.forecast_h > self.K:
+            raise ValueError(
+                "forecast_h cannot be larger than the supplied price and wind trajectories."
+            )
         self.Delta_t = float(Delta_t)
         self.T_s_0 = float(T_s_0)
         self.T_s_min = float(T_s_min)
@@ -145,26 +151,9 @@ class SteamEnv(gym.Env):
         return float(np.clip(value, 0.0, 1.0) if clip else value)
 
     def _forecast_window(self):
-        k = min(self.k, self.K - 1)
-        prices = self.g_grid[k + 1 : k + 1 + self.forecast_h]
-        wind = self.P_WT[k + 1 : k + 1 + self.forecast_h]
-
-        def pad(values, fallback):
-            if len(values) < self.forecast_h:
-                values = np.concatenate(
-                    [
-                        values,
-                        np.full(
-                            self.forecast_h - len(values),
-                            fallback,
-                            dtype=np.float32,
-                        ),
-                    ]
-                )
-            return values
-
-        prices = pad(prices, self.g_grid[-1])
-        wind = pad(wind, self.P_WT[-1])
+        """Return the complete configured price and wind forecast at every step."""
+        prices = self.g_grid[:self.forecast_h]
+        wind = self.P_WT[:self.forecast_h]
         forecast = np.empty(2 * self.forecast_h, dtype=np.float32)
         forecast[0::2] = np.tanh(prices / self.price_scale)
         forecast[1::2] = np.tanh(wind / self.wind_scale)
