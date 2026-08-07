@@ -8,6 +8,7 @@ import torch.nn as nn
 
 import numpy as np
 import pandas as pd
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -54,6 +55,128 @@ def make_train_env(prices_full, price_scale, log_dir):
     return env
 
 
+def split_train_validation_prices(
+    prices_full,
+    validation_fraction=0.2,
+    window_len=24,
+):
+    """Split a price series into chronological training and validation blocks."""
+    prices_full = np.asarray(prices_full, dtype=float)
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1.")
+
+    split_idx = int(len(prices_full) * (1.0 - validation_fraction))
+    prices_train = prices_full[:split_idx]
+    prices_validation = prices_full[split_idx:]
+
+    if len(prices_train) < window_len or len(prices_validation) < window_len:
+        raise ValueError(
+            "Training and validation blocks must each contain at least "
+            f"{window_len} prices."
+        )
+
+    return prices_train, prices_validation
+
+
+class BestValidationCostCallback(BaseCallback):
+    """Save the policy with the lowest cost on fixed validation windows."""
+
+    def __init__(
+        self,
+        validation_prices,
+        price_scale,
+        model_path,
+        eval_freq=25_000,
+        n_validation_windows=100,
+        window_len=24,
+        seed=42,
+        verbose=1,
+    ):
+        super().__init__(verbose=verbose)
+        self.validation_prices = np.asarray(validation_prices, dtype=float)
+        self.price_scale = float(price_scale)
+        self.model_path = model_path
+        self.eval_freq = max(int(eval_freq), 1)
+        self.window_len = int(window_len)
+
+        max_start = len(self.validation_prices) - self.window_len
+        if max_start < 0:
+            raise ValueError(
+                "validation_prices must contain at least "
+                f"{self.window_len} values."
+            )
+        if n_validation_windows <= 0:
+            raise ValueError("n_validation_windows must be positive.")
+
+        rng = np.random.default_rng(seed)
+        n_available = max_start + 1
+        n_selected = min(int(n_validation_windows), n_available)
+        self.validation_starts = np.sort(
+            rng.choice(n_available, size=n_selected, replace=False)
+        )
+
+        self.best_mean_cost = float("inf")
+        self.best_step = None
+        self.last_eval_step = None
+
+    def _evaluate(self):
+        costs = []
+        total_rewards = []
+        terminal_violations = []
+
+        for start in self.validation_starts:
+            prices_window = self.validation_prices[
+                start : start + self.window_len
+            ]
+            _, powers, _, socs, rewards, prices_used = evaluate_model(
+                self.model,
+                prices_window,
+                self.price_scale,
+            )
+            costs.append(compute_total_cost(prices_used, powers))
+            total_rewards.append(float(np.sum(rewards)))
+            terminal_violations.append(max(0.5 - float(socs[-1]), 0.0))
+
+        mean_cost = float(np.mean(costs))
+        mean_reward = float(np.mean(total_rewards))
+        violation_rate = float(
+            np.mean(np.asarray(terminal_violations) > 1e-6)
+        )
+
+        self.logger.record("validation/mean_cost", mean_cost)
+        self.logger.record("validation/mean_reward", mean_reward)
+        self.logger.record("validation/terminal_violation_rate", violation_rate)
+
+        improved = mean_cost < self.best_mean_cost
+        if improved:
+            self.best_mean_cost = mean_cost
+            self.best_step = int(self.num_timesteps)
+            self.model.save(self.model_path)
+
+        if self.verbose:
+            status = "new best" if improved else "unchanged"
+            print(
+                f"Validation at step {self.num_timesteps}: "
+                f"mean cost={mean_cost:.6f} EUR, "
+                f"mean reward={mean_reward:.6f}, "
+                f"terminal violation rate={violation_rate:.2%} "
+                f"({status})"
+            )
+
+        self.last_eval_step = int(self.num_timesteps)
+
+    def _on_step(self):
+        if self.n_calls % self.eval_freq == 0:
+            self._evaluate()
+        return True
+
+    def _on_training_end(self):
+        # Always consider the final policy, including short runs whose total
+        # number of steps is smaller than eval_freq.
+        if self.last_eval_step != self.num_timesteps:
+            self._evaluate()
+
+
 def train_model(
     prices_full,
     price_scale,
@@ -62,8 +185,12 @@ def train_model(
     model_kwargs=None,
     algorithm=DEFAULT_ALGORITHM,
     model_path=None,
+    validation_prices=None,
+    eval_freq=25_000,
+    n_validation_windows=100,
+    validation_seed=42,
 ):
-    """Train a SAC or TD3 model."""
+    """Train SAC or TD3 and return the best validation-cost checkpoint."""
     os.makedirs(log_dir, exist_ok=True)
 
     # Create vectorized environment
@@ -72,6 +199,9 @@ def train_model(
     algorithm = normalize_algorithm(algorithm)
     model_class = get_model_class(algorithm)
     model_path = model_path or get_model_path(algorithm)
+    model_dir = os.path.dirname(model_path)
+    if model_dir:
+        os.makedirs(model_dir, exist_ok=True)
 
     # Default hyperparameters (override via model_kwargs)
     model_init_kwargs = dict(
@@ -103,16 +233,32 @@ def train_model(
 
     model = model_class("MlpPolicy", env_train, **model_init_kwargs)
 
+    if validation_prices is None:
+        validation_prices = prices_full
+    validation_callback = BestValidationCostCallback(
+        validation_prices=validation_prices,
+        price_scale=price_scale,
+        model_path=model_path,
+        eval_freq=eval_freq,
+        n_validation_windows=n_validation_windows,
+        seed=validation_seed,
+    )
+
     # Train the model
-    model.learn(total_timesteps=total_timesteps)
+    model.learn(
+        total_timesteps=total_timesteps,
+        callback=validation_callback,
+    )
     print(f"{algorithm} training complete!")
 
-    # Save the model
-    model_dir = os.path.dirname(model_path)
-    if model_dir:
-        os.makedirs(model_dir, exist_ok=True)
-    model.save(model_path)
-    print(f"Model saved to {model_path}.zip")
+    # The callback saved the best policy. Reload it so callers cannot
+    # accidentally evaluate the last in-memory policy instead.
+    model = model_class.load(model_path, env=env_train)
+    print(
+        f"Best model from step {validation_callback.best_step} loaded from "
+        f"{model_path}.zip (validation mean cost: "
+        f"{validation_callback.best_mean_cost:.6f} EUR)"
+    )
 
     return model
 
@@ -395,6 +541,30 @@ def _parse_args():
         default=1.0,
         help="Time step in hours for price_model generation",
     )
+    parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological fraction reserved for best-checkpoint selection",
+    )
+    parser.add_argument(
+        "--validation-windows",
+        type=int,
+        default=100,
+        help="Number of fixed validation windows used per checkpoint evaluation",
+    )
+    parser.add_argument(
+        "--eval-freq",
+        type=int,
+        default=25_000,
+        help="Training steps between validation evaluations",
+    )
+    parser.add_argument(
+        "--validation-seed",
+        type=int,
+        default=42,
+        help="Seed used to select the fixed validation windows",
+    )
     return parser.parse_args()
 
 
@@ -412,6 +582,14 @@ if __name__ == "__main__":
         )
     else:
         prices_full, global_price_scale = load_price_data()
+    prices_train, prices_validation = split_train_validation_prices(
+        prices_full,
+        validation_fraction=args.validation_fraction,
+    )
+    print(
+        f"Training prices: {len(prices_train)} hours | "
+        f"Validation prices: {len(prices_validation)} hours"
+    )
     prices_eval = prices_full[72:96]
     # optimize_battery_pyomo(prices_eval, verbose=False)
 
@@ -435,13 +613,17 @@ if __name__ == "__main__":
         )
 
     model = train_model(
-        prices_full,
+        prices_train,
         global_price_scale,
         total_timesteps=args.timesteps,
         log_dir=log_dir,
         model_kwargs=model_kwargs,
         algorithm=args.algorithm,
         model_path=args.model_path,
+        validation_prices=prices_validation,
+        eval_freq=args.eval_freq,
+        n_validation_windows=args.validation_windows,
+        validation_seed=args.validation_seed,
     )
 
     # # Evaluate the model
