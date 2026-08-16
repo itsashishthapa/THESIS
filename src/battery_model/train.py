@@ -209,13 +209,13 @@ def train_model(
         batch_size=256,
         learning_rate=3e-4,
         tau=0.005,
-        gamma=0.9999,
+        gamma=0.9999, # TODO: set gamma to 1(check result)
         train_freq=1,
         gradient_steps=1,
         verbose=1,
         tensorboard_log=log_dir,
         policy_kwargs=dict(net_arch=[256, 256, 256], activation_fn=nn.ReLU),
-    )
+    ) # TODO: try 0 entropy
     if algorithm == "TD3":
         n_actions = env_train.action_space.shape[-1]
         model_init_kwargs.update(
