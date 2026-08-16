@@ -25,3 +25,14 @@ Feedbacks:
 # battery case- test other reward functions.
 # prepare dataset for hybrid modeling,
 # GP- cokrigings.
+
+
+---------------------------------------------------------------------------------------------------------------
+-rolling horizon
+
+- have two diffent buffer for running and terminal buffer. (additional lost function)
+- paper about reward shaping.
+
+cookie factory,
+use q learning for beta
+and sac for other action (parameterized RL)
