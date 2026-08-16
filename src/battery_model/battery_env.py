@@ -18,7 +18,7 @@ from gymnasium import spaces
 
 
 class BatteryEnv(gym.Env):
-    metadata = {"render_modes": ["human"]}
+    metadata = {"render_modes": ["human"]}  # noqa: RUF012
 
     def __init__(
         self,
