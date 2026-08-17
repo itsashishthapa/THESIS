@@ -367,7 +367,7 @@ def get_cookie_model(
             "beta1": trajectory["beta1"].to_numpy(),
             "beta2": trajectory["beta2"].to_numpy(),
         }
-    except Exception as error:
+    except (RuntimeError, ValueError, KeyError, TypeError) as error:
         if verbose:
             print(f"Cookie Factory optimization failed: {error}")
         return {"status": "failed", "error": str(error)}
