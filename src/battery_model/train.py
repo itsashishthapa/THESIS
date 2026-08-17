@@ -204,18 +204,18 @@ def train_model(
         os.makedirs(model_dir, exist_ok=True)
 
     # Default hyperparameters (override via model_kwargs)
-    model_init_kwargs = dict(
-        buffer_size=200000,
-        batch_size=256,
-        learning_rate=3e-4,
-        tau=0.005,
-        gamma=0.9999, # TODO: set gamma to 1(check result)
-        train_freq=1,
-        gradient_steps=1,
-        verbose=1,
-        tensorboard_log=log_dir,
-        policy_kwargs=dict(net_arch=[256, 256, 256], activation_fn=nn.ReLU),
-    ) # TODO: try 0 entropy
+    model_init_kwargs = {
+        "buffer_size": 200000,
+        "batch_size": 256,
+        "learning_rate": 3e-4,
+        "tau": 0.005,
+        "gamma": 0.9999, # TODO: set gamma to 1(check result)
+        "train_freq": 1,
+        "gradient_steps": 1,
+        "verbose": 1,
+        "tensorboard_log": log_dir,
+        "policy_kwargs": {"net_arch": [256, 256, 256], "activation_fn": nn.ReLU},
+    } # TODO: try 0 entropy
     if algorithm == "TD3":
         n_actions = env_train.action_space.shape[-1]
         model_init_kwargs.update(
