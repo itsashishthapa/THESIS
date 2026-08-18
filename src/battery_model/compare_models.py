@@ -136,10 +136,13 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
     return results
 
 
-def plot_comparison_distances(results, output_file=None, show=False):
-    """
-    Plot per-window RL vs Pyomo cost and absolute cost gap.
-    """
+def plot_comparison_distances(
+    results,
+    output_file=None,
+    show=False,
+    algorithm=DEFAULT_ALGORITHM,
+):
+    """Create a thesis-ready RL versus mathematical-optimization comparison plot."""
     rl_costs = np.asarray(results['rl']['costs'], dtype=float)
     pyomo_costs = np.asarray(results['pyomo']['costs'], dtype=float)
     n = min(len(rl_costs), len(pyomo_costs))
@@ -147,9 +150,13 @@ def plot_comparison_distances(results, output_file=None, show=False):
         print("No successful comparisons available for plotting.")
         return None
 
-    labels = results.get('windows') or [str(i + 1) for i in range(n)]
-    labels = labels[:n]
+    windows = (results.get('windows') or [str(i + 1) for i in range(n)])[:n]
+    labels = []
+    for index, window in enumerate(windows, start=1):
+        window_label = str(window).replace('-', '\u2013')
+        labels.append(f"Window {index}\n({window_label})")
     x = np.arange(n)
+    algorithm = normalize_algorithm(algorithm)
 
     def series(name, fallback):
         values = np.asarray(results.get(name, []), dtype=float)
@@ -159,23 +166,119 @@ def plot_comparison_distances(results, output_file=None, show=False):
 
     abs_cost_gaps = series('abs_cost_gaps', np.abs(rl_costs[:n] - pyomo_costs[:n]))
 
-    fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
+    plt.rcParams.update({'font.size': 12})
+    fig, axes = plt.subplots(
+        2,
+        1,
+        figsize=(16, 10.5),
+        gridspec_kw={'height_ratios': [1.15, 0.93]},
+    )
+    fig.subplots_adjust(hspace=0.42, bottom=0.16, top=0.93, left=0.08, right=0.97)
 
-    axes[0].plot(x, rl_costs[:n], marker='o', label='RL cost')
-    axes[0].plot(x, pyomo_costs[:n], marker='o', label='Pyomo cost')
-    axes[0].set_title("RL vs Pyomo distance per comparison")
-    axes[0].set_ylabel('Cost [EUR]')
-    axes[0].legend(loc='lower left')
-    axes[0].grid(True, alpha=0.35)
+    sac_color = '#0b5bb5'
+    optimum_color = '#ff7a00'
+    bar_color = '#1f62b5'
+    for axis in axes:
+        axis.set_axisbelow(True)
+        axis.grid(True, linestyle='--', linewidth=0.8, alpha=0.4)
 
-    axes[1].bar(x, abs_cost_gaps, alpha=0.75)
-    axes[1].set_ylabel('Absolute gap [EUR]')
-    axes[1].grid(True, alpha=0.35)
-    axes[1].set_xlabel('Comparison window')
+    axes[0].plot(
+        x,
+        rl_costs[:n],
+        marker='o',
+        markersize=8,
+        linewidth=2,
+        color=sac_color,
+        label=f'{algorithm} (RL)',
+    )
+    axes[0].plot(
+        x,
+        pyomo_costs[:n],
+        marker='o',
+        markersize=8,
+        linewidth=2,
+        color=optimum_color,
+        label='Mathematical optimization',
+    )
+    axes[0].set_title(
+        f'{algorithm} vs. Mathematical Optimization Across 24-Hour Comparison Windows',
+        fontsize=20,
+        fontweight='bold',
+        pad=14,
+    )
+    axes[0].set_ylabel('Objective value [€]', fontsize=14, fontweight='bold')
+    axes[0].set_xticks(x)
+    axes[0].set_xticklabels(labels, fontsize=11, fontweight='bold')
+    axes[0].legend(loc='upper right', frameon=True, fancybox=True, framealpha=0.95)
+
+    bars = axes[1].bar(x, abs_cost_gaps, width=0.58, color=bar_color, alpha=0.85)
+    mean_gap = float(np.mean(abs_cost_gaps))
+    axes[1].axhline(mean_gap, color='#d7191c', linestyle='--', linewidth=1.4)
+    axes[1].text(
+        max(0, n / 2 - 0.2),
+        mean_gap + max(0.04, 0.035 * max(abs_cost_gaps)),
+        f'Mean gap = €{mean_gap:.2f}',
+        color='#c41218',
+        fontsize=13,
+        fontweight='bold',
+        ha='center',
+    )
+    for bar, gap in zip(bars, abs_cost_gaps):
+        axes[1].text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + max(0.025, 0.025 * max(abs_cost_gaps)),
+            f'{gap:.2f}',
+            ha='center',
+            va='bottom',
+            fontsize=11,
+            fontweight='bold',
+        )
+
+    ranked = np.argsort(abs_cost_gaps)[::-1]
+    for rank, index in enumerate(ranked[:2], start=1):
+        label = 'Largest gap' if rank == 1 else '2nd largest gap'
+        axes[1].annotate(
+            f'{label}\n€{abs_cost_gaps[index]:.2f}',
+            xy=(index, abs_cost_gaps[index]),
+            xytext=(0, 26),
+            textcoords='offset points',
+            ha='center',
+            va='bottom',
+            fontsize=10,
+            bbox={'boxstyle': 'round,pad=0.45', 'fc': 'white', 'ec': '#e74c3c', 'lw': 0.8},
+            arrowprops={'arrowstyle': '->', 'lw': 0.8, 'color': 'black'},
+        )
+
+    axes[1].set_title(
+        f'Optimality Gap to Mathematical Optimization (|{algorithm} − Optimum|)',
+        fontsize=18,
+        fontweight='bold',
+        pad=12,
+    )
+    axes[1].set_ylabel('Optimality gap [€]', fontsize=14, fontweight='bold')
     axes[1].set_xticks(x)
-    axes[1].set_xticklabels(labels, rotation=45, ha='right')
+    axes[1].set_xticklabels([f'Window {i + 1}' for i in range(n)], fontweight='bold')
+    axes[1].set_xlim(-0.55, n - 0.45)
+    axes[1].set_ylim(0, max(abs_cost_gaps) * 1.25)
 
-    fig.tight_layout()
+    fig.text(
+        0.095,
+        0.055,
+        'Notes:   Each window represents a 24-hour period.\n'
+        '             Mathematical optimization is the benchmark (optimal) objective.',
+        fontsize=11,
+        va='center',
+        bbox={'boxstyle': 'round,pad=0.7', 'fc': 'white', 'ec': '#8092ad', 'lw': 1.0},
+    )
+    fig.text(
+        0.76,
+        0.055,
+        'Lower (more negative) objective value = higher profit',
+        fontsize=11,
+        ha='center',
+        va='center',
+        bbox={'boxstyle': 'round,pad=0.7', 'fc': '#eef4ff', 'ec': '#7aa0d5', 'lw': 1.0},
+    )
 
     if output_file:
         os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
@@ -361,4 +464,8 @@ if __name__ == '__main__':
     
     # Print results
     print_comparison_stats(results, output_file='src/battery_model/model_comparison.txt')
-    plot_comparison_distances(results, output_file='src/battery_model/model_comparison_distances.png')
+    plot_comparison_distances(
+        results,
+        output_file='src/battery_model/model_comparison_distances.png',
+        algorithm=args.algorithm,
+    )
