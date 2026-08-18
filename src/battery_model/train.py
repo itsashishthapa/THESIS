@@ -209,7 +209,7 @@ def train_model(
         "batch_size": 256,
         "learning_rate": 3e-4,
         "tau": 0.005,
-        "gamma": 0.9999, # TODO: set gamma to 1(check result)
+        "gamma": 1, # TODO: set gamma to 1(check result)
         "train_freq": 1,
         "gradient_steps": 1,
         "verbose": 1,
@@ -497,6 +497,23 @@ def _parse_args():
         help="Total training timesteps",
     )
     parser.add_argument(
+        "--tune",
+        action="store_true",
+        help="Run Optuna hyperparameter tuning instead of a single training run",
+    )
+    parser.add_argument(
+        "--tune-trials",
+        type=int,
+        default=20,
+        help="Number of Optuna trials to run with --tune",
+    )
+    parser.add_argument(
+        "--tune-timesteps",
+        type=int,
+        default=50000,
+        help="Training timesteps per Optuna trial with --tune",
+    )
+    parser.add_argument(
         "--log-dir",
         default=None,
         help="TensorBoard/log directory",
@@ -582,6 +599,18 @@ if __name__ == "__main__":
         )
     else:
         prices_full, global_price_scale = load_price_data()
+
+    if args.tune:
+        tune_log_dir = args.log_dir or "./logs/hyperparameter_tuning"
+        tune_hyperparameters(
+            prices_full,
+            global_price_scale,
+            log_dir=tune_log_dir,
+            n_trials=args.tune_trials,
+            total_timesteps=args.tune_timesteps,
+        )
+        raise SystemExit(0)
+
     prices_train, prices_validation = split_train_validation_prices(
         prices_full,
         validation_fraction=args.validation_fraction,
