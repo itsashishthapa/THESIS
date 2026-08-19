@@ -62,5 +62,5 @@ logs/
 # Node/other (if any)
 node_modules/
 
-./Presentation/*.lock
-
+# LibreOffice temporary document locks
+.~lock.*#
