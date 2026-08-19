@@ -30,8 +30,7 @@ Feedbacks:
 ---------------------------------------------------------------------------------------------------------------
 -rolling horizon
 
-- have two diffent buffer for running and terminal buffer. (additional lost function)
-- paper about reward shaping.
+- TODO(reduced performance): have two diffent buffer for running and terminal buffer. (additional lost function)
 
 cookie factory,
 use q learning for beta
