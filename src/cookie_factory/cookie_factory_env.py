@@ -45,9 +45,18 @@ class SteamEnv(gym.Env):
      ACTION VECTOR
      -------------------------------------------------------------------------------
      In the mathematical model:
-     a_k = [beta1_k, R_k, m_I_k]
-     beta1_k is binary: 0 for charge and 1 for discharge. beta2_k is derived
-     as 1 - beta1_k rather than supplied by the policy.
+     a_k = [beta_command_k, R_k, m_I_k]
+     beta_command_k is a signed storage-mode command in [-1, 1].  Its three
+     operating bands are:
+
+       [-1, -1/3] : discharge; beta1 is 1 and beta2 ramps from 0 to 1
+       (-1/3, 1/3): idle; both beta1 and beta2 are 1
+       [1/3, 1]   : charge; beta1 ramps from 1 to 0 and beta2 is 1
+
+     The ramp magnitude increases with distance from the idle band, so -1 and
+     +1 respectively request full discharge and full charge.  beta1 and beta2
+     are physical bypass coefficients, not direct flow fractions: a value of 1
+     closes its corresponding storage flow in F6/F7.
      R_k is the HTHP surrogate variable (compressor speed),
      where beta1_k and beta2_k are the bypass variables x1 and x2,
      T_I_k is derived by F5, and T_III_k is the cold-side inlet temperature
@@ -80,16 +89,16 @@ class SteamEnv(gym.Env):
         # reward penalties
         lambda_mode=5.0,  # penalty for invalid bypass/mode behavior
         lambda_bound=20.0,  # penalty for storage temperature bound violations
-        lambda_terminal=1000.0,  # penalty for ending away from cyclic terminal target
-        lambda_coupling=10,  # penalty for F4/F5 coupling residuals
+        lambda_terminal=5000.0,  # penalty for ending away from cyclic terminal target
+        lambda_coupling=1000,  # penalty for F4/F5 coupling residuals
         lambda_comp=1e-4,  # penalty for simultaneous charging and discharging
-        lambda_grid=10.0,  # penalty for grid power bound violations
+        lambda_grid=2000.0,  # penalty for grid power bound violations
         lambda_T_I=10.0,
-        lambda_flow=10.0,
+        lambda_flow=5000.0,
         eps_comp=1.0e-6,  # small tolerance for the Qch*Qdch complementarity constraint
         Q_flow_max=5000.0,  # Qch/Qdch upper bound from the NLP model
-        hard_bypass=True,  # F10 / penalty_mode_k: retained for compatibility; beta1 + beta2 = 1
-        hard_complementarity=True,  # F11 / penalty_comp_k: prevent simultaneous charge and discharge
+        hard_bypass=True,  # F10: action mapping enforces beta1 + beta2 >= 1
+        hard_complementarity=True,  # F11: action mapping permits only one storage flow
         enforce_cyclic_boundary=True,  # terminal storage constraint / terminal_penalty_k: return to T_s_0
         debug_reward_terms=True,  # print reward term breakdown at each step
         lambda_repair=1.0,
@@ -165,7 +174,7 @@ class SteamEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([0.0, 0.8, 5.0], dtype=np.float32),
+            low=np.array([-1.0, 0.8, 5.0], dtype=np.float32),
             high=np.array([1.0, 1.53, 16.0], dtype=np.float32),
             dtype=np.float32,
         )
@@ -177,6 +186,31 @@ class SteamEnv(gym.Env):
 
     def _norm_01(self, x, lo, hi):
         return float(np.clip((x - lo) / max(hi - lo, 1e-6), 0.0, 1.0))
+
+    @staticmethod
+    def _map_beta_command(beta_command):
+        """Map a signed command to physically feasible bypass coefficients.
+
+        For the original process equations, ``Q_ch`` is proportional to
+        ``1 - beta1`` and ``Q_dch`` to ``1 - beta2``.  Therefore the inactive
+        branch must have a beta value of 1.  This mapping enforces both F10
+        (beta1 + beta2 >= 1) and F11 (no simultaneous charge/discharge).
+        """
+        beta_command = float(np.clip(beta_command, -1.0, 1.0))
+        band_width = 2.0 / 3.0
+
+        if beta_command <= -1.0 / 3.0:
+            # -1 -> full discharge (beta2=0), -1/3 -> idle (beta2=1).
+            discharge_fraction = (-beta_command - 1.0 / 3.0) / band_width
+            beta2 = 1.0 - discharge_fraction
+            return 1.0, float(np.clip(beta2, 0.0, 1.0)), 2
+        if beta_command >= 1.0 / 3.0:
+            # 1/3 -> idle (beta1=1), 1 -> full charge (beta1=0).
+            charge_fraction = (beta_command - 1.0 / 3.0) / band_width
+            beta1 = 1.0 - charge_fraction
+            return float(np.clip(beta1, 0.0, 1.0)), 1.0, 1
+
+        return 1.0, 1.0, 0
 
     def _forecast_window(self):
         """Return the complete configured price and wind forecast at every step."""
@@ -299,8 +333,8 @@ class SteamEnv(gym.Env):
                 f"Expected action shape {self.action_space.shape}, got {action.shape}"
             )
 
-        beta1_k = float(action[0] >= 0.5)
-        beta2_k = 1.0 - beta1_k
+        beta_command_k = float(np.clip(action[0], -1.0, 1.0))
+        beta1_k, beta2_k, mode_k = self._map_beta_command(beta_command_k)
         R_k = float(action[1])
         m_I_k = float(action[2])
         # C 15 (bounds)
@@ -367,12 +401,15 @@ class SteamEnv(gym.Env):
         # F5: T_I_k = T_3_k * beta2_k + T_4_k * (1 - beta2_k)
         f4_residual_k = T_2_k - (T_1_k * (1.0 - beta1_k) + T_II_k * beta1_k)
 
-        # F10: x1 + x2 >= 1
-        # bypass_sum_violation_k = max(1.0 - (beta1_k + beta2_k), 0.0)  # always 0
-        # charge_discharge_product_k = Q_s_ch_k * Q_s_dch_k  # always 0
+        # F10: x1 + x2 >= 1.  The signed-command map enforces this exactly.
+        bypass_sum_violation_k = max(1.0 - (beta1_k + beta2_k), 0.0)
 
-        # F11: Qch * Qdch <= EPS
-        # complementarity_violation_k = max(-self.eps_comp, 0.0)  # always 0
+        # F11: Qch * Qdch <= EPS.  The inactive bypass is closed (beta=1),
+        # so only one storage flow can be non-zero.
+        complementarity_violation_k = max(
+            Q_s_ch_k * Q_s_dch_k - self.eps_comp,
+            0.0,
+        )
         q_ch_lower_violation_k = max(-Q_s_ch_k, 0.0)
         q_dch_lower_violation_k = max(-Q_s_dch_k, 0.0)
         q_ch_upper_violation_k = max(Q_s_ch_k - self.Q_flow_max, 0.0)
@@ -384,8 +421,8 @@ class SteamEnv(gym.Env):
             + q_dch_upper_violation_k
         )
 
-        # Diagnostic mode only (for observation hint)
-        mode_k = 1 if beta1_k == 0.0 else 2
+        # mode_k is determined by the signed beta command: 2=discharge,
+        # 0=idle, and 1=charge.
 
         # F3: model.P[t] + model.WKA[t] == 3*(...)  ->  P_grid_k = P_HP_k - P_WT_k
         P_grid_k = P_HP_k - P_WT_k
@@ -412,10 +449,14 @@ class SteamEnv(gym.Env):
         )
         penalty_T_I_k = self.lambda_T_I * T_I_bound_violation_k / (250.0 - 177.0)
         penalty_flow_k = self.lambda_flow * flow_bound_violation_k / self.Q_flow_max
-        penalty_coupling_k = self.lambda_coupling * (abs(f4_residual_k))
+        penalty_coupling_k = self.lambda_coupling * (
+            abs(f4_residual_k) / (self.T_s_max - self.T_s_min)
+        )
         penalty_grid_k = self.lambda_grid * (
             grid_bound_violation_k / max(self.P_HP_max, 1e-6)
         )
+        penalty_mode_k = self.lambda_mode * bypass_sum_violation_k
+        penalty_comp_k = self.lambda_comp * complementarity_violation_k
 
         reward_k = -cost_grid_k
         reward_k -= penalty_bound_k
@@ -423,6 +464,8 @@ class SteamEnv(gym.Env):
         reward_k -= penalty_flow_k
         reward_k -= penalty_coupling_k
         reward_k -= penalty_grid_k
+        reward_k -= penalty_mode_k
+        reward_k -= penalty_comp_k
 
         self.k += 1
         terminated = self.k >= self.K
@@ -444,6 +487,7 @@ class SteamEnv(gym.Env):
 
         self._last_mode = mode_k
         info = {
+            "beta_command_k": beta_command_k,
             "beta1_k": beta1_k,
             "beta2_k": beta2_k,
             "R_k": R_k,
@@ -464,6 +508,8 @@ class SteamEnv(gym.Env):
             "Q_s_dch_k": Q_s_dch_k,
             "Q_flow_max": self.Q_flow_max,
             "f4_residual_k": f4_residual_k,
+            "bypass_sum_violation_k": bypass_sum_violation_k,
+            "complementarity_violation_k": complementarity_violation_k,
             "q_ch_lower_violation_k": q_ch_lower_violation_k,
             "q_dch_lower_violation_k": q_dch_lower_violation_k,
             "q_ch_upper_violation_k": q_ch_upper_violation_k,
@@ -486,6 +532,8 @@ class SteamEnv(gym.Env):
             "penalty_bound_k": penalty_bound_k,
             "penalty_coupling_k": penalty_coupling_k,
             "penalty_grid_k": penalty_grid_k,
+            "penalty_mode_k": penalty_mode_k,
+            "penalty_comp_k": penalty_comp_k,
             "terminal_penalty_k": terminal_penalty_k,
             "t_k": t_k,
             "raw_reward": float(reward_k),
