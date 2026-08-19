@@ -14,11 +14,15 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from stable_baselines3 import SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from src.cookie_factory.cookie_factory_env import SteamEnv
-from src.cookie_factory.train import load_cookie_data
+from src.cookie_factory.train import (
+    DEFAULT_ALGORITHM,
+    get_model_class,
+    load_cookie_data,
+    normalize_algorithm,
+)
 
 DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
@@ -68,6 +72,7 @@ def evaluate_first_24_data(
     seed: int = 42,
     env_kwargs: dict[str, Any] | None = None,
     vecnormalize_path: str | None = None,
+    algorithm: str = DEFAULT_ALGORITHM,
 ) -> tuple[dict, pd.DataFrame]:
     """Evaluate one episode on the first 24 rows of WKA_Pe_merged.csv and print it."""
     if vecnormalize_path is None:
@@ -78,6 +83,7 @@ def evaluate_first_24_data(
         price_col=price_col,
         wind_col=wind_col,
     )
+    print("price",g_grid, P_WT)
 
     episode_stats, trajectories = evaluate_model(
         model_path=model_path,
@@ -92,6 +98,7 @@ def evaluate_first_24_data(
         seed=seed,
         env_kwargs=env_kwargs,
         vecnormalize_path=vecnormalize_path,
+        algorithm=algorithm,
     )
 
     result = episode_stats[0]
@@ -156,10 +163,12 @@ def evaluate_model(
     num_episodes: int = 10,
     window_len: int = 24,
     forecast_h: int = 24,
+    start_hour: int | None = None,
     deterministic: bool = True,
     seed: int = 42,
     env_kwargs: dict[str, Any] | None = None,
     vecnormalize_path: str | None = DEFAULT_VECNORM_PATH,
+    algorithm: str = DEFAULT_ALGORITHM,
 ) -> tuple[list[dict], pd.DataFrame]:
     """
     Evaluate a trained SAC model on random windows.
@@ -171,7 +180,8 @@ def evaluate_model(
     if not os.path.exists(f"{model_path}.zip"):
         raise FileNotFoundError(f"Model not found: {model_path}.zip")
 
-    model = SAC.load(model_path)
+    algorithm = normalize_algorithm(algorithm)
+    model = get_model_class(algorithm).load(model_path)
     print(f"Loaded model from {model_path}.zip")
     if vecnormalize_path and os.path.exists(vecnormalize_path):
         print(f"Loading VecNormalize stats from {vecnormalize_path}")
@@ -209,11 +219,21 @@ def evaluate_model(
         p_max = float(step_info.get("P_grid_max", 5000.0))
         return max(-p_grid, 0.0) + max(p_grid - p_max, 0.0)
 
+    n = len(g_grid_full)
+    max_start = n - window_len
+    if max_start < 0:
+        raise ValueError("window_len cannot be larger than the supplied data.")
+    if start_hour is not None and not 0 <= start_hour <= max_start:
+        raise ValueError(
+            f"start_hour must be between 0 and {max_start}, got {start_hour}."
+        )
+
     for ep in range(num_episodes):
-        # Sample random window
-        n = len(g_grid_full)
-        max_start = n - window_len
-        start = np.random.randint(0, max_start + 1)
+        start = (
+            start_hour
+            if start_hour is not None
+            else np.random.randint(0, max_start + 1)
+        )
         end = start + window_len
 
         raw_env = SteamEnv(
@@ -250,6 +270,7 @@ def evaluate_model(
                 "episode": ep,
                 "step": step,
                 "action_repaired": bool(step_info.get("action_repaired", False)),
+                "action_beta_command": step_info.get("beta_command_k"),
                 "action_beta1": step_info.get("beta1_k"),
                 "action_beta2": step_info.get("beta2_k"),
                 "action_beta1_raw": step_info.get("beta1_raw"),
@@ -338,19 +359,35 @@ def evaluate_model(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Evaluate SAC model on Cookie Factory")
+    parser = argparse.ArgumentParser(description="Evaluate SAC or TD3 model on Cookie Factory")
+    parser.add_argument(
+        "--algorithm",
+        type=normalize_algorithm,
+        default=DEFAULT_ALGORITHM,
+        choices=("SAC", "TD3"),
+        help="RL algorithm used by the saved model",
+    )
     parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH, help="Path to saved SAC model")
     parser.add_argument("--data", default=DEFAULT_DATA_PATH, help="Path to CSV or Excel dataset")
     parser.add_argument("--num-episodes", type=int, default=10, help="Number of eval episodes")
     parser.add_argument("--window-len", type=int, default=24, help="Random window length")
     parser.add_argument("--forecast-h", type=int, default=24, help="Forecast horizon")
+    parser.add_argument(
+        "--start-hour",
+        type=int,
+        default=None,
+        help="Zero-based row index for a fixed evaluation window",
+    )
     parser.add_argument("--stochastic", action="store_true", help="Use stochastic (random) actions instead of deterministic")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output-dir", default="results/eval", help="Where to save results")
     parser.add_argument("--price-col", type=str, default="Pe", help="Column name for grid price")
     parser.add_argument("--wind-col", type=str, default="WKA", help="Column name for wind power")
     parser.add_argument("--first-24", action="store_true", help="Evaluate exactly the first 24 rows of the dataset")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.first_24 and args.start_hour is not None:
+        parser.error("--start-hour cannot be used with --first-24")
+    return args
 
 
 def main() -> None:
@@ -366,6 +403,7 @@ def main() -> None:
             deterministic=not args.stochastic,
             seed=args.seed,
             vecnormalize_path=f"{args.model_path}_vecnormalize.pkl",
+            algorithm=args.algorithm,
         )
         return
 
@@ -380,6 +418,8 @@ def main() -> None:
     print(f"\n{'='*60}")
     print(f"Evaluating model: {args.model_path}")
     print(f"Episodes: {args.num_episodes}, Window length: {args.window_len}")
+    if args.start_hour is not None:
+        print(f"Fixed start hour: {args.start_hour}")
     print(f"Deterministic: {not args.stochastic}")
     print(f"{'='*60}\n")
 
@@ -392,9 +432,11 @@ def main() -> None:
         num_episodes=args.num_episodes,
         window_len=args.window_len,
         forecast_h=args.forecast_h,
+        start_hour=args.start_hour,
         deterministic=not args.stochastic,
         seed=args.seed,
         vecnormalize_path=f"{args.model_path}_vecnormalize.pkl",
+        algorithm=args.algorithm,
     )
 
     # Save episode summary
