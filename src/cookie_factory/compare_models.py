@@ -1,4 +1,4 @@
-"""Compare the Cookie Factory SAC policy with the Pyomo optimisation model.
+"""Compare the Cookie Factory SAC policy with the Mathematical optimisation model.
 
 Both methods are evaluated on the same fixed or randomly sampled 24-step
 price/wind windows.  The reported objective is grid-electricity cost in EUR,
