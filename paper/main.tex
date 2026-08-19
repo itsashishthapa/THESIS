@@ -192,30 +192,27 @@ This question is addressed through the following subquestions:
 
 For each case study, the setpoint optimization problem is first formulated as a Markov decision process (MDP). Deep neural networks are used to parameterize the RL policies that map system observations to continuous setpoint decisions. The resulting policies are evaluated through deterministic rollouts in reinforcement-learning environments, and the resulting schedules are compared with mathematical optimization baselines. The comparison is based on total grid-electricity cost, constraint violations, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
 
-The remainder of this thesis is structured as follows. Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces mathematical optimization as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~3 introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~4 presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~5 reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and mathematical optimization. Finally, Section~6 summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
+The remainder of this thesis is structured as follows. Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces mathematical optimization as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~\ref{sec:use_case}introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~\ref{sec:methodology} presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~\ref{sec:results_discussion} reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and mathematical optimization. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
 
 \newpage
 \section{Theory and Background}
 \label{sec:theory_background}
-\textcolor{blue}{Provides the fundamental concepts and background required to understand the systems, optimization methods, and reinforcement learning used in this work.}
 
-This section provides the theoretical basis for the control problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem can be viewed from two perspectives: as a model-based constrained optimization problem, and as a sequential decision-making problem that can be addressed with reinforcement learning. The section then introduces Soft Actor-Critic (SAC), which is used in this work to learn continuous setpoint policies.
+This section provides the theoretical basis for the setpoint optimization problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem can be viewed from two perspectives: as a model-based constrained optimization problem, and as a sequential decision-making problem that can be addressed with reinforcement learning. The section first introduces the fundamental concepts of RL and the MDP formulation \cite{sutton2018reinforcement}, then presents deep RL methods for continuous control and the TD3 \cite{fujimoto2018addressing} and SAC \cite{haarnoja2018soft} algorithms evaluated in this work.
 
-Here, RL is not treated as a replacement for physical constraints. Instead, the original constrained optimization problem is transformed into a policy-learning problem in which feasibility is encouraged or enforced through action bounds, clipping, and penalty terms. This distinction is important for the comparison with mathematical optimization, because a low-cost RL policy is only useful if its decisions remain feasible.
+Here, RL is not treated as a substitute for physical constraints. Instead, the setpoint-optimization problem is formulated as an MDP, with feasibility enforced where possible through action bounds, state-dependent mappings, and system dynamics, and otherwise discouraged through reward penalties. This distinction is important when comparing RL with mathematical optimization, because a low-cost policy is only useful if its decisions remain feasible.
 
 \subsection{Setpoint Optimization in Energy Utility Systems}
-\textcolor{blue}{Defines setpoints and explains why their optimal selection is relevant for energy utility systems.}
 
-Energy utility systems are operated by choosing setpoints for controllable components such as storage units, heat pumps, valves, and bypasses. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the compressor setting of a heat pump, a mass flow rate, or a temperature level in a thermal process. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and system stability.
+Energy utility systems are operated by choosing setpoints for controllable components such as storage units, heat pumps, valves, and bypasses. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the bypass variable $\beta_1$, or a mass flow rate. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and overall system reliability and lifetime \cite{tran2025safe}.
 
-Setpoint determination is also inherently sequential. The best operating point at one time step cannot be chosen independently of what happened before or what may be needed later. Storage systems make this especially clear. Charging a battery or a thermal energy storage can increase future flexibility, but it may also increase the current electricity cost. Discharging can reduce current grid consumption, but it leaves less stored energy for later. Good setpoint decisions therefore have to account for inter-temporal dependencies, changing boundary conditions, and physical operating limits at the same time \cite{walden2023nonlinear,kyriakidis2024hybrid}.
+Setpoint determination is also inherently sequential. The best operating point at one time step cannot be chosen independently of what happened before or what may be needed later. Storage systems make this especially clear. Charging a battery or a thermal energy storage can increase future flexibility, but it may also increase the current electricity cost. Discharging can reduce current grid consumption, but it leaves less stored energy for later. Good setpoint decisions must therefore account for inter-temporal dependencies and physical operating limits \cite{walden2023nonlinear}. Each action affects both the immediate operating cost and the feasible decisions available at later time steps; consequently, its quality must be evaluated over the full planning horizon rather than solely at the current time step \cite{takam2025stochastic}.
 
-In practical operation, the controller also has to react to external signals such as electricity prices, renewable generation, production demand, and ambient conditions. Since these signals change over time, fixed rule-based strategies can become inefficient, and the operation can be formulated as a finite-horizon decision problem with time-varying boundary conditions \cite{pilling2025rl}. This motivates two formulations of the same control task: constrained finite-horizon optimization and reinforcement learning.
+In practical operation, the controller also has to react to external signals such as electricity prices, renewable generation, production demand, and ambient conditions. Since these signals change over time, fixed rule-based strategies can become inefficient, and the operation can be formulated as a finite-horizon decision problem with time-varying boundary conditions \cite{meng2025online,pilling2025rl}. This motivates two formulations of the same setpoint determination task: constrained finite-horizon optimization and reinforcement learning.
 
 \subsection{Mathematical Optimization}
-\textcolor{blue}{Presents traditional optimization methods used for determining optimal system setpoints.}
 
-Mathematical optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating cost or energy consumption, while the feasible set is determined by physical equations and operational limits. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
+Mathematical optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating cost or energy consumption, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
 \begin{equation}
 \min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
 \label{eq:general_constrained_optimization}
@@ -228,10 +225,32 @@ The difficulty of an optimization problem depends strongly on its mathematical s
 
 Another important distinction is whether the problem is deterministic or stochastic. In deterministic optimization, all relevant parameters, such as electricity prices, wind availability, and demand, are assumed to be known over the optimization horizon. Stochastic optimization represents uncertain quantities through random variables or scenarios. This is closer to real operation, but it also increases model size and computational complexity.
 
-Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. IPOPT, for example, is an open-source solver for large-scale nonlinear programming and uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}. These solvers can be very effective when the model is well defined, but their performance depends on model accuracy, constraint structure, scaling, and initialization. Such sensitivity is one reason hybrid strategies, such as the Bayesian-optimization and IPOPT approach of Kyriakidis et al., have been proposed for complex nonconvex energy-conversion problems \cite{kyriakidis2024hybrid}.
+Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. Wächter and Biegler introduce IPOPT as an open-source solver for large-scale nonlinear programming that uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}.
+
+To illustrate the interior-point principle, consider the general problem in Eq.~\eqref{eq:general_constrained_optimization}. Introducing slack variables converts the inequality constraints into $g(x)+s=0$, where $s\geq 0$. A logarithmic barrier with parameter $\mu>0$ restricts the iterates to the interior, $s>0$, and leads to the subproblem
+\begin{equation}
+\begin{aligned}
+\min_{x,s}\quad & f(x) - \mu\sum_{j=1}^{q}\ln(s_j) \\
+\text{s.t.}\quad & h(x)=0, \qquad g(x)+s=0, \qquad s>0.
+\end{aligned}
+\label{eq:ipopt_barrier_problem}
+\end{equation}
+The logarithmic barrier prevents the iterates from reaching the constraint boundary. IPOPT solves a sequence of such subproblems using a primal-dual Newton method. With equality multipliers $y$ and inequality multipliers $z$, the perturbed Karush--Kuhn--Tucker conditions are
+\begin{equation}
+\begin{aligned}
+\nabla f(x)+J_h(x)^\top y+J_g(x)^\top z &= 0, \\
+h(x) &= 0, \qquad g(x)+s=0, \\
+S z &= \mu\mathbf{1}, \qquad s>0,\; z>0,
+\end{aligned}
+\label{eq:ipopt_kkt}
+\end{equation}
+where $J_h$ and $J_g$ are the Jacobians of the equality and inequality constraints, respectively, and $S=\operatorname{diag}(s)$. As $\mu$ is reduced towards zero, the perturbed complementarity condition $Sz=\mu\mathbf{1}$ approaches the KKT complementarity condition of the original constrained problem \cite{wachter2006implementation}. 
+
+Nocedal and Wright note that the performance of nonlinear optimization algorithms depends on formulation quality, particularly the constraint structure, variable scaling, and initial point \cite{nocedal2006numerical}.
+
+These considerations motivate the investigation of reinforcement learning as a complementary approach to model-based optimization. The following section introduces its fundamental principles and its formulation for setpoint optimization.
 
 \subsection{Reinforcement Learning}
-\textcolor{blue}{Introduces reinforcement learning as a data-driven approach for learning optimal control policies through interaction with the environment.}
 
 Reinforcement learning (RL) offers a different view of the same setpoint problem. Instead of solving an optimization problem from scratch at every decision time, an agent learns from repeated interaction with an environment. At each time step, the agent observes the current state, selects an action, receives a reward, and observes the next state. Over time, it adapts its policy so that actions leading to high long-term reward become more likely \cite{sutton2018reinforcement}.
 
@@ -313,6 +332,7 @@ Minimizing this objective favors actions with high estimated value while retaini
 SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, and storage dynamics.
 
 \section{Use Cases}
+\label{sec:use_case}
 \textcolor{blue}{Describes the two systems considered in this thesis and their operational challenges.}
 
 \subsection{Battery Energy Storage System}
@@ -403,6 +423,7 @@ In the reinforcement-learning environment, the agent observes the normalized TES
 This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, multiple coupled continuous control variables, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
 \section{Methodology}
+\label{sec:methodology}
 \textcolor{blue}{Describes how the optimization problem is formulated as a reinforcement learning problem.}
 
 The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In particular, the setpoint optimization task is expressed as a finite-horizon sequential decision problem, where an agent observes the current physical system state together with current and forecast exogenous variables, such as electricity prices and available wind power, selects continuous control actions, and receives a reward based on operating cost and constraint satisfaction.
@@ -530,6 +551,7 @@ The evaluation also records trajectory-level operating indicators. For the BESS,
 Finally, computation time is used to assess practical applicability. For mathematical optimization, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. After training, the relevant online cost is the time required for a policy forward pass and one environment step at each decision time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
 
 \section{Results and Discussion}
+\label{sec:results_discussion}
 \textcolor{blue}{Presents and analyzes the experimental results.}
 
 \subsection{Battery Energy Storage System}
@@ -584,6 +606,7 @@ The main advantage of the SAC policy was computation time. The trained policy re
 \subsection{Key Findings}
 
 \section{Conclusion and Future Work}
+\label{sec:conclusion_future_work}
 \textcolor{blue}{Summarizes the main findings and outlines possible future work.}
 
 %Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
