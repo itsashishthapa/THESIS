@@ -357,37 +357,62 @@ The two algorithms therefore provide a comparison between deterministic and stoc
 
 \section{Use Cases}
 \label{sec:use_case}
-\textcolor{blue}{Describes the two systems considered in this thesis and their operational challenges.}
 
 \subsection{Battery Energy Storage System}
-\textcolor{blue}{Describes the battery system used as the first case study.}
 
 Battery energy storage systems (BESS) are electrochemical devices that store electrical energy for later use and provide grid services such as energy arbitrage, peak shaving, and short-term balancing. A typical BESS is characterized by its usable energy capacity, maximum charge/discharge power, round-trip efficiency, and state-of-charge (SOC) operating limits. Real-world operation must balance economic objectives (e.g., buying low / using stored energy when prices are high) with engineering constraints (SOC bounds, power limits, efficiency losses).
 
 BESS presents several challenges. Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
 
-A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and the normalized price forecast for the complete scheduling horizon; the action is a continuous charge/discharge command $a\in[-1,1]$ scaled to grid-side power $P_t^{\mathrm S}\in[-P_{\max},P_{\max}]$.
+A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and the normalized price forecast for the complete scheduling horizon; the action is a continuous charge/discharge command $u\in[-1,1]$ scaled to grid-side power $P_t^{\mathrm S}\in[-P_{\max},P_{\max}]$.
 
 The SOC dynamics are modeled as
 \[
 \mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t}{E_{\max}},
 \]
-where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The implemented environment uses the sign convention $P_t^{\mathrm S}>0$ for charging and $P_t^{\mathrm S}<0$ for discharging, with a simplified symmetric efficiency coefficient $\eta$. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The system is subject to the following operational constraints:
+where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The sign convention is $P_t^{\mathrm S}>0$ for charging and $P_t^{\mathrm S}<0$ for discharging. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
-0 \le \mathrm{SOC}_t \le 1, \quad \forall t, \label{eq:soc_bounds} \\
--P_{\max} \le P_t^{\mathrm S} \le P_{\max}, \quad \forall t, \label{eq:power_limits} \\
-P_{\text{actual},t} = \eta P_t^{\mathrm S}, \quad \forall t. \label{eq:efficiency}
+P_t^{\mathrm S}
+&= P_{\max}\Big[
+\frac{1}{2}\left(1+\tanh\bigl(k(u_t-\delta)\bigr)\right)u_t
+\nonumber\\
+&\quad {}\times
+\frac{1}{2}\left(1+\tanh\bigl(k(0.995-\mathrm{SOC}_t)\bigr)\right)
+\nonumber\\
+&\quad
++ \frac{1}{2}\left(1-\tanh\bigl(k(u_t+\delta)\bigr)\right)u_t
+\nonumber\\
+&\quad {}\times
+\frac{1}{2}\left(1+\tanh\bigl(k(\mathrm{SOC}_t-0.005)\bigr)\right)
+\Big], \quad \forall t, \label{eq:bess_power_mapping} \\
+P_{\text{actual},t}
+&= \frac{P_t^{\mathrm S}}{2}
+\Biggl[
+\left(1+\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\eta
+\nonumber\\
+&\qquad\quad
++ \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
+\Biggr],
+\quad \forall t, \label{eq:feasible_actual_power} \\
+\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}}.
+\label{eq:terminal_soc_requirement}
 \end{align}
 
-where $P_{\max}$ is the maximum charge/discharge power. Constraint~\eqref{eq:soc_bounds} ensures the battery operates within safe operating levels, Constraint~\eqref{eq:power_limits} enforces physical power limitations, and Constraint~\eqref{eq:efficiency} models the efficiency losses used in the RL environment. The environment enforces feasibility by dynamically limiting the commanded power at each step so that the SOC remains within bounds.
+Here, $u_t$ is the normalized control command, $P_{\max}$ is the maximum charging and discharging power, $k$ controls the steepness of the smooth action and SOC gates, and $\delta=0.0025$ defines a small action deadband. The terminal-SOC requirement is $\mathrm{SOC}_{\mathrm{term}}^{\min}=0.5$.
 
-The goal is to reduce the cost of electricity from the grid, which is calculated as the price multiplied by the power used. The environment gives the negative of this cost as the reward. In this work, there is no on-site generation and no selling back to the grid. The battery charges from the grid when prices are low and discharges to serve local demand when prices are high. Main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
+The parameter $\eta$ describes the charging and discharging efficiency, while $\epsilon$ controls the smooth transition between the two operating directions. Equation~\eqref{eq:bess_power_mapping} maps the normalized action and current SOC to grid-side battery power. It progressively restricts charging as SOC approaches $0.995$ and discharging as SOC approaches $0.005$. Equation~\eqref{eq:feasible_actual_power} maps grid-side power to storage-side power through the smooth efficiency relation. Finally, the mathematical-optimization model enforces the terminal-SOC requirement in Eq.~\eqref{eq:terminal_soc_requirement} as a hard constraint.
+
+The goal is to reduce the cost of electricity from the grid, which is calculated as the price multiplied by the power used. Accordingly, the mathematical-optimization objective is
+\[
+\min_{\{u_t\}_{t=0}^{N-1}} J
+= \sum_{t=0}^{N-1} S_t P_t^{\mathrm S}\Delta t,
+\]
+where $S_t$ is the electricity price at time step $t$. In the first use case, there is no on-site generation and no selling back to the grid. The battery charges from the grid when prices are low and discharges to serve local demand when prices are high. Main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \subsection{Cookie Production Factory}
-\textcolor{blue}{Introduces the industrial production system considered as the second case study.}
 
-The second use case represents a non-linear cookie production factory with an electrified steam-generation utility system. The production process requires a constant supply of process heat in the form of superheated steam, while the utility system must decide how to operate the energy conversion components under fluctuating wind generation and electricity prices. The operational objective is to satisfy the steam demand while minimizing grid electricity cost over a finite scheduling horizon. The system model is based on the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and later used as a renewable steam-generation benchmark by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.
+The second use case represents a non-linear cookie production factory with an electrified steam-generation utility system. The production process requires a constant supply of process heat in the form of superheated steam, while the utility system must decide how to operate the energy conversion components under fluctuating wind generation $W_t$ and electricity prices $S_t$. The operational objective is to satisfy the steam demand while minimizing grid electricity cost over a finite scheduling horizon. The system model is based on the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and later used as a renewable steam-generation benchmark by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.
 
 The system consists of four main units: a wind turbine (WT), a closed reverse Brayton-cycle high-temperature heat pump (HTHP), a sensible thermal energy storage (TES), and a steam generator (SG). The WT supplies renewable electricity, while additional electricity can be purchased from the grid. The HTHP uses a waste-heat air stream as heat source and delivers high-temperature process heat to an intermediate thermal-oil loop. The thermal oil acts as heat transfer fluid and can be routed through the TES or directly to the SG by controllable bypasses. The SG provides the required steam conditions for the consumer factory. The HTHP and SG are represented by polynomial surrogate models, while the TES is modeled as a simplified single energy reservoir, and the charging/discharging behavior is represented using efficiency equations.
 
@@ -404,7 +429,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 \min_{\mathbf{x}} \quad J
 &= \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t, \label{eq:cookie_objective} \\
 \text{s.t.} \quad
-P_t^{\mathrm S} + P_t^{\mathrm W}
+P_t^{\mathrm S} + W_t
 &= 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
 T_{\mathrm{II}}^t
 &= F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
@@ -438,11 +463,11 @@ T_{\mathrm{III}}^t
 &\in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
-Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $P_t^{\mathrm W}$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
+Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $W_t$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
 
-The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
+% The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
-In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $P_t^{\mathrm W}$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $P_{t+1:t+H}^{\mathrm W}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
+% In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $W_t$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $W_{t+1:t+H}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
 This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, multiple coupled continuous control variables, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
@@ -455,7 +480,7 @@ The previous section introduced the two energy utility systems considered in thi
 \subsection{Problem Formulation}
 \textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
 
-For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $P_t^{\mathrm W}$ the available wind power. At each time step, the system is described by a state vector $x_t$, the controller selects an action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics and the exogenous inputs $S_t$ and, for the cookie-factory use case, $P_t^{\mathrm W}$.
+For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $W_t$ the available wind power. At each time step, the system is described by a state vector $x_t$, the controller selects an action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics and the exogenous inputs $S_t$ and, for the cookie-factory use case, $W_t$.
 
 The resulting decision problem is formulated as a Markov decision process (MDP)
 \[
