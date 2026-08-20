@@ -364,6 +364,13 @@ Battery energy storage systems (BESS) are electrochemical devices that store ele
 
 BESS presents several challenges. Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.62\textwidth]{figures/battery_model.pdf}
+    \caption{Schematic of the battery energy storage system. The battery charges from the grid and discharges to reduce grid procurement; its state of charge $\mathrm{SOC}(t)$ records the stored energy.}
+    \label{fig:battery_model}
+\end{figure}
+
 A battery energy storage system provides flexible, time-shiftable power by charging when electricity prices are low and discharging when prices are high to reduce grid procurement cost. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and the normalized price forecast for the complete scheduling horizon; the action is a continuous charge/discharge command $u\in[-1,1]$ scaled to grid-side power $P_t^{\mathrm S}\in[-P_{\max},P_{\max}]$.
 
 The SOC dynamics are modeled as
