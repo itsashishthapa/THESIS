@@ -257,79 +257,103 @@ Reinforcement learning (RL) offers a different view of the same setpoint problem
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
-    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process. Created by EBatlleP, via \href{https://commons.wikimedia.org/wiki/File:Markov_diagram_v2.svg}{Wikimedia Commons}, licensed under \href{https://creativecommons.org/licenses/by-sa/4.0/}{CC BY-SA 4.0}; reproduced without modification.}
+    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process \cite{ebatllep2020markov}.}
     \label{fig:rl_interaction_loop}
 \end{figure}
 
-Formally, RL problems are commonly modeled as a Markov Decision Process (MDP), defined by the tuple
+Formally, RL problems are commonly modeled as a Markov Decision Process (MDP), defined by the tuple \cite{sutton2018reinforcement}
 \[
-\left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
+\left(\mathcal{X}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
 \]
 where
 \begin{itemize}
-    \item $\mathcal{S}$ is the set of states representing the system,
+    \item $\mathcal{X}$ is the set of states representing the system,
     \item $\mathcal{A}$ is the set of actions,
-    \item $p(s' \mid s,a)$ defines the transition dynamics,
-    \item $r(s,a)$ is the reward function,
+    \item $p(x' \mid x,a)$ defines the transition dynamics,
+    \item $r(x,a)$ is the reward function,
     \item $\gamma_{\mathrm{RL}} \in [0,1]$ is the discount factor.
 \end{itemize}
 
-The Markov property means that the current state contains the information needed to describe the probability distribution of the next state. A policy $\pi(a \mid s)$ describes how the agent selects actions. The return from time step $t$ is the discounted cumulative reward
+Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A policy $\pi(a \mid x)$ describes how the agent selects actions. To evaluate a decision, RL considers both its immediate reward and the rewards obtained thereafter. For a finite horizon of $N$ decision steps, this quantity, called the return, is
 \[
-G_t = \sum_{i=0}^{N-t-1} \gamma_{\mathrm{RL}}^i r(s_{t+i},a_{t+i}),
+G_t = \sum_{i=0}^{N-t-1} \gamma_{\mathrm{RL}}^i r(x_{t+i},a_{t+i}),
 \]
-and the learning objective is to find a policy that maximizes the expected return. Value functions estimate the expected return from a state, while action-value functions estimate the expected return from a state-action pair. These estimates are important because they allow the agent to consider the future consequences of a decision, not only its immediate reward \cite{sutton2018reinforcement}.
+and the learning objective is to find a policy that maximizes the expected return. The value function and action-value function of a policy $\pi$ are defined as
+\[
+v_t^\pi(x) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x\right],
+\qquad
+q_t^\pi(x,a) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x, A_t=a\right].
+\]
+The value function estimates the expected return from a state, whereas the action-value function estimates the expected return from a state-action pair. These estimates allow the agent to consider the future consequences of a decision, not only its immediate reward.
 
-In energy-system applications, the decision problem can often be interpreted as stochastic optimal control. Uncertainty enters through external variables such as renewable generation, electricity prices, and demand. These variables can be modeled as stochastic processes, which leads to a finite-horizon MDP formulation \cite{pilling2025rl}. Since the engineering objective is usually cost minimization, the reward is often defined as the negative operating cost. The resulting goal is to minimize expected operating cost over time while respecting system dynamics and constraints.
+For a finite-horizon problem, the optimal action-value function can be written recursively as
+\[
+q_t^\star(x,a)
+= r(x,a)
++ \gamma_{\mathrm{RL}}\,
+\mathbb{E}\!\left[
+v_{t+1}^\star(x')
+\mid x,a
+\right].
+\]
+Here, $x'$ denotes the next state. Rather than calculating this expectation from a known system model, RL learns an approximation of the action-value function from sampled transitions $(x_t,a_t,r_t,x_{t+1})$. The policy is then improved to select actions with higher estimated long-term return. This illustrates the central idea of RL: actions are evaluated not only by their immediate reward, but also by their expected future consequences \cite{sutton2018reinforcement}.
 
-Classical dynamic programming can solve some MDPs through backward recursion. However, this approach becomes impractical when the state or action space grows, a difficulty known as the curse of dimensionality \cite{sutton2018reinforcement}. Realistic energy systems often have continuous states, continuous actions, and long horizons, so exact dynamic-programming solutions are usually not tractable.
+Classical dynamic programming can solve MDPs through backward recursion. However, this approach becomes impractical when the state or action space grows, a difficulty known as the curse of dimensionality \cite{sutton2018reinforcement}. Realistic energy systems often have continuous states, continuous actions, and long horizons, so exact dynamic-programming solutions are often computationally infeasible.
 
 RL addresses this limitation by learning approximate policies from interaction data. A trained policy can then compute an action directly from the current observation. In model-free RL, the learning algorithm does not require an explicit analytical transition model for planning, although training still requires interaction data. In engineering applications, this data is usually generated with a simulator or digital model, so the quality of the learned policy depends strongly on the quality of the training environment.
 
-To locate the algorithm used in this thesis, it is helpful to briefly classify the main families of RL algorithms. RL methods are not separated by one single list of types; instead, they are usually described through several overlapping distinctions \cite{sutton2018reinforcement}:
+To locate the algorithm used in this thesis, it is helpful to briefly classify the main families of RL algorithms. RL methods are not separated by one single list of types; instead, they are usually described through several overlapping distinctions:
 \begin{itemize}
     \item Model-based and model-free methods: model-based methods learn or use a model of the environment dynamics for planning. Model-free methods learn directly from sampled transitions.
     \item Value-based and policy-based methods: value-based methods learn value or action-value functions and choose actions from them. Policy-based methods directly optimize a parameterized policy.
-    \item Actor-critic methods: actor-critic methods combine both ideas. The actor represents the policy, and the critic estimates values or action-values used to improve that policy.
+    \item Actor-critic methods: actor-critic methods combine ideas above. The actor represents the policy, and the critic estimates values or action-values used to improve that policy.
     \item On-policy and off-policy methods: on-policy methods learn from data generated by the current policy. Off-policy methods can also reuse data generated by previous policies or exploratory behavior.
     \item Tabular and deep RL methods: tabular methods store values explicitly for small state and action spaces. Deep RL uses neural networks as function approximators and is therefore more suitable for large or continuous spaces.
 \end{itemize}
 
-The choice of algorithm follows from the structure of the problem. In this thesis, the relevant setpoints are continuous quantities, such as battery power, temperature levels, mass flow rates, and bypass positions. Discretizing these variables would either remove useful operating points or create a very large action space. A suitable algorithm should therefore learn a parameterized policy and output continuous actions directly.
+The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. TD3 and SAC are therefore selected because they learn parameterized policies that output continuous actions directly.
 
-Policy-gradient and actor-critic methods are commonly used for such problems because they optimize a parameterized policy instead of enumerating all possible actions \cite{pilling2025rl}. In an actor-critic setting, the actor can propose continuous setpoints, while the critic evaluates their expected long-term effect on cost and future system states. Within the classification above, Soft Actor-Critic (SAC) is a model-free, off-policy, actor-critic, deep reinforcement-learning algorithm.
+Both methods use an actor-critic architecture. The actor maps the current state to continuous setpoint decisions, while the critic estimates their expected long-term effect on operating cost and future system states. TD3 and SAC are applied to learn continuous setpoint policies for both case studies.
 
-SAC is used in this thesis because it extends the model-free actor-critic framework with a maximum-entropy objective for continuous-control problems \cite{haarnoja2018soft}. This is useful for the present application because the agent must search through continuous operating setpoints during training, while still learning a policy that can be evaluated quickly after training.
+\subsubsection{TD3 and SAC}
 
-In standard RL, the policy is usually trained to maximize expected return. SAC adds an entropy term to this objective. Intuitively, this means that the policy is encouraged to keep exploring when several actions appear useful, instead of becoming too deterministic too early. The objective can be interpreted as maximizing both reward and stochasticity:
+\paragraph{Twin Delayed Deep Deterministic Policy Gradient (TD3).}
+TD3 uses a deterministic actor, $\mu_\theta(x)$, that maps the current state directly to a continuous action. Two critics estimate the action value, and the smaller estimate is used when constructing the learning target to reduce overestimation bias. TD3 further stabilizes learning through delayed actor updates and target-policy smoothing, in which small noise is added to target actions during critic updates \cite{fujimoto2018addressing}.
 \[
-\mathbb{E}_{\pi}\left[\sum_{t=0}^{N-1}\gamma_{\mathrm{RL}}^t
-\left(r(s_t,a_t)+\alpha \mathcal{H}(\pi(\cdot \mid s_t))\right)\right],
-\]
-where $\alpha$ controls the weight of the entropy term and $\mathcal{H}$ denotes policy entropy \cite{haarnoja2018soft}. This entropy term can improve exploration and reduce the risk that the agent converges too early to a narrow operating strategy.
-
-The SAC policy is represented by a stochastic actor $\pi_\theta(a_t\mid s_t)$, while two action-value networks $Q_{\phi_i}(s_t,a_t)$ estimate the expected future return of state--action pairs. The use of two critics and slowly updated target networks reduces overestimation bias and stabilizes bootstrapped value estimates \cite{haarnoja2018soft}. Because SAC is off-policy, transitions can be stored in a replay buffer $\mathcal{D}$ and reused in multiple parameter updates.
-
-For a transition sampled from the replay buffer, the critic target is
-\[
-y_t = r_t + \gamma_{\mathrm{RL}}(1-d_t)
+J_{\mathrm{TD3}}(\theta)
+=
+\mathbb{E}_{x\sim\mathcal{D}}
 \left[
-\min_i Q_{\bar{\phi}_i}(s_{t+1},a_{t+1})
-- \alpha \log \pi_\theta(a_{t+1}\mid s_{t+1})
-\right],
-\]
-where $a_{t+1}\sim\pi_\theta(\cdot\mid s_{t+1})$ and $d_t$ indicates a terminal transition. Each critic is trained by minimizing the squared difference between $Q_{\phi_i}(s_t,a_t)$ and $y_t$. The actor objective is
-\[
-J_\pi(\theta)
-= \mathbb{E}_{s_t\sim\mathcal{D},\,a_t\sim\pi_\theta}
-\left[
-\alpha \log \pi_\theta(a_t\mid s_t)
-- \min_i Q_{\phi_i}(s_t,a_t)
+q_{\phi_1}\bigl(x,\mu_\theta(x)\bigr)
 \right].
 \]
-Minimizing this objective favors actions with high estimated value while retaining policy entropy. The temperature parameter $\alpha$ determines the relative importance of exploration and reward maximization.
+Here, $J_{\mathrm{TD3}}(\theta)$ is the actor objective; $\theta$ denotes the actor parameters; $\mathcal{D}$ is the replay buffer from which states $x$ are sampled; $\mu_\theta(x)$ is the deterministic action proposed by the actor; and $q_{\phi_1}$ is the first critic, parameterized by $\phi_1$, which estimates the action value. The TD3 actor is trained to maximize this objective, producing one deterministic action, $a=\mu_\theta(x)$, for each state.
 
-SAC is therefore a suitable choice for the systems considered in this thesis. It can handle continuous action spaces, reuse past experience through off-policy learning, and support exploration in environments with time-varying prices, renewable generation, and storage dynamics.
+\paragraph{Soft Actor-Critic (SAC).}
+SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}.
+\[
+J_{\mathrm{SAC}}(\pi)
+=
+\mathbb{E}_{\pi}\!\left[
+\sum_{t=0}^{N-1}\gamma_{\mathrm{RL}}^t
+\left(
+r(x_t,a_t)
++
+\alpha\mathcal{H}(\pi(\cdot\mid x_t))
+\right)
+\right].
+\]
+where $J_{\mathrm{SAC}}(\pi)$ is the objective of the stochastic policy $\pi$; $\mathbb{E}_{\pi}$ denotes the expectation over trajectories generated by that policy; $N$ is the number of decision steps; $\gamma_{\mathrm{RL}}$ is the discount factor; $r(x_t,a_t)$ is the reward at time $t$; $\alpha$ weights the entropy term; and $\mathcal{H}(\pi(\cdot\mid x_t))$ is the policy entropy.
+
+For a state $x$, the policy entropy is defined as
+\[
+\mathcal{H}\bigl(\pi(\cdot\mid x)\bigr)
+= -\mathbb{E}_{a\sim\pi(\cdot\mid x)}
+\left[\log \pi(a\mid x)\right].
+\]
+where $a$ is an action sampled from the policy, and $\log \pi(a\mid x)$ is the logarithm of its probability density. During training, entropy is estimated from sampled actions as $\mathcal{H}(\pi(\cdot\mid x))\approx-\log\pi(a\mid x)$ \cite{haarnoja2018soft}.
+
+The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
 \section{Use Cases}
 \label{sec:use_case}
@@ -431,15 +455,15 @@ The previous section introduced the two energy utility systems considered in thi
 \subsection{Problem Formulation}
 \textcolor{blue}{Formulates the system control problem as a reinforcement learning problem.}
 
-For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $P_t^{\mathrm W}$ the available wind power. At each time step, the system is described by a state vector $s_t$, the controller selects an action vector $a_t$, and the system evolves to the next state $s_{t+1}$ according to the underlying system dynamics and the exogenous inputs $S_t$ and, for the cookie-factory use case, $P_t^{\mathrm W}$.
+For both use cases, the objective is to determine operating setpoints over a discrete time horizon such that the total operating cost is minimized while all relevant constraints are respected. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $P_t^{\mathrm W}$ the available wind power. At each time step, the system is described by a state vector $x_t$, the controller selects an action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics and the exogenous inputs $S_t$ and, for the cookie-factory use case, $P_t^{\mathrm W}$.
 
 The resulting decision problem is formulated as a Markov decision process (MDP)
 \[
-\mathcal{M} = \left(\mathcal{S}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
+\mathcal{M} = \left(\mathcal{X}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
 \]
-where $\mathcal{S}$ is the state space, $\mathcal{A}$ is the action space, $p(s_{t+1}\mid s_t,a_t)$ denotes the transition dynamics, $r(s_t,a_t)$ is the reward function, and $\gamma_{\mathrm{RL}}$ is the discount factor. The agent aims to learn a policy $\pi(a_t\mid s_t)$ that maximizes the expected cumulative reward \cite{sutton2018reinforcement}:
+where $\mathcal{X}$ is the state space, $\mathcal{A}$ is the action space, $p(x_{t+1}\mid x_t,a_t)$ denotes the transition dynamics, $r(x_t,a_t)$ is the reward function, and $\gamma_{\mathrm{RL}}$ is the discount factor. The agent aims to learn a policy $\pi(a_t\mid x_t)$ that maximizes the expected cumulative reward \cite{sutton2018reinforcement}:
 \[
-\max_{\pi} \; \mathbb{E}_{\pi}\left[\sum_{t=0}^{N-1} \gamma_{\mathrm{RL}}^t r(s_t,a_t)\right].
+\max_{\pi} \; \mathbb{E}_{\pi}\left[\sum_{t=0}^{N-1} \gamma_{\mathrm{RL}}^t r(x_t,a_t)\right].
 \]
 
 Since the original engineering objective is cost minimization, the reward is defined as the negative operating cost, augmented by penalty terms for constraint violations where required. In this way, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
@@ -448,16 +472,16 @@ Since the original engineering objective is cost minimization, the reward is def
 
 \textcolor{blue}{Explains the structure of the RL agent and learning algorithm.}
 
-The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium, while the continuous-control policies are trained using Stable-Baselines3. At time step $t$, the environment supplies the agent with a forecast-augmented state $s_t$, comprising the current physical system state, current exogenous information, a normalized time indicator, and the forecast profiles for the complete scheduling horizon. The agent selects a normalized continuous action $a_t$, which the environment maps to physical control setpoints. The environment then advances the system dynamics and returns the next state $s_{t+1}$, the reward $r_t$, and the Gymnasium termination signals. A transition is therefore generated as
+The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium, while the continuous-control policies are trained using Stable-Baselines3. At time step $t$, the environment supplies the agent with a forecast-augmented state $x_t$, comprising the current physical system state, current exogenous information, a normalized time indicator, and the forecast profiles for the complete scheduling horizon. The agent selects a normalized continuous action $a_t$, which the environment maps to physical control setpoints. The environment then advances the system dynamics and returns the next state $x_{t+1}$, the reward $r_t$, and the Gymnasium termination signals. A transition is therefore generated as
 \[
-\tau_t = \left(s_t,a_t,r_t,s_{t+1},d_t\right),
+\tau_t = \left(x_t,a_t,r_t,x_{t+1},d_t\right),
 \]
 where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC. SAC augments the conventional return-maximization objective with an entropy term during training to encourage exploration of the continuous action space.
 This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
 
 During training, an action sampled from the stochastic actor is first processed by an environment-specific action map
 \[
-a_t^{\mathrm{phys}} = \mathcal{R}(s_t,a_t),
+a_t^{\mathrm{phys}} = \mathcal{R}(x_t,a_t),
 \]
 where $\mathcal{R}$ converts the normalized policy output into physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
 
