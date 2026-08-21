@@ -4,10 +4,10 @@ Training script for Battery RL model using SAC or TD3.
 
 import argparse
 import os
-import torch.nn as nn
 
 import numpy as np
 import pandas as pd
+import torch.nn as nn
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
@@ -27,6 +27,8 @@ from src.battery_model.price_model import (
     DEFAULT_PRICE_MODEL_HOURS,
     load_price_model_data,
 )
+
+# from src.battery_model.terminal_replay_buffer import TerminalStratifiedReplayBuffer
 
 
 def load_price_data():
@@ -214,9 +216,14 @@ def train_model(
         "gradient_steps": 1,
         "verbose": 1,
         "tensorboard_log": log_dir,
-        "policy_kwargs": {"net_arch": [256, 256, 256], "activation_fn": nn.ReLU},
+        # Terminal SOC penalties occur once per 24-step rollout.  Deliberately
+        # include them in 25% of critic/actor batches once they are available.
+        # "replay_buffer_class": TerminalStratifiedReplayBuffer,
+        # "replay_buffer_kwargs": {"terminal_sample_fraction": 0.2},
     } # TODO: try 0 entropy
-    if algorithm == "TD3":
+    if algorithm == "SAC":
+        model_init_kwargs["policy_kwargs"] = {"net_arch": [256, 256, 256], "activation_fn": nn.ReLU}
+    elif algorithm == "TD3":
         n_actions = env_train.action_space.shape[-1]
         model_init_kwargs.update(
             action_noise=NormalActionNoise(
@@ -628,7 +635,7 @@ if __name__ == "__main__":
     # Single run
     model_kwargs = {
         "learning_rate": linear_schedule(3e-4),
-        "gamma": 0.9999,
+        "gamma": 0.99,
     }
     # model_kwargs = {
     #     'learning_rate': power_schedule(3e-4),
