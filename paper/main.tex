@@ -409,7 +409,7 @@ BESS presents several challenges. Decisions are inherently time-coupled because 
     \label{fig:battery_model}
 \end{figure}
 
-A battery energy storage system provides flexible, time-shiftable power by buying electricity when prices are low and selling it back to the grid when prices are high. This price-arbitrage operation maximizes profit. For simplicity, the same time-varying electricity price $S_t$ is used for purchases and sales. In this thesis, the battery is modeled using the \texttt{BatteryEnv} environment: the agent's observation includes the state-of-charge (SOC), a normalized current price, a normalized time index, and the normalized price forecast for the complete scheduling horizon; the action is a continuous charge/discharge command $u\in[-1,1]$ scaled to grid-side power $P_t^{\mathrm S}\in[-P_{\max},P_{\max}]$.
+A battery energy storage system provides flexible, time-shiftable power by buying electricity when prices are low and selling it back to the grid when prices are high. This price-arbitrage operation maximizes profit. For simplicity, the same time-varying electricity price $S_t$ is used for purchases and sales.
 
 The SOC dynamics are modeled as
 \[
@@ -525,9 +525,9 @@ The previous section introduced the two energy utility systems considered in thi
 
 For both use cases, the objective is to determine operating setpoints over a discrete time horizon that optimize the relevant economic objective while respecting all constraints. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $W_t$ the available wind power. At each time step, the system is described by a state vector $x_t$, the agent selects a continuous action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics. For the battery case, the only external input is the electricity price $S_t$. For the cookie-factory case, the external inputs are the electricity price $S_t$ and the available wind power $W_t$.
 
-As introduced in Section~\ref{sec:theory_background}, both use cases are formulated as finite-horizon Markov decision processes. The agent learns a policy that maps the current state $x_t$ to a continuous action $a_t$ to maximize cumulative reward. The following subsections specify the state variables, action spaces, transition dynamics, and reward functions for each system.
+The following subsections specify the state variables, action spaces, transition dynamics, and reward functions for each system.
 
-The engineering objectives differ between the two use cases: the battery model maximizes profit through price arbitrage, whereas the cookie factory minimizes the cost of electricity required for steam generation. The rewards are defined accordingly and are augmented by penalty terms for constraint violations where required. In both cases, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
+The reward definitions follow the respective operational objectives and include penalty terms for constraint violations where required. In both cases, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
 
 \subsection{Reinforcement Learning Framework}
 
@@ -588,13 +588,13 @@ After training, both policies are evaluated deterministically to compare schedul
 
 Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
 
-For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window. The forecast horizon is also set to 24 steps, so every observation contains the current operating state together with the complete episode profiles of the relevant exogenous signals.
+For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window.
 
 The training environments are wrapped with monitoring and vectorized environment interfaces. Monitoring records episode rewards and lengths for later inspection, while the vectorized wrapper provides the interface expected by the Stable-Baselines3 implementation of SAC and TD3. Only one environment instance is used at a time in the current setup, so the vectorization is mainly an interface layer rather than a parallel simulation strategy.
 
 The BESS reward is the negative grid-side electricity cost at each time step, which is equivalent to profit, with an additional terminal penalty if the final SOC falls below the desired terminal level. The cookie factory reward also starts from the negative grid-electricity cost, but includes additional penalties for different constraint violations. The penalty terms are therefore more important in the second use case, because feasibility cannot be represented by simple action bounds alone.
 
-The main SAC and TD3 hyperparameters used in the implementation are summarized in Table~\ref{tab:sac_training_setup}. The same learning-rate schedule and discount factor are used for both use cases to provide a consistent baseline configuration. The learning-rate schedule was selected through preliminary experiments; the comparison results are reported in Section~\ref{sec:results_discussion}. Differences between the two training setups mainly arise from the different state variables, action spaces, and constraint structures of the two environments.
+The main SAC and TD3 hyperparameters used in the implementation are summarized in Table~\ref{tab:sac_training_setup}. The same learning-rate schedule and discount factor are used for both use cases to provide a consistent baseline configuration. The learning-rate schedule was selected through preliminary experiments. Differences between the two training setups mainly arise from the different state variables, action spaces, and constraint structures of the two environments.
 
 \begin{table}[htbp]
 \centering
@@ -617,11 +617,11 @@ Episode length & 24 steps & 24 steps \\
 \label{tab:sac_training_setup}
 \end{table}
 
-Both SAC policies use three hidden layers of 256 neurons with ReLU activation functions for both actor and critic networks. TD3 uses the Stable-Baselines3 default architecture of two ReLU hidden layers with 400 and 300 neurons for both actor and critic networks. In all cases, trained models are saved after learning and later loaded for deterministic evaluation. This separation between training and evaluation is important: stochastic actions are useful during SAC learning, but deterministic actions are used for the final comparison with mathematical optimization.
+Both SAC policies use three hidden layers of 256 neurons with ReLU activation functions for both actor and critic networks. TD3 uses the Stable-Baselines3 default architecture of two ReLU hidden layers with 400 and 300 neurons for both actor and critic networks. In all cases, trained models are saved after learning and later loaded for evaluation.
 
 \subsection{Evaluation Metrics}
 
-The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. Deterministic evaluation means that the actor returns one action for each observation without sampling exploration noise. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with the mathematical optimization baseline on the same grid-price and wind-availability profiles.
+The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with the mathematical optimization baseline on the same grid-price and wind-availability profiles.
 
 The primary economic metric is the total net grid-side cost over the evaluation horizon:
 \[
@@ -647,7 +647,7 @@ f_{\mathrm{viol}} =
 \]
 where $\varepsilon$ is a small numerical tolerance. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
 
-The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, terminal SOC, and cumulative grid-side cost and the corresponding profit.
+The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, and terminal SOC.
 
 Finally, computation time is used to assess practical applicability. For mathematical optimization, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
 
