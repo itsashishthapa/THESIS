@@ -127,6 +127,7 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 \newpage\null\thispagestyle{empty}\newpage
 
+\pagenumbering{Roman}
 ~
 \begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords) 
 	\section*{\underline{Declaration of independence}}
@@ -155,6 +156,43 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 \newpage\null\thispagestyle{empty}\newpage
 \tableofcontents
+
+\newpage
+\addcontentsline{toc}{section}{List of Figures}
+\listoffigures
+
+\newpage
+\addcontentsline{toc}{section}{List of Tables}
+\listoftables
+
+\newpage
+\section*{List of Abbreviations}
+\addcontentsline{toc}{section}{List of Abbreviations}
+\begingroup
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}p{0.22\textwidth}p{0.72\textwidth}@{}}
+\textbf{Abbreviation} & \textbf{Definition} \\
+\hline
+AI    & Artificial Intelligence \\
+ANN   & Artificial Neural Network \\
+BESS  & Battery Energy Storage System \\
+CPU   & Central Processing Unit \\
+EUR   & Euro \\
+HTHP  & High-Temperature Heat Pump \\
+IPOPT & Interior Point OPTimizer \\
+KKT   & Karush--Kuhn--Tucker \\
+MDP   & Markov Decision Process \\
+MLP   & Multilayer Perceptron \\
+NLP   & Nonlinear Programming \\
+RL    & Reinforcement Learning \\
+SAC   & Soft Actor-Critic \\
+SG    & Steam Generator \\
+SOC   & State of Charge \\
+TD3   & Twin Delayed Deep Deterministic Policy Gradient \\
+TES   & Thermal Energy Storage \\
+WT    & Wind Turbine \\
+\end{tabular}
+\endgroup
 
 \newpage\null\thispagestyle{empty}\newpage
 \pagenumbering{arabic}
@@ -628,33 +666,33 @@ The battery case study was first used to compare different learning-rate schedul
 
 The linear schedule achieved the best mean reward and the lowest mean objective value among the tested configurations. However, the differences between the three schedules were small relative to the variation in operating cost across runs. This indicates that the battery environment is not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore used as a stable baseline for the subsequent comparison against mathematical optimization.
 
-The trained SAC and TD3 policies were compared with the mathematical optimization solution over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_mathematical_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
+The trained SAC and TD3 policies were compared with mathematical optimization over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_mathematical_comparison} summarizes the resulting objective values, computation times, and SOC ranges, using mathematical optimization as the baseline.
 
 \begin{table}[htbp]
 \centering
-\small
+\scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
 \hline
 Metric & SAC policy & TD3 policy & Mathematical optimization \\
 \hline
-Mean objective [EUR] & $-7.9557 \pm 0.8811$ & $-3.0223 \pm 1.2208$ & $-3.1851 \pm 1.2212$ \\
-Objective range [EUR] & $[-10.3298,-5.2038]$ & $[-7.7841,-0.2604]$ & $[-7.8530,-0.4353]$ \\
-Mean computation time [s] & $0.0180 \pm 0.0086$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
-Time range [s] & $[0.0104,0.1305]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
-Mean maximum SOC & $0.7767 \pm 0.1533$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
-Mean minimum SOC & $0.2116 \pm 0.1524$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
+Mean objective [EUR] & $-2.8911 \pm 1.2408$ & $-3.0223 \pm 1.2208$ & $-3.1851 \pm 1.2212$ \\
+Objective range [EUR] & $[-7.7304,-0.3483]$ & $[-7.7841,-0.2604]$ & $[-7.8530,-0.4353]$ \\
+Mean computation time [s] & $0.0126 \pm 0.0105$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
+Time range [s] & $[0.0102,0.3444]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
+Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
+Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
 \hline
 \end{tabular}
-\caption{Comparison between the trained SAC and TD3 policies and mathematical optimization over 1000 random 24-hour windows. Lower objective values are better.}
+\caption{Comparison between the trained SAC and TD3 policies and mathematical optimization over 1000 random 24-hour windows. Mathematical optimization serves as the baseline; lower objective values are better.}
 \label{tab:battery_mathematical_comparison}
 \end{table}
 
-The mathematical optimization solution achieved a slightly lower mean objective value than the trained TD3 policy. The mean objective gap between TD3 and mathematical optimization was $0.1628 \pm 0.1284$ EUR. Since the objective is minimized, the positive gap shows that TD3 remained slightly less cost-optimal than mathematical optimization.
+Mathematical optimization achieved the lowest mean objective value and was therefore the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and was closer to the mathematical-optimization baseline. The mean objective gap was $0.1628 \pm 0.1284$ EUR for TD3 and $0.2215 \pm 0.0811$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies remained slightly less cost-optimal than mathematical optimization. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the discounted return, whereas SAC balances discounted-return maximization with maintaining policy entropy. Further TD3 results are presented below.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.95\textwidth]{figures/model_comparison_distances.png}
+    \includegraphics[width=0.95\textwidth]{figures/model_comparison_distances_td3.png}
     \caption{TD3 and mathematical-optimization objective values for ten randomly selected 24-hour comparison windows. The lower panel shows the corresponding TD3--mathematical-optimization gaps.}
     \label{fig:td3_objective_gaps}
 \end{figure}
