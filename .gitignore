@@ -37,6 +37,9 @@ paper/*.bbl-SAVE-ERROR
 *.toc
 *.synctex.gz
 *Letter of Intent.pdf
+*.lof
+*.lot
+*.bcf-SAVE-ERROR
 
 # Data & results (track only small metadata files)
 data/raw/
