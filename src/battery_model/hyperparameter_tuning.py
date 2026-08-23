@@ -65,7 +65,10 @@ def _optuna_objective(
             "gamma": trial.suggest_float("gamma", 0.995, 0.99999),
             "train_freq": train_freq,
             "gradient_steps": gradient_steps,
-            "ent_coef": trial.suggest_categorical("ent_coef", ["auto", "auto_0.1", 0.003, 0.01, 0.03]), # TODO: try above 0.05-0.3
+            "ent_coef": trial.suggest_categorical(
+                "ent_coef",
+                ["auto", "auto_0.1", 0.05, 0.10, 0.15, 0.20, 0.25, 0.30],
+            ),
             "learning_starts": trial.suggest_int("learning_starts", 1000, 10000),
             "tensorboard_log": trial_log_dir,
             "verbose": 0,
