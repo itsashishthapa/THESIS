@@ -23,6 +23,9 @@ from src.battery_model.price_model import (
     load_price_model_data,
 )
 
+TERMINAL_SOC_MIN = 0.5
+SOC_VIOLATION_TOLERANCE = 1e-6
+
 
 def run_pyomo_model(prices_window):
     """
@@ -73,13 +76,29 @@ def _rmse(a, b):
     return float(np.sqrt(np.mean((a[:n] - b[:n]) ** 2)))
 
 
+def _terminal_soc_shortfall(socs, terminal_soc_min=TERMINAL_SOC_MIN):
+    """Return the final-SOC shortfall against the terminal requirement."""
+    socs = np.asarray(socs, dtype=float)
+    if socs.size == 0:
+        return float("nan")
+    return float(max(float(terminal_soc_min) - socs[-1], 0.0))
+
+
 def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_comparisons=10):
     """
     Compare RL and Pyomo models on multiple random windows.
     """
     results = {
-        'rl': {'costs': [], 'times': [], 'max_socs': [], 'min_socs': []},
-        'pyomo': {'costs': [], 'times': [], 'max_socs': [], 'min_socs': []},
+        'rl': {
+            'costs': [], 'times': [], 'max_socs': [], 'min_socs': [],
+            'final_socs': [], 'terminal_soc_shortfalls': [],
+            'terminal_soc_violations': [],
+        },
+        'pyomo': {
+            'costs': [], 'times': [], 'max_socs': [], 'min_socs': [],
+            'final_socs': [], 'terminal_soc_shortfalls': [],
+            'terminal_soc_violations': [],
+        },
         'differences': [],
         'windows': [],
         'abs_cost_gaps': [],
@@ -102,11 +121,22 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
         # Run RL model
         rl_result = run_rl_model(rl_model, prices_window, global_price_scale)
         if rl_result['status'] == 'success':
+            rl_terminal_shortfall = _terminal_soc_shortfall(rl_result['SOC'])
+            rl_terminal_violation = (
+                rl_terminal_shortfall > SOC_VIOLATION_TOLERANCE
+            )
             results['rl']['costs'].append(rl_result['cost'])
             results['rl']['times'].append(rl_result['time'])
             results['rl']['max_socs'].append(np.max(rl_result['SOC']))
             results['rl']['min_socs'].append(np.min(rl_result['SOC']))
+            results['rl']['final_socs'].append(rl_result['SOC'][-1])
+            results['rl']['terminal_soc_shortfalls'].append(rl_terminal_shortfall)
+            results['rl']['terminal_soc_violations'].append(rl_terminal_violation)
             print(f"  RL Cost: {rl_result['cost']:.4f} EUR, Time: {rl_result['time']:.4f}s")
+            print(
+                f"  RL terminal SOC: {rl_result['SOC'][-1]:.4f} "
+                f"({'VIOLATED' if rl_terminal_violation else 'satisfied'})"
+            )
         else:
             print("  RL failed")
             continue
@@ -114,11 +144,26 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
         # Run Pyomo model
         pyomo_result = run_pyomo_model(prices_window)
         if pyomo_result['status'] == 'success':
+            pyomo_terminal_shortfall = _terminal_soc_shortfall(pyomo_result['SOC'])
+            pyomo_terminal_violation = (
+                pyomo_terminal_shortfall > SOC_VIOLATION_TOLERANCE
+            )
             results['pyomo']['costs'].append(pyomo_result['cost'])
             results['pyomo']['times'].append(pyomo_result['time'])
             results['pyomo']['max_socs'].append(np.max(pyomo_result['SOC']))
             results['pyomo']['min_socs'].append(np.min(pyomo_result['SOC']))
+            results['pyomo']['final_socs'].append(pyomo_result['SOC'][-1])
+            results['pyomo']['terminal_soc_shortfalls'].append(
+                pyomo_terminal_shortfall
+            )
+            results['pyomo']['terminal_soc_violations'].append(
+                pyomo_terminal_violation
+            )
             print(f"  Pyomo Cost: {pyomo_result['cost']:.4f} EUR, Time: {pyomo_result['time']:.4f}s")
+            print(
+                f"  Pyomo terminal SOC: {pyomo_result['SOC'][-1]:.4f} "
+                f"({'VIOLATED' if pyomo_terminal_violation else 'satisfied'})"
+            )
             
             diff = rl_result['cost'] - pyomo_result['cost']
             pct_diff = (diff / abs(pyomo_result['cost']) * 100) if pyomo_result['cost'] != 0 else 0
@@ -129,8 +174,9 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
             results['power_rmse_kw'].append(_rmse(rl_result['P'], pyomo_result['P']))
             print(f"  Difference: {diff:.4f} EUR ({pct_diff:+.2f}%)")
         else:
-            for key in ('costs', 'times', 'max_socs', 'min_socs'):
-                results['rl'][key].pop()
+            for values in results['rl'].values():
+                if isinstance(values, list):
+                    values.pop()
             print(f"  Pyomo failed: {pyomo_result.get('error', 'Unknown error')}")
     
     return results
@@ -260,19 +306,9 @@ def plot_comparison_distances(
     axes[1].set_xticklabels([f'Window {i + 1}' for i in range(n)], fontweight='bold')
     axes[1].set_xlim(-0.55, n - 0.45)
     axes[1].set_ylim(0, max(abs_cost_gaps) * 1.25)
-
-    fig.text(
-        0.095,
-        0.055,
-        'Notes:   Each window represents a 24-hour period.\n'
-        '             Mathematical optimization is the benchmark (optimal) objective.',
-        fontsize=11,
-        va='center',
-        bbox={'boxstyle': 'round,pad=0.7', 'fc': 'white', 'ec': '#8092ad', 'lw': 1.0},
-    )
     fig.text(
         0.76,
-        0.055,
+        0.1,
         'Lower (more negative) objective value = higher profit',
         fontsize=11,
         ha='center',
@@ -282,7 +318,7 @@ def plot_comparison_distances(
 
     if output_file:
         os.makedirs(os.path.dirname(output_file) or '.', exist_ok=True)
-        fig.savefig(output_file, dpi=300, bbox_inches='tight')
+        fig.savefig(output_file, dpi=300, bbox_inches='tight', pad_inches=0.2)
         print(f"Distance plot saved to {output_file}")
 
     if show:
@@ -365,6 +401,30 @@ def print_comparison_stats(results, output_file=None):
         
         lines.append("\nPyomo Min SOC:")
         lines.append(f"  Mean: {np.mean(results['pyomo']['min_socs']):.4f} +/- {np.std(results['pyomo']['min_socs']):.4f}")
+
+        # Terminal SOC feasibility comparison
+        lines.append("\n" + "-"*80)
+        lines.append("TERMINAL SOC REQUIREMENT")
+        lines.append("-"*80)
+        lines.append(
+            f"Requirement: final SOC >= {TERMINAL_SOC_MIN:.3f} "
+            f"(violation tolerance: {SOC_VIOLATION_TOLERANCE:g})"
+        )
+        for method, label in (("rl", "RL Model"), ("pyomo", "Pyomo Model")):
+            violations = np.asarray(
+                results[method]['terminal_soc_violations'], dtype=bool
+            )
+            shortfalls = np.asarray(
+                results[method]['terminal_soc_shortfalls'], dtype=float
+            )
+            violation_count = int(np.count_nonzero(violations))
+            lines.append(f"\n{label}:")
+            lines.append(
+                f"  Violated cases: {violation_count}/{n} "
+                f"({violation_count / n:.2%})"
+            )
+            lines.append(f"  Mean terminal-SOC shortfall: {np.mean(shortfalls):.6f}")
+            lines.append(f"  Largest terminal-SOC shortfall: {np.max(shortfalls):.6f}")
     
     lines.append("\n" + "="*80 + "\n")
     
