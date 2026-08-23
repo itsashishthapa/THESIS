@@ -1,0 +1,68 @@
+
+================================================================================
+COMPARISON: RL Model vs Pyomo Mathematical Model
+================================================================================
+
+Number of successful comparisons: 1000
+
+--------------------------------------------------------------------------------
+COST COMPARISON (EUR)
+--------------------------------------------------------------------------------
+RL Model:
+  Mean: -3.0223 +/- 1.2208
+  Range: [-7.7841, -0.2604]
+
+Pyomo Model:
+  Mean: -3.1851 +/- 1.2212
+  Range: [-7.8530, -0.4353]
+
+RL - Pyomo (RL is better if negative):
+  Mean: 0.1628 +/- 0.1284 EUR
+  Mean absolute gap: 0.1638 +/- 0.1271 EUR
+  Mean relative absolute gap: 5.95% +/- 5.12%
+  Signed percentage difference: 5.93% +/- 5.14%
+
+--------------------------------------------------------------------------------
+COMPUTATION TIME (seconds)
+--------------------------------------------------------------------------------
+RL Model:
+  Mean: 0.0082 +/- 0.0067s
+  Range: [0.0070, 0.2150]s
+
+Pyomo Model:
+  Mean: 0.5605 +/- 0.6295s
+  Range: [0.1164, 9.2371]s
+
+Speedup (Pyomo time / RL time): 68.13x
+
+--------------------------------------------------------------------------------
+SOC ANALYSIS
+--------------------------------------------------------------------------------
+RL Max SOC:
+  Mean: 0.8905 +/- 0.1458
+
+Pyomo Max SOC:
+  Mean: 0.8793 +/- 0.1595
+
+RL Min SOC:
+  Mean: 0.1947 +/- 0.1776
+
+Pyomo Min SOC:
+  Mean: 0.1925 +/- 0.1796
+
+--------------------------------------------------------------------------------
+TERMINAL SOC REQUIREMENT
+--------------------------------------------------------------------------------
+Requirement: final SOC >= 0.500 (violation tolerance: 1e-06)
+
+RL Model:
+  Violated cases: 40/1000 (4.00%)
+  Mean terminal-SOC shortfall: 0.000252
+  Largest terminal-SOC shortfall: 0.022137
+
+Pyomo Model:
+  Violated cases: 0/1000 (0.00%)
+  Mean terminal-SOC shortfall: 0.000000
+  Largest terminal-SOC shortfall: 0.000000
+
+================================================================================

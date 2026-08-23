@@ -1,0 +1,68 @@
+
+================================================================================
+COMPARISON: RL Model vs Pyomo Mathematical Model
+================================================================================
+
+Number of successful comparisons: 1000
+
+--------------------------------------------------------------------------------
+COST COMPARISON (EUR)
+--------------------------------------------------------------------------------
+RL Model:
+  Mean: -2.8911 +/- 1.2408
+  Range: [-7.7304, -0.3483]
+
+Pyomo Model:
+  Mean: -3.1126 +/- 1.2602
+  Range: [-8.1041, -0.6051]
+
+RL - Pyomo (RL is better if negative):
+  Mean: 0.2215 +/- 0.0811 EUR
+  Mean absolute gap: 0.2215 +/- 0.0811 EUR
+  Mean relative absolute gap: 8.30% +/- 4.57%
+  Signed percentage difference: 8.30% +/- 4.57%
+
+--------------------------------------------------------------------------------
+COMPUTATION TIME (seconds)
+--------------------------------------------------------------------------------
+RL Model:
+  Mean: 0.0126 +/- 0.0105s
+  Range: [0.0102, 0.3444]s
+
+Pyomo Model:
+  Mean: 0.4452 +/- 0.2140s
+  Range: [0.1180, 3.1077]s
+
+Speedup (Pyomo time / RL time): 35.45x
+
+--------------------------------------------------------------------------------
+SOC ANALYSIS
+--------------------------------------------------------------------------------
+RL Max SOC:
+  Mean: 0.8661 +/- 0.1620
+
+Pyomo Max SOC:
+  Mean: 0.8788 +/- 0.1600
+
+RL Min SOC:
+  Mean: 0.2129 +/- 0.1887
+
+Pyomo Min SOC:
+  Mean: 0.1959 +/- 0.1776
+
+--------------------------------------------------------------------------------
+TERMINAL SOC REQUIREMENT
+--------------------------------------------------------------------------------
+Requirement: final SOC >= 0.500 (violation tolerance: 1e-06)
+
+RL Model:
+  Violated cases: 100/1000 (10.00%)
+  Mean terminal-SOC shortfall: 0.000370
+  Largest terminal-SOC shortfall: 0.021574
+
+Pyomo Model:
+  Violated cases: 0/1000 (0.00%)
+  Mean terminal-SOC shortfall: 0.000000
+  Largest terminal-SOC shortfall: 0.000000
+
+================================================================================
