@@ -224,12 +224,12 @@ class BatteryEnv(gym.Env):
             max_charge_soc_per_step,
         ) = self._terminal_soc_reachability()
         terminal_soc_reachability_penalty = 0.0
-        if not terminated:
-            terminal_soc_reachability_penalty = (
-                self.terminal_soc_reachability_penalty
-                * terminal_soc_reachability_violation
-            )
-            reward -= terminal_soc_reachability_penalty
+        # if not terminated:
+        #     terminal_soc_reachability_penalty = (
+        #         self.terminal_soc_reachability_penalty
+        #         * terminal_soc_reachability_violation
+        #     )
+        #     reward -= terminal_soc_reachability_penalty
         terminal_soc_violation = 0.0
         terminal_penalty = 0.0
         if terminated:
