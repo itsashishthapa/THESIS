@@ -224,6 +224,7 @@ def train_model(
     if algorithm == "SAC":
         model_init_kwargs["policy_kwargs"] = {"net_arch": [256, 256, 256], "activation_fn": nn.ReLU}
     elif algorithm == "TD3":
+        model_init_kwargs["policy_kwargs"] = {"net_arch": [256, 256, 256], "activation_fn": nn.ReLU}
         n_actions = env_train.action_space.shape[-1]
         model_init_kwargs.update(
             action_noise=NormalActionNoise(
