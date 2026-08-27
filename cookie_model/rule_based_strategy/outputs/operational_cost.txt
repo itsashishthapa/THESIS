@@ -1,0 +1,15 @@
+total_operational_cost=1027.827949
+
+RL-equivalent constraint violations (24-hour total)
+bypass_F10=13.919464
+complementarity_F11=0.000000
+flow_bounds_F6_F7_kW=0.000000
+inlet_temperature_F5_C=0.000000
+storage_temperature_F14_C=0.000000
+grid_power_F3_kW=75.194353
+F4_residual_C=347.784015
+F5_residual_C=836.673270
+compressor_speed_C16=0.000000
+mass_flow_C15=0.000000
+terminal_storage_F14_C=57.082308
+normalized_total=22.739749
