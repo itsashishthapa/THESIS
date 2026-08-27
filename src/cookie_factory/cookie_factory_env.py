@@ -38,6 +38,11 @@ class SteamEnv(gym.Env):
          g_grid_k_norm,
          P_WT_k_norm,
          mode_hint_prev,
+         R_prev_norm,
+         time_index_norm,
+         terminal_temperature_gap_norm,
+         beta_command_prev,
+         m_I_prev_norm,
          forecast(g_grid), forecast(P_WT)
      ]
 
@@ -162,9 +167,13 @@ class SteamEnv(gym.Env):
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
         self.debug_reward_terms = bool(debug_reward_terms)
 
-        # Observation = current state + the same complete forecast at every step.
-        base_low = np.array([0.0, -1.0, 0.0, -1.0], dtype=np.float32)
-        base_high = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+        # Observation = state, prior control values, time/terminal context, and
+        # the same complete forecast at every step.
+        base_low = np.array(
+            [0.0, -1.0, 0.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0],
+            dtype=np.float32,
+        )
+        base_high = np.ones(9, dtype=np.float32)
         fc_low = -np.ones(2 * self.forecast_h, dtype=np.float32)
         fc_high = np.ones(2 * self.forecast_h, dtype=np.float32)
         self.observation_space = spaces.Box(
@@ -230,12 +239,23 @@ class SteamEnv(gym.Env):
         elif self._last_mode == 2:
             mode_hint = 1.0
 
+        temperature_range = max(self.T_s_max - self.T_s_min, 1e-6)
+        terminal_temperature_gap = float(
+            np.clip((self.T_s_0 - self.T_s_k) / temperature_range, -1.0, 1.0)
+        )
+        time_index = float(self.k / max(self.K - 1, 1))
+
         base = np.array(
             [
                 self._norm_01(self.T_s_k, self.T_s_min, self.T_s_max),
                 self._norm_signed(self.g_grid[k], self.price_scale),
                 self._norm_01(self.P_WT[k], 0.0, max(self.wind_scale, 1e-6)),
                 mode_hint,
+                self._norm_01(self._last_R_k, 0.8, 1.53),
+                time_index,
+                terminal_temperature_gap,
+                self._last_beta_command_k,
+                self._norm_01(self._last_m_I_k, 5.0, 16.0),
             ],
             dtype=np.float32,
         )
@@ -323,6 +343,9 @@ class SteamEnv(gym.Env):
         self.k = 0
         self.T_s_k = self.T_s_0
         self._last_mode = 0
+        self._last_R_k = 0.5 * (0.8 + 1.53)
+        self._last_beta_command_k = 0.0
+        self._last_m_I_k = 0.5 * (5.0 + 16.0)
         self._last_info = {}
         return self._obs(), {}
 
@@ -486,6 +509,9 @@ class SteamEnv(gym.Env):
         t_k = self.Delta_t * k
 
         self._last_mode = mode_k
+        self._last_R_k = R_k
+        self._last_beta_command_k = beta_command_k
+        self._last_m_I_k = m_I_k
         info = {
             "beta_command_k": beta_command_k,
             "beta1_k": beta1_k,
