@@ -92,21 +92,15 @@ class SteamEnv(gym.Env):
         price_scale=None,
         wind_scale=None,
         # reward penalties
-        lambda_mode=5.0,  # penalty for invalid bypass/mode behavior
         lambda_bound=20.0,  # penalty for storage temperature bound violations
-        lambda_terminal=5000.0,  # penalty for ending away from cyclic terminal target
-        lambda_coupling=1000,  # penalty for F4/F5 coupling residuals
-        lambda_comp=1e-4,  # penalty for simultaneous charging and discharging
-        lambda_grid=2000.0,  # penalty for grid power bound violations
+        lambda_terminal=1000.0,  # penalty for ending away from cyclic terminal target
+        lambda_coupling=500,  # penalty for F4/F5 coupling residuals
+        lambda_grid=1000.0,  # penalty for grid power bound violations
         lambda_T_I=10.0,
-        lambda_flow=5000.0,
+        lambda_flow=500.0,
         eps_comp=1.0e-6,  # small tolerance for the Qch*Qdch complementarity constraint
         Q_flow_max=5000.0,  # Qch/Qdch upper bound from the NLP model
-        hard_bypass=True,  # F10: action mapping enforces beta1 + beta2 >= 1
-        hard_complementarity=True,  # F11: action mapping permits only one storage flow
         enforce_cyclic_boundary=True,  # terminal storage constraint / terminal_penalty_k: return to T_s_0
-        debug_reward_terms=True,  # print reward term breakdown at each step
-        lambda_repair=1.0,
     ):
         super().__init__()
 
@@ -151,21 +145,15 @@ class SteamEnv(gym.Env):
             else float(np.percentile(np.abs(self.P_WT), 95) + 1e-6)
         )
 
-        self.lambda_mode = float(lambda_mode)
         self.lambda_bound = float(lambda_bound)
         self.lambda_terminal = float(lambda_terminal)
         self.lambda_coupling = float(lambda_coupling)
         self.lambda_T_I = float(lambda_T_I)
         self.lambda_flow = float(lambda_flow)
-        self.lambda_comp = float(lambda_comp)
         self.lambda_grid = float(lambda_grid)
-        self.lambda_repair = float(lambda_repair)
         self.eps_comp = float(eps_comp)
         self.Q_flow_max = float(Q_flow_max)
-        self.hard_bypass = bool(hard_bypass)
-        self.hard_complementarity = bool(hard_complementarity)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
-        self.debug_reward_terms = bool(debug_reward_terms)
 
         # Observation = state, prior control values, time/terminal context, and
         # the same complete forecast at every step.
@@ -190,10 +178,12 @@ class SteamEnv(gym.Env):
 
         self.reset(seed=42)
 
-    def _norm_signed(self, x, scale):
+    @staticmethod
+    def _norm_signed(x, scale):
         return float(np.tanh(x / max(scale, 1e-6)))
 
-    def _norm_01(self, x, lo, hi):
+    @staticmethod
+    def _norm_01(x, lo, hi):
         return float(np.clip((x - lo) / max(hi - lo, 1e-6), 0.0, 1.0))
 
     @staticmethod
@@ -261,8 +251,9 @@ class SteamEnv(gym.Env):
         )
         return np.concatenate([base, self._forecast_window()])
 
-    def _HTHP_surrogate(self, T_I_k, m_I_k, T_III_k, R_k):
-        """HTHP surrogate for F1, F2, F3."""
+    @staticmethod
+    def _HTHP_surrogate(T_I_k, m_I_k, T_III_k, R_k):
+        """Return electric power and hot-side outlet temperature (F1 and F3)."""
         T_I = float(T_I_k)
         m_I = float(m_I_k)
         T_III = float(T_III_k)
@@ -293,21 +284,6 @@ class SteamEnv(gym.Env):
             - 151.476 * R**3
         )
 
-        # F2: model.T2Out[t] == ...
-        T_IV_k = (
-            93.3958
-            - 0.00692483 * T_I
-            - 0.770173 * m_I
-            + 1.30277 * T_III
-            - 183.866 * R
-            + 0.00313225 * T_I * m_I
-            + 0.234082 * T_I * R
-            + 0.106964 * m_I**2
-            - 2.34999 * m_I * R
-            - 0.555879 * T_III * R
-            + 30.2955 * R**2
-        )
-
         # F3: model.P[t] + model.WKA[t] == ...
         P_HP = 3 * (
             127.87
@@ -322,21 +298,20 @@ class SteamEnv(gym.Env):
             - 1.3829 * T_III * R
             + 1556.66 * R**2
         )
-        P_HP_k = float(P_HP)
+        return float(P_HP), T_II_k
 
-        return P_HP_k, T_IV_k, T_II_k
-
-    def _SG_surrogate(self, T_in_SG_k, m_I_k):
+    @staticmethod
+    def _SG_surrogate(m_I_k):
         """Steam generator surrogate for F12, F13."""
         m_I = float(m_I_k)
 
         # F12: model.T4[t] == -188.403/(model.M1[t]*3) + 196.3
-        T_4_k = -188.403 / (m_I * 3) + 196.3
+        T_3_k = -188.403 / (m_I * 3) + 196.3
 
         # F13: model.T3[t] == 201.915 + 1819.32/(model.M1[t]*3)
-        T_3_k = 201.915 + 1819.32 / (m_I * 3)
+        T_2_k = 201.915 + 1819.32 / (m_I * 3)
 
-        return T_3_k, T_4_k
+        return T_2_k, T_3_k
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
@@ -363,7 +338,6 @@ class SteamEnv(gym.Env):
         # C 15 (bounds)
         R_k = float(np.clip(R_k, 0.8, 1.53))
         m_I_k = float(np.clip(m_I_k, 5.0, 16.0))
-        T_III_k = self.T_III_k  # fixed
 
         k = self.k
         g_grid_k = float(self.g_grid[k])
@@ -374,31 +348,26 @@ class SteamEnv(gym.Env):
         T_0_k = self.T_s_k  # previous storage temperature
 
         # F12-F13: Steam generator surrogate. This surrogate depends on m_I_k only.
-        T_SG_in, T_SG_out = self._SG_surrogate(T_in_SG_k=0.0, m_I_k=m_I_k)
+        T_2_k, T_3_k = self._SG_surrogate(m_I_k)
 
         # NLP variable mapping from cookie_model/mapping.py:
         # model.T2  -> T_1_k  (F8)
         # model.T3  -> T_2_k  (F13 / F4 residual check)
         # model.T4  -> T_3_k  (F12)
         # model.T5  -> T_4_k  (F9)
-        T_2_k = T_SG_in
-        T_3_k = float(T_SG_out)
         # F9: T_4_k = T_3_k - epsilon_dch * (T_3_k - T_s_(k-1))
         T_4_k = T_3_k - self.epsilon_dch * (T_3_k - T_0_k)
 
-        def f5_implied_T_I(beta2):
-            return float(T_3_k * beta2 + T_4_k * (1.0 - beta2))
-
         # F5
-        T_I_k = f5_implied_T_I(beta2_k)
+        T_I_k = float(T_3_k * beta2_k + T_4_k * (1.0 - beta2_k))
 
         T_I_bound_violation_k = max(177.0 - T_I_k, 0.0) + max(T_I_k - 250.0, 0.0)
 
-        # F1-F3: HTHP surrogate, evaluated with the F5-consistent T_I_k.
-        P_HP_k, _, T_II_k = self._HTHP_surrogate(
+        # F1/F3: HTHP surrogate, evaluated with the F5-consistent T_I_k.
+        P_HP_k, T_II_k = self._HTHP_surrogate(
             T_I_k=T_I_k,
             m_I_k=m_I_k,
-            T_III_k=T_III_k,
+            T_III_k=self.T_III_k,
             R_k=R_k,
         )
         # F8: T_1_k = T_II_k - epsilon_ch * (T_II_k - T_s_(k-1))
@@ -407,18 +376,12 @@ class SteamEnv(gym.Env):
         q_ch_base_k = (T_II_k - T_1_k) * m_I_k * 3 * self.c_p_f
         q_dch_base_k = (T_4_k - T_3_k) * m_I_k * 3 * self.c_p_f
 
-        def calc_flows(beta1, beta2):
-            # F6/F7 after any hard-constraint repair of the bypass variables.
-            q_ch = q_ch_base_k * (1.0 - beta1)
-            q_dch = q_dch_base_k * (1.0 - beta2)
-            return float(q_ch), float(q_dch)
-
         # F6: Q_s_ch_k = 3 * m_II_k * c_p_f * (T_II_k - T_1_k) * (1 - beta1_k)
         # F7: Q_s_dch_k = 3 * m_I_k * c_p_f * (T_4_k - T_3_k) * (1 - beta2_k)
-        Q_s_ch_k, Q_s_dch_k = calc_flows(beta1_k, beta2_k)
+        Q_s_ch_k = float(q_ch_base_k * (1.0 - beta1_k))
+        Q_s_dch_k = float(q_dch_base_k * (1.0 - beta2_k))
 
         storage_factor_k = self.Delta_t / max(self.m_s * self.c_p_s, 1e-6)
-        # T_s_next_unrepaired_k = T_0_k + (Q_s_ch_k - Q_s_dch_k) * storage_factor_k
 
         # F4: T_2_k = T_II_k * beta1_k + T_1_k * (1 - beta1_k)
         # F5: T_I_k = T_3_k * beta2_k + T_4_k * (1 - beta2_k)
@@ -433,15 +396,11 @@ class SteamEnv(gym.Env):
             Q_s_ch_k * Q_s_dch_k - self.eps_comp,
             0.0,
         )
-        q_ch_lower_violation_k = max(-Q_s_ch_k, 0.0)
-        q_dch_lower_violation_k = max(-Q_s_dch_k, 0.0)
-        q_ch_upper_violation_k = max(Q_s_ch_k - self.Q_flow_max, 0.0)
-        q_dch_upper_violation_k = max(Q_s_dch_k - self.Q_flow_max, 0.0)
         flow_bound_violation_k = (
-            q_ch_lower_violation_k
-            + q_dch_lower_violation_k
-            + q_ch_upper_violation_k
-            + q_dch_upper_violation_k
+            max(-Q_s_ch_k, 0.0)
+            + max(-Q_s_dch_k, 0.0)
+            + max(Q_s_ch_k - self.Q_flow_max, 0.0)
+            + max(Q_s_dch_k - self.Q_flow_max, 0.0)
         )
 
         # mode_k is determined by the signed beta command: 2=discharge,
@@ -449,20 +408,19 @@ class SteamEnv(gym.Env):
 
         # F3: model.P[t] + model.WKA[t] == 3*(...)  ->  P_grid_k = P_HP_k - P_WT_k
         P_grid_k = P_HP_k - P_WT_k
-        # P_spill_k = 0.0 # TODO: implement spill logic if needed (spill is when P_grid_k < 0)
 
         # Grid power bound: 0 <= P <= 5000
-        grid_lower_violation_k = max(-P_grid_k, 0.0)
-        grid_upper_violation_k = max(P_grid_k - self.P_HP_max, 0.0)
-        grid_bound_violation_k = grid_lower_violation_k + grid_upper_violation_k
+        grid_bound_violation_k = max(-P_grid_k, 0.0) + max(
+            P_grid_k - self.P_HP_max, 0.0
+        )
 
         # Storage update (explicit Euler step)
         T_s_next = T_0_k + (Q_s_ch_k - Q_s_dch_k) * storage_factor_k
 
         # F14: T_s_n = T_s_0 (soft cyclic penalty)
-        lower_violation_k = max(self.T_s_min - T_s_next, 0.0)
-        upper_violation_k = max(T_s_next - self.T_s_max, 0.0)
-        state_violation_k = lower_violation_k + upper_violation_k
+        state_violation_k = max(self.T_s_min - T_s_next, 0.0) + max(
+            T_s_next - self.T_s_max, 0.0
+        )
         self.T_s_k = float(T_s_next)
 
         # Objective reward
@@ -478,17 +436,12 @@ class SteamEnv(gym.Env):
         penalty_grid_k = self.lambda_grid * (
             grid_bound_violation_k / max(self.P_HP_max, 1e-6)
         )
-        penalty_mode_k = self.lambda_mode * bypass_sum_violation_k
-        penalty_comp_k = self.lambda_comp * complementarity_violation_k
-
         reward_k = -cost_grid_k
         reward_k -= penalty_bound_k
         reward_k -= penalty_T_I_k
         reward_k -= penalty_flow_k
         reward_k -= penalty_coupling_k
         reward_k -= penalty_grid_k
-        reward_k -= penalty_mode_k
-        reward_k -= penalty_comp_k
 
         self.k += 1
         terminated = self.k >= self.K
@@ -505,9 +458,6 @@ class SteamEnv(gym.Env):
         else:
             terminal_penalty_k = 0.0
 
-        # C17
-        t_k = self.Delta_t * k
-
         self._last_mode = mode_k
         self._last_R_k = R_k
         self._last_beta_command_k = beta_command_k
@@ -520,56 +470,21 @@ class SteamEnv(gym.Env):
             "m_I_k": m_I_k,
             "T_I_k": T_I_k,
             "T_s_k": self.T_s_k,
-            "T_s_next_k": T_s_next,
-            "T_1_k": T_1_k,
-            "T_2_k": T_2_k,
-            "T_3_k": T_3_k,
-            "T_4_k": T_4_k,
-            "T_0_k": T_0_k,
-            "T_SG_out": float(T_SG_out),
-            "T_II_k": T_II_k,
-            "q_ch_base_k": q_ch_base_k,
-            "q_dch_base_k": q_dch_base_k,
             "Q_s_ch_k": Q_s_ch_k,
             "Q_s_dch_k": Q_s_dch_k,
-            "Q_flow_max": self.Q_flow_max,
             "f4_residual_k": f4_residual_k,
             "bypass_sum_violation_k": bypass_sum_violation_k,
             "complementarity_violation_k": complementarity_violation_k,
-            "q_ch_lower_violation_k": q_ch_lower_violation_k,
-            "q_dch_lower_violation_k": q_dch_lower_violation_k,
-            "q_ch_upper_violation_k": q_ch_upper_violation_k,
-            "q_dch_upper_violation_k": q_dch_upper_violation_k,
             "flow_bound_violation_k": flow_bound_violation_k,
             "T_I_bound_violation_k": T_I_bound_violation_k,
-            "penalty_T_I_k": penalty_T_I_k,
-            "penalty_flow_k": penalty_flow_k,
             "P_HP_k": P_HP_k,
             "P_grid_k": P_grid_k,
             "P_grid_max": self.P_HP_max,
             "P_WT_k": P_WT_k,
-            "grid_lower_violation_k": grid_lower_violation_k,
-            "grid_upper_violation_k": grid_upper_violation_k,
             "grid_bound_violation_k": grid_bound_violation_k,
-            "g_grid_k": g_grid_k,
             "mode_k": mode_k,
             "state_violation_k": state_violation_k,
             "cost_grid_k": cost_grid_k,
-            "penalty_bound_k": penalty_bound_k,
-            "penalty_coupling_k": penalty_coupling_k,
-            "penalty_grid_k": penalty_grid_k,
-            "penalty_mode_k": penalty_mode_k,
-            "penalty_comp_k": penalty_comp_k,
-            "terminal_penalty_k": terminal_penalty_k,
-            "t_k": t_k,
-            "raw_reward": float(reward_k),
-            # convenience aliases
-            "beta1": beta1_k,
-            "beta2": beta2_k,
-            "T_s": self.T_s_k,
-            "Q_s_ch": Q_s_ch_k,
-            "Q_s_dch": Q_s_dch_k,
-            "P_grid": P_grid_k,
         }
         self._last_info = info
 
