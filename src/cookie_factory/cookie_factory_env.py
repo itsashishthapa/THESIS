@@ -38,7 +38,9 @@ class SteamEnv(gym.Env):
          g_grid_k_norm,
          P_WT_k_norm,
          mode_hint_prev,
-         R_prev_norm,
+         R_applied_prev_norm,
+         R_projection_delta_prev_norm,
+         f4_residual_prev_norm,
          time_index_norm,
          terminal_temperature_gap_norm,
          beta_command_prev,
@@ -54,21 +56,23 @@ class SteamEnv(gym.Env):
      beta_command_k is a signed storage-mode command in [-1, 1].  Its three
      operating bands are:
 
-       [-1, -1/3] : discharge; beta1 is 1 and beta2 ramps from 0 to 1
-       (-1/3, 1/3): idle; both beta1 and beta2 are 1
-       [1/3, 1]   : charge; beta1 ramps from 1 to 0 and beta2 is 1
+       [-1, -0.05): discharge; beta1 is 1 and beta2 ramps from 0 to 1
+       [-0.05, 0.05]: idle; both beta1 and beta2 are 1
+       (0.05, 1]   : charge; beta1 ramps from 1 to 0 and beta2 is 1
 
      The ramp magnitude increases with distance from the idle band, so -1 and
      +1 respectively request full discharge and full charge.  beta1 and beta2
      are physical bypass coefficients, not direct flow fractions: a value of 1
      closes its corresponding storage flow in F6/F7.
      R_k is the HTHP surrogate variable (compressor speed),
-     where beta1_k and beta2_k are the bypass variables x1 and x2,
+     treated as a command and projected to the nearest F4-feasible value when
+     possible. The applied value and projection feedback enter the next observation.
+     Here beta1_k and beta2_k are the bypass variables x1 and x2,
      T_I_k is derived by F5, and T_III_k is the cold-side inlet temperature
      (fixed).
     """
 
-    metadata = {"render_modes": ["human"]}
+    metadata = {"render_modes": ["human"]}  # noqa: RUF012
 
     def __init__(
         self,
@@ -93,11 +97,11 @@ class SteamEnv(gym.Env):
         wind_scale=None,
         # reward penalties
         lambda_bound=20.0,  # penalty for storage temperature bound violations
-        lambda_terminal=1000.0,  # penalty for ending away from cyclic terminal target
-        lambda_coupling=500,  # penalty for F4/F5 coupling residuals
-        lambda_grid=1000.0,  # penalty for grid power bound violations
-        lambda_T_I=10.0,
-        lambda_flow=500.0,
+        lambda_terminal=3000.0,  # penalty for ending away from cyclic terminal target
+        lambda_coupling=500.0,  # penalty for F4 coupling residuals
+        lambda_grid=3000.0,  # penalty for grid power bound violations
+        lambda_T_I=10.0,  # penalty for T_I bound violations
+        lambda_flow=5000.0,  # penalty for Qch/Qdch flow bound violations
         eps_comp=1.0e-6,  # small tolerance for the Qch*Qdch complementarity constraint
         Q_flow_max=5000.0,  # Qch/Qdch upper bound from the NLP model
         enforce_cyclic_boundary=True,  # terminal storage constraint / terminal_penalty_k: return to T_s_0
@@ -158,10 +162,10 @@ class SteamEnv(gym.Env):
         # Observation = state, prior control values, time/terminal context, and
         # the same complete forecast at every step.
         base_low = np.array(
-            [0.0, -1.0, 0.0, -1.0, 0.0, 0.0, -1.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, -1.0, 0.0],
             dtype=np.float32,
         )
-        base_high = np.ones(9, dtype=np.float32)
+        base_high = np.ones(11, dtype=np.float32)
         fc_low = -np.ones(2 * self.forecast_h, dtype=np.float32)
         fc_high = np.ones(2 * self.forecast_h, dtype=np.float32)
         self.observation_space = spaces.Box(
@@ -193,23 +197,123 @@ class SteamEnv(gym.Env):
         For the original process equations, ``Q_ch`` is proportional to
         ``1 - beta1`` and ``Q_dch`` to ``1 - beta2``.  Therefore the inactive
         branch must have a beta value of 1.  This mapping enforces both F10
-        (beta1 + beta2 >= 1) and F11 (no simultaneous charge/discharge).
+        (beta1 + beta2 >= 1) and F11 (no simultaneous charge/discharge). The
+        returned mode is -1 for discharge, 0 for idle, and 1 for charge.
         """
         beta_command = float(np.clip(beta_command, -1.0, 1.0))
-        band_width = 2.0 / 3.0
+        idle_half_width = 0.05
+        active_band_width = 1.0 - idle_half_width
 
-        if beta_command <= -1.0 / 3.0:
-            # -1 -> full discharge (beta2=0), -1/3 -> idle (beta2=1).
-            discharge_fraction = (-beta_command - 1.0 / 3.0) / band_width
+        if beta_command < -idle_half_width:
+            # -1 -> full discharge (beta2=0), -0.05 -> idle (beta2=1).
+            discharge_fraction = (-beta_command - idle_half_width) / active_band_width
             beta2 = 1.0 - discharge_fraction
-            return 1.0, float(np.clip(beta2, 0.0, 1.0)), 2
-        if beta_command >= 1.0 / 3.0:
-            # 1/3 -> idle (beta1=1), 1 -> full charge (beta1=0).
-            charge_fraction = (beta_command - 1.0 / 3.0) / band_width
+            return 1.0, float(np.clip(beta2, 0.0, 1.0)), -1
+        if beta_command > idle_half_width:
+            # 0.05 -> idle (beta1=1), 1 -> full charge (beta1=0).
+            charge_fraction = (beta_command - idle_half_width) / active_band_width
             beta1 = 1.0 - charge_fraction
             return float(np.clip(beta1, 0.0, 1.0)), 1.0, 1
 
         return 1.0, 1.0, 0
+
+    @staticmethod
+    def _HTHP_T_II_coefficients(T_I_k, m_I_k, T_III_k):
+        """Return ascending polynomial coefficients for T_II as a function of R."""
+        T_I = float(T_I_k)
+        m_I = float(m_I_k)
+        T_III = float(T_III_k)
+        return np.array(
+            [
+                95.9612
+                + 0.93433 * T_I
+                - 0.327753 * m_I
+                + 0.0146542 * T_III
+                + 0.00104853 * T_I**2
+                + 0.0211819 * T_I * m_I
+                + 1.04924 * m_I**2
+                - 0.00388073 * m_I * T_III
+                - 0.00148575 * T_I * m_I**2
+                - 0.0405702 * m_I**3,
+                -271.354
+                - 0.706122 * T_I
+                - 29.4801 * m_I
+                + 0.0595068 * T_III
+                - 0.000716825 * T_I**2
+                + 0.0229386 * T_I * m_I
+                + 0.881391 * m_I**2,
+                562.428 + 0.203578 * T_I - 2.18172 * m_I,
+                -151.476,
+            ],
+            dtype=float,
+        )
+        
+
+    def _project_R_for_f4(
+        self,
+        R_commanded_k,
+        beta1_k,
+        T_0_k,
+        T_2_k,
+        T_I_k,
+        m_I_k,
+    ):
+        """Project R to the nearest value satisfying F4, when one exists."""
+        denominator = 1.0 - self.epsilon_ch + self.epsilon_ch * beta1_k
+        T_II_required_k = (
+            T_2_k - self.epsilon_ch * T_0_k * (1.0 - beta1_k)
+        ) / max(denominator, 1e-6)
+        coefficients = self._HTHP_T_II_coefficients(
+            T_I_k,
+            m_I_k,
+            self.T_III_k,
+        )
+        root_coefficients = coefficients.copy()
+        root_coefficients[0] -= T_II_required_k
+        roots = np.roots(root_coefficients[::-1])
+        feasible_roots = [
+            float(np.clip(root.real, 0.8, 1.53))
+            for root in roots
+            if abs(root.imag) <= 1e-7 and 0.8 - 1e-9 <= root.real <= 1.53 + 1e-9
+        ]
+
+        if feasible_roots:
+            R_applied_k = min(
+                feasible_roots,
+                key=lambda candidate: abs(candidate - R_commanded_k),
+            )
+        else:
+            derivative_roots = np.roots(
+                [3.0 * coefficients[3], 2.0 * coefficients[2], coefficients[1]]
+            )
+            candidates = [0.8, 1.53]
+            candidates.extend(
+                float(root.real)
+                for root in derivative_roots
+                if abs(root.imag) <= 1e-7 and 0.8 <= root.real <= 1.53
+            )
+            R_applied_k = min(
+                candidates,
+                key=lambda candidate: (
+                    abs(np.polynomial.polynomial.polyval(candidate, coefficients) - T_II_required_k),
+                    abs(candidate - R_commanded_k),
+                ),
+            )
+
+        T_II_projected_k = float(
+            np.polynomial.polynomial.polyval(R_applied_k, coefficients)
+        )
+        projection_feasible_k = bool(
+            abs(T_II_projected_k - T_II_required_k) <= 1e-5
+        )
+        projection_applied_k = bool(
+            not np.isclose(R_applied_k, R_commanded_k, atol=1e-6, rtol=0.0)
+        )
+        return (
+            float(R_applied_k),
+            projection_applied_k,
+            projection_feasible_k,
+        )
 
     def _forecast_window(self):
         """Return the complete configured price and wind forecast at every step."""
@@ -223,11 +327,6 @@ class SteamEnv(gym.Env):
 
     def _obs(self):
         k = min(self.k, self.K - 1)
-        mode_hint = 0.0
-        if self._last_mode == 1:
-            mode_hint = -1.0
-        elif self._last_mode == 2:
-            mode_hint = 1.0
 
         temperature_range = max(self.T_s_max - self.T_s_min, 1e-6)
         terminal_temperature_gap = float(
@@ -240,8 +339,16 @@ class SteamEnv(gym.Env):
                 self._norm_01(self.T_s_k, self.T_s_min, self.T_s_max),
                 self._norm_signed(self.g_grid[k], self.price_scale),
                 self._norm_01(self.P_WT[k], 0.0, max(self.wind_scale, 1e-6)),
-                mode_hint,
+                self._last_mode,
                 self._norm_01(self._last_R_k, 0.8, 1.53),
+                self._last_R_projection_delta_k / (1.53 - 0.8),
+                float(
+                    np.clip(
+                        self._last_f4_residual_k / temperature_range,
+                        -1.0,
+                        1.0,
+                    )
+                ),
                 time_index,
                 terminal_temperature_gap,
                 self._last_beta_command_k,
@@ -251,8 +358,8 @@ class SteamEnv(gym.Env):
         )
         return np.concatenate([base, self._forecast_window()])
 
-    @staticmethod
-    def _HTHP_surrogate(T_I_k, m_I_k, T_III_k, R_k):
+    @classmethod
+    def _HTHP_surrogate(cls, T_I_k, m_I_k, T_III_k, R_k):
         """Return electric power and hot-side outlet temperature (F1 and F3)."""
         T_I = float(T_I_k)
         m_I = float(m_I_k)
@@ -260,28 +367,11 @@ class SteamEnv(gym.Env):
         R = float(np.clip(R_k, 0.8, 1.53))
 
         # F1: model.T1Out[t] == ...
-        T_II_k = (
-            95.9612
-            + 0.93433 * T_I
-            - 0.327753 * m_I
-            + 0.0146542 * T_III
-            - 271.354 * R
-            + 0.00104853 * T_I**2
-            + 0.0211819 * T_I * m_I
-            - 0.706122 * T_I * R
-            + 1.04924 * m_I**2
-            - 0.00388073 * m_I * T_III
-            - 29.4801 * m_I * R
-            + 0.0595068 * T_III * R
-            + 562.428 * R**2
-            - 0.000716825 * T_I**2 * R
-            - 0.00148575 * T_I * m_I**2
-            + 0.0229386 * T_I * m_I * R
-            + 0.203578 * T_I * R**2
-            - 0.0405702 * m_I**3
-            + 0.881391 * m_I**2 * R
-            - 2.18172 * m_I * R**2
-            - 151.476 * R**3
+        T_II_k = float(
+            np.polynomial.polynomial.polyval(
+                R,
+                cls._HTHP_T_II_coefficients(T_I, m_I, T_III),
+            )
         )
 
         # F3: model.P[t] + model.WKA[t] == ...
@@ -319,6 +409,8 @@ class SteamEnv(gym.Env):
         self.T_s_k = self.T_s_0
         self._last_mode = 0
         self._last_R_k = 0.5 * (0.8 + 1.53)
+        self._last_R_projection_delta_k = 0.0
+        self._last_f4_residual_k = 0.0
         self._last_beta_command_k = 0.0
         self._last_m_I_k = 0.5 * (5.0 + 16.0)
         self._last_info = {}
@@ -333,10 +425,10 @@ class SteamEnv(gym.Env):
 
         beta_command_k = float(np.clip(action[0], -1.0, 1.0))
         beta1_k, beta2_k, mode_k = self._map_beta_command(beta_command_k)
-        R_k = float(action[1])
+        R_commanded_k = float(action[1])
         m_I_k = float(action[2])
         # C 15 (bounds)
-        R_k = float(np.clip(R_k, 0.8, 1.53))
+        R_commanded_k = float(np.clip(R_commanded_k, 0.8, 1.53))
         m_I_k = float(np.clip(m_I_k, 5.0, 16.0))
 
         k = self.k
@@ -363,12 +455,26 @@ class SteamEnv(gym.Env):
 
         T_I_bound_violation_k = max(177.0 - T_I_k, 0.0) + max(T_I_k - 250.0, 0.0)
 
+        (
+            R_applied_k,
+            f4_projection_applied_k,
+            f4_projection_feasible_k,
+        ) = self._project_R_for_f4(
+            R_commanded_k=R_commanded_k,
+            beta1_k=beta1_k,
+            T_0_k=T_0_k,
+            T_2_k=T_2_k,
+            T_I_k=T_I_k,
+            m_I_k=m_I_k,
+        )
+        R_projection_delta_k = R_applied_k - R_commanded_k
+
         # F1/F3: HTHP surrogate, evaluated with the F5-consistent T_I_k.
         P_HP_k, T_II_k = self._HTHP_surrogate(
             T_I_k=T_I_k,
             m_I_k=m_I_k,
             T_III_k=self.T_III_k,
-            R_k=R_k,
+            R_k=R_applied_k,
         )
         # F8: T_1_k = T_II_k - epsilon_ch * (T_II_k - T_s_(k-1))
         T_1_k = T_II_k - self.epsilon_ch * (T_II_k - T_0_k)
@@ -403,8 +509,8 @@ class SteamEnv(gym.Env):
             + max(Q_s_dch_k - self.Q_flow_max, 0.0)
         )
 
-        # mode_k is determined by the signed beta command: 2=discharge,
-        # 0=idle, and 1=charge.
+        # mode_k uses the same signed convention as beta_command:
+        # -1=discharge, 0=idle, and 1=charge.
 
         # F3: model.P[t] + model.WKA[t] == 3*(...)  ->  P_grid_k = P_HP_k - P_WT_k
         P_grid_k = P_HP_k - P_WT_k
@@ -459,14 +565,21 @@ class SteamEnv(gym.Env):
             terminal_penalty_k = 0.0
 
         self._last_mode = mode_k
-        self._last_R_k = R_k
+        self._last_R_k = R_applied_k
+        self._last_R_projection_delta_k = R_projection_delta_k
+        self._last_f4_residual_k = f4_residual_k
         self._last_beta_command_k = beta_command_k
         self._last_m_I_k = m_I_k
         info = {
             "beta_command_k": beta_command_k,
             "beta1_k": beta1_k,
             "beta2_k": beta2_k,
-            "R_k": R_k,
+            "R_k": R_applied_k,
+            "R_commanded_k": R_commanded_k,
+            "R_applied_k": R_applied_k,
+            "R_projection_delta_k": R_projection_delta_k,
+            "f4_projection_applied_k": f4_projection_applied_k,
+            "f4_projection_feasible_k": f4_projection_feasible_k,
             "m_I_k": m_I_k,
             "T_I_k": T_I_k,
             "T_s_k": self.T_s_k,
