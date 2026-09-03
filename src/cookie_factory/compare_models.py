@@ -37,6 +37,7 @@ DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 DEFAULT_OUTPUT_DIR = "results/cookie_factory_comparison"
 VIOLATION_TOLERANCE = 1e-6
 TERMINAL_STORAGE_TEMPERATURE = 250.0
+GUARANTEED_RL_CONSTRAINTS = frozenset({"bypass", "complementarity", "f5"})
 
 
 def _constraint_violations(info: dict[str, Any]) -> dict[str, float]:
@@ -401,13 +402,14 @@ def summary_text(summary: pd.DataFrame, algorithm: str) -> str:
         f"{algorithm} mean total violation:   {successful['rl_constraint_violation'].mean():.4f}",
         f"Pyomo mean total violation: {successful['pyomo_constraint_violation'].mean():.4e}",
     ]
-    violation_names = sorted(
+    violation_names = {
         column.removeprefix("rl_violation_")
         for column in successful.columns
         if column.startswith("rl_violation_")
         and column != "rl_violation_total"
         and f"pyomo_violation_{column.removeprefix('rl_violation_')}" in successful
-    )
+    }
+    violation_names = sorted(violation_names - GUARANTEED_RL_CONSTRAINTS)
     if violation_names:
         lines.extend(["", "VIOLATION BREAKDOWN (MEAN TOTAL PER WINDOW)", "-" * 80])
         for name in violation_names:
@@ -465,9 +467,12 @@ def plot_summary(summary: pd.DataFrame, algorithm: str, output_path: Path) -> No
 
 
 def violation_breakdown(trajectories: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate each tracked violation separately for every evaluated model."""
+    """Aggregate violations not guaranteed by the RL environment construction."""
     violation_columns = [
-        column for column in trajectories.columns if column.startswith("violation_")
+        column
+        for column in trajectories.columns
+        if column.startswith("violation_")
+        and column.removeprefix("violation_") not in GUARANTEED_RL_CONSTRAINTS
     ]
     if trajectories.empty or not violation_columns:
         return pd.DataFrame(
@@ -514,7 +519,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--window-len", type=int, default=24)
     parser.add_argument("--forecast-h", type=int, default=24)
     parser.add_argument("--start-hour", type=int, default=None)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=22)
     parser.add_argument("--solver", default="ipopt")
     parser.add_argument("--max-iter", type=int, default=1000)
     parser.add_argument(
