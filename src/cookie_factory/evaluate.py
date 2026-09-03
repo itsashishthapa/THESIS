@@ -1,10 +1,7 @@
-"""
-Evaluation script for Cookie Factory SAC model.
-Runs deterministic (greedy) rollouts and collects metrics.
-"""
+"""Evaluate Cookie Factory SAC or TD3 policies on fixed or random windows."""
 
 # Run with all parameters:
-# python -m src.cookie_factory.evaluate --model-path src/cookie_factory/cookie_sac_model --data cookie_model/WKA_Pe_merged.csv --num-episodes 10 --window-len 24 --forecast-h 24 --stochastic --seed 42 --output-dir results/eval --price-col Pe --wind-col WKA --first-24
+# python -m src.cookie_factory.evaluate --algorithm TD3 --data cookie_model/WKA_Pe_merged.csv --num-episodes 10 --window-len 24 --forecast-h 24 --seed 42 --output-dir results/eval_td3 --price-col Pe --wind-col WKA --first-24
 
 from __future__ import annotations
 
@@ -20,13 +17,13 @@ from src.cookie_factory.cookie_factory_env import SteamEnv
 from src.cookie_factory.train import (
     DEFAULT_ALGORITHM,
     get_model_class,
+    get_model_path,
     load_cookie_data,
     normalize_algorithm,
 )
 
 DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
-DEFAULT_VECNORM_PATH = "src/cookie_factory/cookie_sac_model_vecnormalize.pkl"
 FIRST_24_ROWS = 24
 
 
@@ -63,7 +60,7 @@ def load_first_24_cookie_data(
 
 
 def evaluate_first_24_data(
-    model_path: str = DEFAULT_MODEL_PATH,
+    model_path: str | None = None,
     data_path: str = DEFAULT_DATA_PATH,
     price_col: str = "Pe",
     wind_col: str = "WKA",
@@ -75,6 +72,8 @@ def evaluate_first_24_data(
     algorithm: str = DEFAULT_ALGORITHM,
 ) -> tuple[dict, pd.DataFrame]:
     """Evaluate one episode on the first 24 rows of WKA_Pe_merged.csv and print it."""
+    algorithm = normalize_algorithm(algorithm)
+    model_path = model_path or get_model_path(algorithm)
     if vecnormalize_path is None:
         vecnormalize_path = f"{model_path}_vecnormalize.pkl"
 
@@ -167,22 +166,23 @@ def evaluate_model(
     deterministic: bool = True,
     seed: int = 42,
     env_kwargs: dict[str, Any] | None = None,
-    vecnormalize_path: str | None = DEFAULT_VECNORM_PATH,
+    vecnormalize_path: str | None = None,
     algorithm: str = DEFAULT_ALGORITHM,
 ) -> tuple[list[dict], pd.DataFrame]:
     """
-    Evaluate a trained SAC model on random windows.
+    Evaluate a trained SAC or TD3 model on random windows.
     
     Returns:
         - episode_stats: list of dicts with per-episode metrics
         - trajectory_df: DataFrame with per-step info from all episodes
     """
+    algorithm = normalize_algorithm(algorithm)
     if not os.path.exists(f"{model_path}.zip"):
         raise FileNotFoundError(f"Model not found: {model_path}.zip")
-
-    algorithm = normalize_algorithm(algorithm)
     model = get_model_class(algorithm).load(model_path)
     print(f"Loaded model from {model_path}.zip")
+    if vecnormalize_path is None:
+        vecnormalize_path = f"{model_path}_vecnormalize.pkl"
     if vecnormalize_path and os.path.exists(vecnormalize_path):
         print(f"Loading VecNormalize stats from {vecnormalize_path}")
     else:
@@ -248,6 +248,19 @@ def evaluate_model(
             env.training = False
             env.norm_reward = False
 
+        expected_observation_shape = model.observation_space.shape
+        actual_observation_shape = env.observation_space.shape
+        if expected_observation_shape != actual_observation_shape:
+            env.close()
+            raise ValueError(
+                "Model/environment observation-space mismatch: "
+                f"the {algorithm} checkpoint expects {expected_observation_shape}, "
+                f"but SteamEnv emits {actual_observation_shape}. "
+                "This checkpoint was trained with a different observation layout; "
+                "retrain it with the current SteamEnv and use its matching "
+                "VecNormalize statistics."
+            )
+
         obs = env.reset()
         done = False
         step = 0
@@ -276,6 +289,9 @@ def evaluate_model(
                 "action_beta1_raw": step_info.get("beta1_raw"),
                 "action_beta2_raw": step_info.get("beta2_raw"),
                 "action_R": step_info.get("R_k"),
+                "action_R_commanded": step_info.get("R_commanded_k"),
+                "action_R_applied": step_info.get("R_applied_k"),
+                "R_projection_delta": step_info.get("R_projection_delta_k"),
                 "action_m_I": step_info.get("m_I_k"),
                 "action_T_I": step_info.get("T_I_k"),
                 "f4_projection_applied": bool(step_info.get("f4_projection_applied_k", False)),
@@ -367,7 +383,11 @@ def _parse_args() -> argparse.Namespace:
         choices=("SAC", "TD3"),
         help="RL algorithm used by the saved model",
     )
-    parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH, help="Path to saved SAC model")
+    parser.add_argument(
+        "--model-path",
+        default=None,
+        help="Path to the saved model without .zip (defaults by algorithm)",
+    )
     parser.add_argument("--data", default=DEFAULT_DATA_PATH, help="Path to CSV or Excel dataset")
     parser.add_argument("--num-episodes", type=int, default=10, help="Number of eval episodes")
     parser.add_argument("--window-len", type=int, default=24, help="Random window length")
@@ -392,17 +412,18 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    model_path = args.model_path or get_model_path(args.algorithm)
 
     if args.first_24:
         evaluate_first_24_data(
-            model_path=args.model_path,
+            model_path=model_path,
             data_path=args.data,
             price_col=args.price_col,
             wind_col=args.wind_col,
             forecast_h=args.forecast_h,
             deterministic=not args.stochastic,
             seed=args.seed,
-            vecnormalize_path=f"{args.model_path}_vecnormalize.pkl",
+            vecnormalize_path=f"{model_path}_vecnormalize.pkl",
             algorithm=args.algorithm,
         )
         return
@@ -416,7 +437,7 @@ def main() -> None:
     os.makedirs(args.output_dir, exist_ok=True)
 
     print(f"\n{'='*60}")
-    print(f"Evaluating model: {args.model_path}")
+    print(f"Evaluating {args.algorithm} model: {model_path}")
     print(f"Episodes: {args.num_episodes}, Window length: {args.window_len}")
     if args.start_hour is not None:
         print(f"Fixed start hour: {args.start_hour}")
@@ -424,7 +445,7 @@ def main() -> None:
     print(f"{'='*60}\n")
 
     episode_stats, trajectories = evaluate_model(
-        model_path=args.model_path,
+        model_path=model_path,
         g_grid_full=g_grid_full,
         P_WT_full=P_WT_full,
         price_scale=price_scale,
@@ -435,7 +456,7 @@ def main() -> None:
         start_hour=args.start_hour,
         deterministic=not args.stochastic,
         seed=args.seed,
-        vecnormalize_path=f"{args.model_path}_vecnormalize.pkl",
+        vecnormalize_path=f"{model_path}_vecnormalize.pkl",
         algorithm=args.algorithm,
     )
 

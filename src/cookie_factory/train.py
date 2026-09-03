@@ -14,11 +14,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from stable_baselines3 import SAC, TD3
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
-from src.cookie_factory.cookie_factory_env import RandomWindowEnv
+from src.cookie_factory.cookie_factory_env import RandomWindowEnv, SteamEnv
 
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
@@ -135,6 +136,127 @@ def make_train_env(
     return Monitor(env)
 
 
+def split_train_validation_data(
+    g_grid_full: np.ndarray,
+    P_WT_full: np.ndarray,
+    validation_fraction: float,
+    window_len: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return chronological training and validation blocks."""
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1.")
+
+    split_index = int(len(g_grid_full) * (1.0 - validation_fraction))
+    g_grid_train, g_grid_validation = g_grid_full[:split_index], g_grid_full[split_index:]
+    P_WT_train, P_WT_validation = P_WT_full[:split_index], P_WT_full[split_index:]
+    if len(g_grid_train) < window_len or len(g_grid_validation) < window_len:
+        raise ValueError(
+            "Training and validation blocks must each contain at least "
+            f"{window_len} timesteps."
+        )
+    return g_grid_train, P_WT_train, g_grid_validation, P_WT_validation
+
+
+class LowestViolationCheckpointCallback(BaseCallback):
+    """Save the policy whose validation windows have the lowest violation."""
+
+    def __init__(
+        self,
+        g_grid_validation: np.ndarray,
+        P_WT_validation: np.ndarray,
+        price_scale: float,
+        wind_scale: float,
+        model_path: str,
+        window_len: int,
+        forecast_h: int,
+        eval_freq: int,
+        n_validation_windows: int,
+        seed: int,
+        enforce_cyclic_boundary: bool,
+    ):
+        super().__init__()
+        self.g_grid_validation = np.asarray(g_grid_validation, dtype=np.float32)
+        self.P_WT_validation = np.asarray(P_WT_validation, dtype=np.float32)
+        self.price_scale = float(price_scale)
+        self.wind_scale = float(wind_scale)
+        self.model_path = model_path
+        self.window_len = int(window_len)
+        self.forecast_h = int(forecast_h)
+        self.eval_freq = max(int(eval_freq), 1)
+        self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
+        self.best_mean_violation = float("inf")
+        self.last_eval_step: int | None = None
+
+        if n_validation_windows <= 0:
+            raise ValueError("n_validation_windows must be positive.")
+        n_available = len(self.g_grid_validation) - self.window_len + 1
+        if n_available <= 0:
+            raise ValueError("Validation data is shorter than the evaluation window.")
+        rng = np.random.default_rng(seed)
+        self.validation_starts = np.sort(
+            rng.choice(
+                n_available,
+                size=min(int(n_validation_windows), n_available),
+                replace=False,
+            )
+        )
+
+    def _window_violation(self, start: int) -> float:
+        end = start + self.window_len
+        env = SteamEnv(
+            self.g_grid_validation[start:end],
+            self.P_WT_validation[start:end],
+            forecast_h=self.forecast_h,
+            price_scale=self.price_scale,
+            wind_scale=self.wind_scale,
+            enforce_cyclic_boundary=self.enforce_cyclic_boundary,
+        )
+        observation, _ = env.reset()
+        total = 0.0
+        done = False
+        temperature_range = env.T_s_max - env.T_s_min
+        while not done:
+            normalized_observation = self.training_env.normalize_obs(observation)
+            action, _ = self.model.predict(normalized_observation, deterministic=True)
+            observation, _, terminated, truncated, info = env.step(action)
+            total += float(info["bypass_sum_violation_k"])
+            total += float(info["complementarity_violation_k"]) / env.Q_flow_max**2
+            total += float(info["flow_bound_violation_k"]) / env.Q_flow_max
+            total += float(info["T_I_bound_violation_k"]) / (250.0 - 177.0)
+            total += float(info["state_violation_k"]) / temperature_range
+            total += float(info["grid_bound_violation_k"]) / env.P_HP_max
+            total += abs(float(info["f4_residual_k"])) / temperature_range
+            done = bool(terminated or truncated)
+
+        if self.enforce_cyclic_boundary:
+            total += abs(env.T_s_k - env.T_s_0) / temperature_range
+        return total
+
+    def _evaluate(self) -> None:
+        mean_violation = float(
+            np.mean([self._window_violation(int(start)) for start in self.validation_starts])
+        )
+        self.logger.record("validation/mean_normalized_violation", mean_violation)
+        if mean_violation < self.best_mean_violation:
+            self.best_mean_violation = mean_violation
+            self.model.save(self.model_path)
+            self.training_env.save(f"{self.model_path}_vecnormalize.pkl")
+            print(
+                f"Validation step {self.num_timesteps}: new best normalized "
+                f"violation={mean_violation:.6f}"
+            )
+        self.last_eval_step = self.num_timesteps
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.eval_freq == 0:
+            self._evaluate()
+        return True
+
+    def _on_training_end(self) -> None:
+        if self.last_eval_step != self.num_timesteps:
+            self._evaluate()
+
+
 def train_model(
     g_grid_full: np.ndarray,
     P_WT_full: np.ndarray,
@@ -148,9 +270,14 @@ def train_model(
     enforce_cyclic_boundary: bool = True,
     seed: int = 42,
     model_kwargs: dict[str, Any] | None = None,
+    g_grid_validation: np.ndarray | None = None,
+    P_WT_validation: np.ndarray | None = None,
+    eval_freq: int = 25_000,
+    n_validation_windows: int = 100,
+    validation_seed: int = 42,
     algorithm: str = DEFAULT_ALGORITHM,
 ) -> SAC | TD3:
-    """Train SAC or TD3 and save the final training checkpoint."""
+    """Train SAC or TD3 and retain the lowest-violation validation checkpoint."""
     algorithm = normalize_algorithm(algorithm)
     model_class = get_model_class(algorithm)
     model_path = model_path or get_model_path(algorithm)
@@ -214,12 +341,26 @@ def train_model(
     )
 
     model = model_class("MlpPolicy", env, **model_init_kwargs)
+    if g_grid_validation is None or P_WT_validation is None:
+        raise ValueError("Validation price and wind arrays are required.")
+    validation_callback = LowestViolationCheckpointCallback(
+        g_grid_validation=g_grid_validation,
+        P_WT_validation=P_WT_validation,
+        price_scale=price_scale,
+        wind_scale=wind_scale,
+        model_path=model_path,
+        window_len=window_len,
+        forecast_h=forecast_h,
+        eval_freq=eval_freq,
+        n_validation_windows=n_validation_windows,
+        seed=validation_seed,
+        enforce_cyclic_boundary=enforce_cyclic_boundary,
+    )
     model.learn(
         total_timesteps=total_timesteps,
         progress_bar=True,
+        callback=validation_callback,
     )
-    model.save(model_path)
-    env.save(f"{model_path}_vecnormalize.pkl")
 
     inference_env = DummyVecEnv(
         [
@@ -241,7 +382,11 @@ def train_model(
     inference_env.norm_reward = False
     model = model_class.load(model_path, env=inference_env)
 
-    print(f"{algorithm} training complete. Final model saved to {model_path}.zip")
+    print(
+        f"{algorithm} training complete. Lowest-violation model saved to "
+        f"{model_path}.zip (validation normalized violation: "
+        f"{validation_callback.best_mean_violation:.6f})"
+    )
     print(f"Matching VecNormalize stats saved to {model_path}_vecnormalize.pkl")
 
     env.close()
@@ -274,6 +419,35 @@ def _parse_args() -> argparse.Namespace:
         "--forecast-h", type=int, default=24, help="Forecast horizon in env"
     )
     parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological fraction reserved for validation",
+    )
+    parser.add_argument(
+        "--validation-windows",
+        type=int,
+        default=100,
+        help="Fixed validation windows evaluated per checkpoint",
+    )
+    parser.add_argument(
+        "--eval-freq",
+        type=int,
+        default=25_000,
+        help="Training steps between validation evaluations",
+    )
+    parser.add_argument(
+        "--validation-seed",
+        type=int,
+        default=42,
+        help="Seed used to choose fixed validation windows",
+    )
+    parser.add_argument(
+        "--no-cyclic-boundary",
+        action="store_true",
+        help="Disable the cyclic terminal boundary (F14) penalty",
+    )
+    parser.add_argument(
         "--price-col",
         type=str,
         default="Pe",
@@ -297,19 +471,26 @@ def main() -> None:
         price_col=args.price_col,
         wind_col=args.wind_col,
     )
-    if len(g_grid_full) < args.window_len:
-        raise ValueError(
-            f"Training data must contain at least {args.window_len} timesteps."
+    g_grid_train, P_WT_train, g_grid_validation, P_WT_validation = (
+        split_train_validation_data(
+            g_grid_full,
+            P_WT_full,
+            validation_fraction=args.validation_fraction,
+            window_len=args.window_len,
         )
-    print(f"Training data: {len(g_grid_full)} timesteps")
+    )
+    print(
+        f"Training data: {len(g_grid_train)} timesteps | "
+        f"Validation data: {len(g_grid_validation)} timesteps"
+    )
 
     model_path = args.model_path or get_model_path(args.algorithm)
     log_dir = (
         args.log_dir or f"logs/cookie_factory/{args.algorithm.lower()}_binary_beta"
     )
     train_model(
-        g_grid_full=g_grid_full,
-        P_WT_full=P_WT_full,
+        g_grid_full=g_grid_train,
+        P_WT_full=P_WT_train,
         price_scale=price_scale,
         wind_scale=wind_scale,
         model_path=model_path,
@@ -319,6 +500,11 @@ def main() -> None:
         forecast_h=args.forecast_h,
         enforce_cyclic_boundary=not args.no_cyclic_boundary,
         seed=args.seed,
+        g_grid_validation=g_grid_validation,
+        P_WT_validation=P_WT_validation,
+        eval_freq=args.eval_freq,
+        n_validation_windows=args.validation_windows,
+        validation_seed=args.validation_seed,
         algorithm=args.algorithm,
     )
 
