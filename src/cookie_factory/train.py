@@ -3,11 +3,12 @@ Training script for Cookie Factory (SteamEnv) using SAC or TD3.
 """
 
 # Run with all parameters:
-# python -m src.cookie_factory.train --algorithm TD3 --data cookie_model/WKA_Pe_merged.csv --model-path src/cookie_factory/cookie_td3_binary_beta --log-dir logs/cookie_factory/td3_binary_beta --timesteps 20000 --window-len 24 --forecast-h 24 --price-col Pe --wind-col WKA --seed 42
+# python -m src.cookie_factory.train --algorithm TD3 --data cookie_model/WKA_Pe_merged.csv --model-path src/cookie_factory/cookie_td3_derived --log-dir logs/cookie_factory/td3_derived --timesteps 20000 --window-len 24 --forecast-h 24 --price-col Pe --wind-col WKA --seed 42
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from typing import Any
 
@@ -22,13 +23,11 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from src.cookie_factory.cookie_factory_env import RandomWindowEnv, SteamEnv
 
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
 DEFAULT_ALGORITHM = "SAC"
 DEFAULT_MODEL_PATHS = {
     "SAC": DEFAULT_MODEL_PATH,
-    # ``cookie_td3_model`` was trained with the retired 27-feature observation
-    # layout.  Keep new TD3 checkpoints separate from that incompatible artifact.
-    "TD3": "src/cookie_factory/cookie_td3_binary_beta",
+    "TD3": "src/cookie_factory/cookie_td3_derived",
 }
 MODEL_CLASSES = {
     "SAC": SAC,
@@ -55,6 +54,18 @@ def get_model_class(algorithm: str = DEFAULT_ALGORITHM):
 def get_model_path(algorithm: str = DEFAULT_ALGORITHM) -> str:
     """Return the default saved-model path for SAC or TD3."""
     return DEFAULT_MODEL_PATHS[normalize_algorithm(algorithm)]
+
+
+def load_environment_config(model_path: str) -> dict[str, Any]:
+    """Read saved input scaling for a derived-R checkpoint."""
+    path = f"{model_path}_config.json"
+    if not os.path.exists(path):
+        return {}
+    with open(path) as config_file:
+        config = json.load(config_file)
+    return {key: config[key] for key in (
+        "price_scale", "wind_scale", "forecast_h", "enforce_cyclic_boundary"
+    ) if key in config}
 
 
 def linear_schedule(initial_value: float):
@@ -356,6 +367,10 @@ def train_model(
         seed=validation_seed,
         enforce_cyclic_boundary=enforce_cyclic_boundary,
     )
+    with open(f"{model_path}_config.json", "w") as config_file:
+        json.dump({"price_scale": price_scale, "wind_scale": wind_scale,
+                   "forecast_h": forecast_h,
+                   "enforce_cyclic_boundary": enforce_cyclic_boundary}, config_file, indent=2)
     model.learn(
         total_timesteps=total_timesteps,
         progress_bar=True,
@@ -484,9 +499,12 @@ def main() -> None:
         f"Validation data: {len(g_grid_validation)} timesteps"
     )
 
+    # Fit fixed input scales on training data only.
+    price_scale = float(np.percentile(np.abs(g_grid_train), 95) + 1e-6)
+    wind_scale = float(np.percentile(np.abs(P_WT_train), 95) + 1e-6)
     model_path = args.model_path or get_model_path(args.algorithm)
     log_dir = (
-        args.log_dir or f"logs/cookie_factory/{args.algorithm.lower()}_binary_beta"
+        args.log_dir or f"logs/cookie_factory/{args.algorithm.lower()}_derived"
     )
     train_model(
         g_grid_full=g_grid_train,

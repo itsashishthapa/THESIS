@@ -19,10 +19,11 @@ from src.cookie_factory.train import (
     get_model_class,
     get_model_path,
     load_cookie_data,
+    load_environment_config,
     normalize_algorithm,
 )
 
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 FIRST_24_ROWS = 24
 
@@ -134,21 +135,7 @@ def evaluate_first_24_data(
         print("\nFirst 24-row coupling detail:")
         print(coupling_detail.to_string(index=False))
 
-        f4_infeasible = trajectories.loc[
-            trajectories["f4_projection_feasible"] == False,
-            "f4_infeasible_reasons",
-        ]
-        f4_reason_summary = f4_infeasible.explode().dropna().value_counts().rename_axis("reason").reset_index(name="steps")
-        if not f4_reason_summary.empty:
-            print("\nFirst 24-row F4 infeasibility reasons:")
-            print(f4_reason_summary.to_string(index=False))
-        mode_repairs = trajectories.loc[
-            trajectories["f4_mode_repair_applied"],
-            "f4_mode_candidate",
-        ].value_counts().rename_axis("mode").reset_index(name="steps")
-        if not mode_repairs.empty:
-            print("\nFirst 24-row F4 joint mode repairs:")
-            print(mode_repairs.to_string(index=False))
+        print("F4 steps without a feasible solution:", int((~trajectories["f4_solution_feasible"]).sum()))
 
     return result, trajectories
 
@@ -196,13 +183,16 @@ def evaluate_model(
         "wind_scale": wind_scale,
         "enforce_cyclic_boundary": True,
     }
+    kwargs.update(load_environment_config(model_path))
     if env_kwargs:
         kwargs.update(env_kwargs)
 
     episode_stats = []
     trajectory_list = []
 
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
+    if num_episodes <= 0:
+        raise ValueError("At least one evaluation window is required")
 
     def _post_bypass_violation(step_info: dict[str, Any]) -> float:
         beta1 = float(step_info.get("beta1", step_info.get("beta1_k", 0.0)))
@@ -232,7 +222,7 @@ def evaluate_model(
         start = (
             start_hour
             if start_hour is not None
-            else np.random.randint(0, max_start + 1)
+            else int(rng.integers(0, max_start + 1))
         )
         end = start + window_len
 
@@ -247,19 +237,6 @@ def evaluate_model(
             env = VecNormalize.load(vecnormalize_path, env)
             env.training = False
             env.norm_reward = False
-
-        expected_observation_shape = model.observation_space.shape
-        actual_observation_shape = env.observation_space.shape
-        if expected_observation_shape != actual_observation_shape:
-            env.close()
-            raise ValueError(
-                "Model/environment observation-space mismatch: "
-                f"the {algorithm} checkpoint expects {expected_observation_shape}, "
-                f"but SteamEnv emits {actual_observation_shape}. "
-                "This checkpoint was trained with a different observation layout; "
-                "retrain it with the current SteamEnv and use its matching "
-                "VecNormalize statistics."
-            )
 
         obs = env.reset()
         done = False
@@ -281,29 +258,18 @@ def evaluate_model(
             # Log step info
             step_info_list.append({
                 "episode": ep,
+                "start_idx": start,
                 "step": step,
-                "action_repaired": bool(step_info.get("action_repaired", False)),
                 "action_beta_command": step_info.get("beta_command_k"),
                 "action_beta1": step_info.get("beta1_k"),
                 "action_beta2": step_info.get("beta2_k"),
-                "action_beta1_raw": step_info.get("beta1_raw"),
-                "action_beta2_raw": step_info.get("beta2_raw"),
                 "action_R": step_info.get("R_k"),
-                "action_R_commanded": step_info.get("R_commanded_k"),
-                "action_R_applied": step_info.get("R_applied_k"),
-                "R_projection_delta": step_info.get("R_projection_delta_k"),
                 "action_m_I": step_info.get("m_I_k"),
                 "action_T_I": step_info.get("T_I_k"),
-                "f4_projection_applied": bool(step_info.get("f4_projection_applied_k", False)),
-                "f4_projection_feasible": step_info.get("f4_projection_feasible_k"),
-                "f4_infeasible_reasons": step_info.get("f4_infeasible_reasons_k"),
-                "f4_initial_infeasible_reasons": step_info.get("f4_initial_infeasible_reasons_k"),
-                "f4_mode_repair_applied": bool(step_info.get("f4_mode_repair_applied_k", False)),
-                "f4_mode_candidate": step_info.get("f4_mode_candidate_k"),
+                "f4_solution_feasible": step_info.get("f4_solution_feasible_k"),
                 "reward": float(reward[0]),
                 "cost_grid": step_info.get("cost_grid_k"),
                 "P_grid": step_info.get("P_grid_k"),
-                "P_spill": step_info.get("P_spill_k"),
                 "P_HP": step_info.get("P_HP_k"),
                 "P_WT": step_info.get("P_WT_k"),
                 "T_s": step_info.get("T_s_k"),
@@ -315,6 +281,8 @@ def evaluate_model(
                 "constraint_violation_grid_post": _post_grid_violation(step_info),
                 "constraint_violation_bypass": step_info.get("bypass_sum_violation_k"),
                 "constraint_violation_complementarity": step_info.get("complementarity_violation_k"),
+                "constraint_violation_flow": step_info["flow_bound_violation_k"],
+                "constraint_violation_inlet_temperature": step_info["T_I_bound_violation_k"],
                 "constraint_violation_state": step_info.get("state_violation_k"),
                 "constraint_violation_grid": step_info.get("grid_bound_violation_k"),
                 "constraint_violation_f4": abs(step_info.get("f4_residual_k", 0.0)),
@@ -336,7 +304,12 @@ def evaluate_model(
             + trajectory_df_ep["constraint_violation_coupling"].sum()
         )
 
+        terminal_deviation = abs(float(trajectory_df_ep.iloc[-1]["T_s"]) - raw_env.T_s_0)
+        total_violations += trajectory_df_ep["constraint_violation_flow"].sum()
+        total_violations += trajectory_df_ep["constraint_violation_inlet_temperature"].sum()
+        total_violations += terminal_deviation if raw_env.enforce_cyclic_boundary else 0.0
         ep_stats = {
+            "terminal_deviation_C": terminal_deviation,
             "episode": ep,
             "start_idx": start,
             "cumulative_reward": cumulative_reward,
@@ -356,10 +329,7 @@ def evaluate_model(
             "avg_Q_dch": trajectory_df_ep["Q_dch"].mean(),
             "charging_steps": (trajectory_df_ep["Q_ch"] > 1e-3).sum(),
             "discharging_steps": (trajectory_df_ep["Q_dch"] > 1e-3).sum(),
-            "repair_steps": trajectory_df_ep["action_repaired"].sum(),
-            "f4_projection_steps": trajectory_df_ep["f4_projection_applied"].sum(),
-            "f4_infeasible_steps": (trajectory_df_ep["f4_projection_feasible"] == False).sum(),
-            "f4_mode_repair_steps": trajectory_df_ep["f4_mode_repair_applied"].sum(),
+            "f4_infeasible_steps": (trajectory_df_ep["f4_solution_feasible"] == False).sum(),
         }
         episode_stats.append(ep_stats)
         

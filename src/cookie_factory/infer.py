@@ -9,13 +9,16 @@ import os
 
 import numpy as np
 import pandas as pd
-
 from stable_baselines3 import SAC
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from src.cookie_factory.cookie_factory_env import SteamEnv
+from src.cookie_factory.train import (
+    DEFAULT_MODEL_PATH,
+    load_environment_config,
+)
 
 DEFAULT_DATA_PATH = "cookie_model/data_24h_test.xlsx"
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_model"
 DEFAULT_INFERENCE_OUTPUT = "results/metrics/cookie_inference_rollout.csv"
 
 
@@ -62,6 +65,7 @@ def run_inference(
     enforce_cyclic_boundary: bool = True,
     seed: int = 42,
     output_csv: str | None = DEFAULT_INFERENCE_OUTPUT,
+    vecnormalize_path: str | None = None,
 ) -> dict[str, float]:
     """Run deterministic inference on SteamEnv and optionally save rollout CSV."""
     env = SteamEnv(
@@ -73,6 +77,12 @@ def run_inference(
         enforce_cyclic_boundary=enforce_cyclic_boundary,
     )
 
+    normalization = None
+    if vecnormalize_path is not None:
+        normalization = VecNormalize.load(vecnormalize_path, DummyVecEnv([lambda: env]))
+        normalization.training = False
+        normalization.norm_reward = False
+
     obs, _ = env.reset(seed=seed)
     done = False
     step_idx = 0
@@ -80,7 +90,8 @@ def run_inference(
     rows: list[dict[str, float]] = []
 
     while not done:
-        action, _ = model.predict(obs, deterministic=True)
+        policy_obs = normalization.normalize_obs(obs) if normalization is not None else obs
+        action, _ = model.predict(policy_obs, deterministic=True)
         obs, reward, terminated, truncated, info = env.step(action)
         done = bool(terminated or truncated)
 
@@ -107,6 +118,10 @@ def run_inference(
         )
         step_idx += 1
 
+    if normalization is not None:
+        normalization.close()
+    else:
+        env.close()
     rollout_df = pd.DataFrame(rows)
     metrics = {
         "steps": float(len(rollout_df)),
@@ -156,17 +171,23 @@ def main() -> None:
     )
 
     model = SAC.load(args.model_path)
+    config = load_environment_config(args.model_path)
+    vecnormalize_path = f"{args.model_path}_vecnormalize.pkl"
+    if not os.path.exists(vecnormalize_path):
+        vecnormalize_path = None
+        print("VecNormalize statistics not found; using raw observations.")
 
     run_inference(
         model=model,
         g_grid=g_grid_full,
         P_WT=P_WT_full,
-        forecast_h=args.forecast_h,
-        price_scale=price_scale,
-        wind_scale=wind_scale,
-        enforce_cyclic_boundary=not args.no_cyclic_boundary,
+        forecast_h=config.get("forecast_h", args.forecast_h),
+        price_scale=config.get("price_scale", price_scale),
+        wind_scale=config.get("wind_scale", wind_scale),
+        enforce_cyclic_boundary=False if args.no_cyclic_boundary else config.get("enforce_cyclic_boundary", True),
         seed=args.seed,
         output_csv=args.output,
+        vecnormalize_path=vecnormalize_path,
     )
 
 
