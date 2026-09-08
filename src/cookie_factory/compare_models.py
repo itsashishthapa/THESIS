@@ -6,7 +6,7 @@ which is the common objective used by ``SteamEnv`` and ``cookie_optimization``.
 
 Example:
     python -m src.cookie_factory.compare_models \
-        --algorithm SAC --model-path src/cookie_factory/cookie_SAC_terminal \
+        --algorithm SAC --model-path src/cookie_factory/cookie_sac_derived \
         --data cookie_model/WKA_Pe_merged.csv --comparisons 100
 """
 
@@ -28,11 +28,13 @@ from src.cookie_factory.cookie_factory_env import SteamEnv
 from src.cookie_factory.train import (
     DEFAULT_ALGORITHM,
     get_model_class,
+    get_model_path,
     load_cookie_data,
+    load_environment_config,
     normalize_algorithm,
 )
 
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_SAC_terminal"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 DEFAULT_OUTPUT_DIR = "results/cookie_factory_comparison"
 VIOLATION_TOLERANCE = 1e-6
@@ -123,16 +125,13 @@ def run_rl_model(
     price_scale: float,
     wind_scale: float,
     forecast_h: int,
+    env_kwargs: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """Run one deterministic RL rollout and return cost and violations."""
-    raw_env = SteamEnv(
-        prices,
-        wind,
-        forecast_h=forecast_h,
-        price_scale=price_scale,
-        wind_scale=wind_scale,
-        enforce_cyclic_boundary=True,
-    )
+    kwargs = dict(forecast_h=forecast_h, price_scale=price_scale,
+                  wind_scale=wind_scale, enforce_cyclic_boundary=True)
+    kwargs.update(env_kwargs or {})
+    raw_env = SteamEnv(prices, wind, **kwargs)
     env: DummyVecEnv | VecNormalize = DummyVecEnv([lambda: raw_env])
     if vecnormalize_path is not None:
         env = VecNormalize.load(vecnormalize_path, env)
@@ -283,6 +282,7 @@ def compare_models(
 
     algorithm = normalize_algorithm(algorithm)
     model = get_model_class(algorithm).load(model_path)
+    environment_config = load_environment_config(model_path)
     rng = np.random.default_rng(seed)
     summary_rows: list[dict[str, Any]] = []
     trajectory_frames: list[pd.DataFrame] = []
@@ -302,6 +302,7 @@ def compare_models(
             price_scale,
             wind_scale,
             forecast_h,
+            env_kwargs=environment_config,
         )
         pyomo_metrics, pyomo_trajectory, error = run_pyomo_model(
             prices_window,
@@ -513,7 +514,7 @@ def parse_args() -> argparse.Namespace:
         choices=("SAC", "TD3"),
         help="RL algorithm used by the saved model",
     )
-    parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH)
+    parser.add_argument("--model-path", default=None)
     parser.add_argument("--data", default=DEFAULT_DATA_PATH)
     parser.add_argument("--comparisons", type=int, default=10)
     parser.add_argument("--window-len", type=int, default=24)
@@ -535,6 +536,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    args.model_path = args.model_path or get_model_path(args.algorithm)
     summary, trajectories = compare_models(
         model_path=args.model_path,
         algorithm=args.algorithm,
