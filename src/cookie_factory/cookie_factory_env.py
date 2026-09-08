@@ -39,7 +39,6 @@ class SteamEnv(gym.Env):
          P_WT_k_norm,
          mode_hint_prev,
          R_applied_prev_norm,
-         R_projection_delta_prev_norm,
          f4_residual_prev_norm,
          time_index_norm,
          terminal_temperature_gap_norm,
@@ -51,8 +50,7 @@ class SteamEnv(gym.Env):
      -------------------------------------------------------------------------------
      ACTION VECTOR
      -------------------------------------------------------------------------------
-     In the mathematical model:
-     a_k = [beta_command_k, R_k, m_I_k]
+     a_k = [beta_command_k, m_I_k]
      beta_command_k is a signed storage-mode command in [-1, 1].  Its three
      operating bands are:
 
@@ -64,9 +62,10 @@ class SteamEnv(gym.Env):
      +1 respectively request full discharge and full charge.  beta1 and beta2
      are physical bypass coefficients, not direct flow fractions: a value of 1
      closes its corresponding storage flow in F6/F7.
-     R_k is the HTHP surrogate variable (compressor speed),
-     treated as a command and projected to the nearest F4-feasible value when
-     possible. The applied value and projection feedback enter the next observation.
+     R_k is the HTHP surrogate variable (compressor speed), derived by solving
+     F4. If multiple bounded roots exist, select the root nearest the previous
+     applied R (initially 1.165). If none exists, minimize the F4 residual over
+     the R bounds. Previous applied R and F4 residual enter the next observation.
      Here beta1_k and beta2_k are the bypass variables x1 and x2,
      T_I_k is derived by F5, and T_III_k is the cold-side inlet temperature
      (fixed).
@@ -162,10 +161,10 @@ class SteamEnv(gym.Env):
         # Observation = state, prior control values, time/terminal context, and
         # the same complete forecast at every step.
         base_low = np.array(
-            [0.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0, 0.0, -1.0, -1.0, 0.0],
+            [0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, -1.0, 0.0],
             dtype=np.float32,
         )
-        base_high = np.ones(11, dtype=np.float32)
+        base_high = np.ones(10, dtype=np.float32)
         fc_low = -np.ones(2 * self.forecast_h, dtype=np.float32)
         fc_high = np.ones(2 * self.forecast_h, dtype=np.float32)
         self.observation_space = spaces.Box(
@@ -175,8 +174,8 @@ class SteamEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-1.0, 0.8, 5.0], dtype=np.float32),
-            high=np.array([1.0, 1.53, 16.0], dtype=np.float32),
+            low=np.array([-1.0, 5.0], dtype=np.float32),
+            high=np.array([1.0, 16.0], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -249,16 +248,16 @@ class SteamEnv(gym.Env):
         )
         
 
-    def _project_R_for_f4(
+    def _derive_R_for_f4(
         self,
-        R_commanded_k,
+        R_reference_k,
         beta1_k,
         T_0_k,
         T_2_k,
         T_I_k,
         m_I_k,
     ):
-        """Project R to the nearest value satisfying F4, when one exists."""
+        """Derive R from F4, selecting the root nearest the previous applied R."""
         denominator = 1.0 - self.epsilon_ch + self.epsilon_ch * beta1_k
         T_II_required_k = (
             T_2_k - self.epsilon_ch * T_0_k * (1.0 - beta1_k)
@@ -280,7 +279,7 @@ class SteamEnv(gym.Env):
         if feasible_roots:
             R_applied_k = min(
                 feasible_roots,
-                key=lambda candidate: abs(candidate - R_commanded_k),
+                key=lambda candidate: abs(candidate - R_reference_k),
             )
         else:
             derivative_roots = np.roots(
@@ -296,24 +295,17 @@ class SteamEnv(gym.Env):
                 candidates,
                 key=lambda candidate: (
                     abs(np.polynomial.polynomial.polyval(candidate, coefficients) - T_II_required_k),
-                    abs(candidate - R_commanded_k),
+                    abs(candidate - R_reference_k),
                 ),
             )
 
-        T_II_projected_k = float(
+        T_II_derived_k = float(
             np.polynomial.polynomial.polyval(R_applied_k, coefficients)
         )
-        projection_feasible_k = bool(
-            abs(T_II_projected_k - T_II_required_k) <= 1e-5
+        solution_feasible_k = bool(
+            abs(T_II_derived_k - T_II_required_k) <= 1e-5
         )
-        projection_applied_k = bool(
-            not np.isclose(R_applied_k, R_commanded_k, atol=1e-6, rtol=0.0)
-        )
-        return (
-            float(R_applied_k),
-            projection_applied_k,
-            projection_feasible_k,
-        )
+        return float(R_applied_k), solution_feasible_k
 
     def _forecast_window(self):
         """Return the complete configured price and wind forecast at every step."""
@@ -341,7 +333,6 @@ class SteamEnv(gym.Env):
                 self._norm_01(self.P_WT[k], 0.0, max(self.wind_scale, 1e-6)),
                 self._last_mode,
                 self._norm_01(self._last_R_k, 0.8, 1.53),
-                self._last_R_projection_delta_k / (1.53 - 0.8),
                 float(
                     np.clip(
                         self._last_f4_residual_k / temperature_range,
@@ -409,7 +400,6 @@ class SteamEnv(gym.Env):
         self.T_s_k = self.T_s_0
         self._last_mode = 0
         self._last_R_k = 0.5 * (0.8 + 1.53)
-        self._last_R_projection_delta_k = 0.0
         self._last_f4_residual_k = 0.0
         self._last_beta_command_k = 0.0
         self._last_m_I_k = 0.5 * (5.0 + 16.0)
@@ -425,10 +415,9 @@ class SteamEnv(gym.Env):
 
         beta_command_k = float(np.clip(action[0], -1.0, 1.0))
         beta1_k, beta2_k, mode_k = self._map_beta_command(beta_command_k)
-        R_commanded_k = float(action[1])
-        m_I_k = float(action[2])
+        R_reference_k = self._last_R_k
+        m_I_k = float(action[1])
         # C 15 (bounds)
-        R_commanded_k = float(np.clip(R_commanded_k, 0.8, 1.53))
         m_I_k = float(np.clip(m_I_k, 5.0, 16.0))
 
         k = self.k
@@ -457,17 +446,16 @@ class SteamEnv(gym.Env):
 
         (
             R_applied_k,
-            f4_projection_applied_k,
-            f4_projection_feasible_k,
-        ) = self._project_R_for_f4(
-            R_commanded_k=R_commanded_k,
+            f4_solution_feasible_k,
+        ) = self._derive_R_for_f4(
+            R_reference_k=R_reference_k,
             beta1_k=beta1_k,
             T_0_k=T_0_k,
             T_2_k=T_2_k,
             T_I_k=T_I_k,
             m_I_k=m_I_k,
         )
-        R_projection_delta_k = R_applied_k - R_commanded_k
+        R_selection_delta_k = R_applied_k - R_reference_k
 
         # F1/F3: HTHP surrogate, evaluated with the F5-consistent T_I_k.
         P_HP_k, T_II_k = self._HTHP_surrogate(
@@ -566,7 +554,6 @@ class SteamEnv(gym.Env):
 
         self._last_mode = mode_k
         self._last_R_k = R_applied_k
-        self._last_R_projection_delta_k = R_projection_delta_k
         self._last_f4_residual_k = f4_residual_k
         self._last_beta_command_k = beta_command_k
         self._last_m_I_k = m_I_k
@@ -575,11 +562,10 @@ class SteamEnv(gym.Env):
             "beta1_k": beta1_k,
             "beta2_k": beta2_k,
             "R_k": R_applied_k,
-            "R_commanded_k": R_commanded_k,
+            "R_selection_reference_k": R_reference_k,
+            "R_selection_delta_k": R_selection_delta_k,
             "R_applied_k": R_applied_k,
-            "R_projection_delta_k": R_projection_delta_k,
-            "f4_projection_applied_k": f4_projection_applied_k,
-            "f4_projection_feasible_k": f4_projection_feasible_k,
+            "f4_solution_feasible_k": f4_solution_feasible_k,
             "m_I_k": m_I_k,
             "T_I_k": T_I_k,
             "T_s_k": self.T_s_k,
@@ -638,7 +624,7 @@ class RandomWindowEnv(gym.Env):
         self._sample_new_window()
 
     def _sample_new_window(self):
-        start = np.random.randint(0, self.max_start + 1)
+        start = int(self.np_random.integers(0, self.max_start + 1))
         end = start + self.window_len
         self.env = SteamEnv(
             self.g_grid_full[start:end],
@@ -646,9 +632,10 @@ class RandomWindowEnv(gym.Env):
             **self.kwargs,
         )
 
-    def reset(self, **kwargs):
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
         self._sample_new_window()
-        return self.env.reset(**kwargs)
+        return self.env.reset(seed=seed, options=options)
 
     def step(self, action):
         return self.env.step(action)
