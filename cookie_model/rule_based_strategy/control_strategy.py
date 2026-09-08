@@ -1,12 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import optimize
 import csv
 import os
 from pathlib import Path
-from pandas import DataFrame
+
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from scipy.optimize import NonlinearConstraint, Bounds
+from pandas import DataFrame
+from scipy import optimize
+from scipy.optimize import Bounds, NonlinearConstraint
 
 """
 script to calculate time series according to simple rule based strategies
