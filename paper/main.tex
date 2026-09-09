@@ -17,6 +17,15 @@
 \usepackage{amssymb}
 \usepackage{xcolor}
 \usepackage{array}
+\usepackage{indentfirst}
+\setlength{\parindent}{1.5em}
+% Start on a recto page even with the one-sided article layout.
+\newcommand{\cleartooddpage}{%
+    \clearpage
+    \ifodd\value{page}\else
+        \null\thispagestyle{empty}\newpage
+    \fi
+}
 
  
 %--------------------------------------------%
@@ -69,7 +78,7 @@ Title and name of adviser (optional)
 }
 %%% ENTER (real) SUBMISSION DATE HERE%%%
 \newcommand{\SUBMISSIONDATE}{
-25 June 2026
+19 September 2026
 }
 %%% ENTER THE ABSTRACT IN ENGLISH HERE %%%
 %%% Should not exceed half a page %%%
@@ -83,7 +92,7 @@ Beispielzusammenfassung in Deutsch.
 }
 %%% ENTER THE (exact) TASK DESCRIPTION HERE %%%
 \newcommand{\TASKDESCRIPTION}{
-Energy utility systems are the backbone of modern energy infrastructure. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimization. These approaches rely on accurate system models and are typically formulated as constrained optimization problems. While effective for well-defined and moderately sized systems, classical optimization becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from the integration of renewable sources, and model-plant mismatches makes it challenging to use purely model-based approaches.
+Energy utility systems are the backbone of industries. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimization. These approaches rely on accurate system models and are typically formulated as constrained optimization problems. While effective for well-defined and moderately sized systems, classical optimization becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from the integration of renewable sources, and model-plant mismatches makes it challenging to use purely model-based approaches.
 
 This thesis investigates whether reinforcement learning can find optimal operating setpoints for two case studies of different complexity: a battery energy storage system and a non-linear cookie production factory. For each system, the control task is formulated as a Markov decision process (MDP) with explicit state, action, and reward definitions aligned with operational objectives. The RL agent is trained to produce adaptive setpoint policies that maximize battery profit or minimize cookie-factory operating cost while satisfying process constraints and preserving stable operation. The learned policies are then benchmarked against established mathematical optimization methods to determine where RL provides practical benefits and where its limitations remain.
 
@@ -97,7 +106,9 @@ The evaluation of the proposed method will be conducted through systematic simul
 %--------------------------------------------%
 
 
-\pagenumbering{gobble}
+% Count all front-matter pages from the cover, but hide its page number.
+\pagenumbering{roman}
+\thispagestyle{empty}
 \begin{center}
 	{\Huge \TITLE}
 \end{center}
@@ -118,7 +129,6 @@ The evaluation of the proposed method will be conducted through systematic simul
 		\begin{tabular}{ll}
 			{\Large Reviewer:}        & {\Large \FIRSTREVIEWER}  \\[1em]
 			{\Large Reviewer:}        & {\Large \SECONDREVIEWER} \\[1em]
-			{\Large Adviser:}         & {\Large \ADVISER}        \\[2em]
 			{\Large Submission date:} & {\Large \SUBMISSIONDATE}
 		\end{tabular}
 	\end{table}
@@ -127,13 +137,11 @@ The evaluation of the proposed method will be conducted through systematic simul
 
 \newpage\null\thispagestyle{empty}\newpage
 
-\pagenumbering{Roman}
 ~
 \begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords) 
 	\section*{\underline{Declaration of independence}}
 	\vspace{1cm}
-	I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\\[0.5cm]
-	\noindent
+	I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\par\vspace{0.5cm}
 	I agree that the thesis will be checked for plagiarism with the help of a plagiarism detection service.\\[2cm]
 	\noindent
 	{Cottbus, \SUBMISSIONDATE}{\hspace*{2.725cm}\underline{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}} \\
@@ -149,6 +157,7 @@ The evaluation of the proposed method will be conducted through systematic simul
 \section*{\underline{Abstract}}
 \vspace{0.5cm}
 \ABSTRACT
+\cleartooddpage
 \section*{\underline{Zusammenfassung}}
 \vspace{0.5cm}
 \ZUSAMMENFASSUNG
@@ -265,7 +274,7 @@ Another important distinction is whether the problem is deterministic or stochas
 
 Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. Wächter and Biegler introduce IPOPT as an open-source solver for large-scale nonlinear programming that uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}.
 
-To illustrate the interior-point principle, consider the general problem in Eq.~\eqref{eq:general_constrained_optimization}. Introducing slack variables converts the inequality constraints into $g(x)+s=0$, where $s\geq 0$. A logarithmic barrier with parameter $\mu>0$ restricts the iterates to the interior, $s>0$, and leads to the subproblem
+To illustrate the interior-point principle, consider the general problem in Eq.~\eqref{eq:general_constrained_optimization}. Introducing slack variables converts the inequality constraints into $g(x)+s=0$, where $s\geq 0$. Here, $s=(s_1,\ldots,s_q)^\top$, and $s_j$ is the slack variable associated with the $j$th inequality $g_j(x)\leq 0$. A logarithmic barrier with parameter $\mu>0$ restricts the iterates to the interior, $s>0$, and leads to the subproblem
 \begin{equation}
 \begin{aligned}
 \min_{x,s}\quad & f(x) - \mu\sum_{j=1}^{q}\ln(s_j) \\
