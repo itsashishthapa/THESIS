@@ -515,7 +515,7 @@ Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid p
 
 % In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $W_t$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $W_{t+1:t+H}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
-The cookie-factory mathematical-optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_1^t$ and $\beta_2^t$, the compressor-speed-related variable $R^t$, the mass flow rate $\dot{m}_{\mathrm{I}}^t$, and the HTHP inlet temperature $T_{\mathrm{I}}^t$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. This use case is more complex than the battery system because it combines five continuous control dimensions with non-linear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
+The cookie-factory mathematical-optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_1^t$ and $\beta_2^t$, the compressor-speed-related variable $R^t$, the mass flow rate $\dot{m}_{\mathrm{I}}^t$, and the HTHP inlet temperature $T_{\mathrm{I}}^t$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed storage-mode command and the mass flow rate $\dot{m}_{\mathrm{I}}^t$. The environment maps the storage-mode command to $\beta_1^t$ and $\beta_2^t$ and derives $R^t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
 \cleartooddpage
 \section{Methodology}
@@ -717,13 +717,63 @@ The main advantage of the TD3 policy was computation time. The trained TD3 model
 
 \subsection{Cookie Production Factory}
 
+The trained SAC policy was compared with mathematical optimization over ten matched 24-hour windows. Table~\ref{tab:cookie_sac_comparison} summarizes the economic objective, computation time, and aggregate constraint violation. The mathematical-optimization formulation achieved the lower cost in all ten windows. Its mean cost was $1898.6259 \pm 694.5588$~EUR, compared with $2019.9256 \pm 637.5719$~EUR for SAC. The resulting mean SAC--mathematical-optimization gap was 121.2997~EUR, and the mean absolute relative gap was 12.94\%.
+
+\begin{table}[!b]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.42\textwidth}>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.25\textwidth}}
+\hline
+Metric & SAC policy & Mathematical optimization \\
+\hline
+Mean cost [EUR] & $2019.9256 \pm 637.5719$ & $1898.6259 \pm 694.5588$ \\
+Mean computation time [s] & $0.0455$ & $14.4743$ \\
+Mean total constraint violation & $1.4341$ & None within numerical tolerance \\
+\hline
+\end{tabular}
+\caption{Comparison of the trained SAC policy and mathematical optimization over ten matched 24-hour cookie-factory windows. Lower values are better for the cost and constraint-violation metrics.}
+\label{tab:cookie_sac_comparison}
+\end{table}
+
+The trained SAC policy required 0.0455~s on average to generate a schedule, whereas mathematical optimization required 14.4743~s. Thus, SAC was approximately $318.39\times$ faster during online evaluation; its offline training time is not included in this comparison. This reduction in computation time was accompanied by lower economic performance and weaker constraint satisfaction. The mean total constraint violation was 1.4341 for SAC, while mathematical optimization produced no constraint violation within numerical solver tolerance. For SAC, the nonzero mean contributions were 0.3867 from the $F_4$ coupling residual and 1.0473 from the terminal cyclic-storage condition; the reported flow, grid-power, inlet-temperature, and state-bound violations were zero on average.
+
+Figure~\ref{fig:cookie_sac_dispatch} illustrates the schedules produced for one 24-hour window. In this example, SAC obtained a cost of 1391.71~EUR, while mathematical optimization obtained 1130.70~EUR, corresponding to a gap of 261.01~EUR, or approximately 23.1\% relative to the mathematical-optimization result. Both schedules respond to the available wind power and time-varying electricity price. However, mathematical optimization uses a broader TES temperature range: it charges the storage during the earlier part of the horizon and discharges strongly during the high-price period around hours 17--20. The SAC policy follows a less pronounced storage trajectory and consequently requires more grid electricity in parts of the horizon.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=\textwidth]{figures/cookie_factory_dispatch_plot_sac.png}
+    \caption{Illustrative 24-hour cookie-factory dispatch comparison between the SAC policy and mathematical optimization. ``Math'' denotes mathematical optimization. Positive net thermal flow indicates TES charging, and negative net thermal flow indicates discharging.}
+    \label{fig:cookie_sac_dispatch}
+\end{figure}
+
+These results show that the trained policy can generate setpoints rapidly using the reduced two-dimensional cookie-factory action space, but the mathematical-optimization baseline retains an advantage in both operating cost and feasibility.
+
 \subsection{Key Findings}
 
 \cleartooddpage
 \section{Conclusion and Future Work}
 \label{sec:conclusion_future_work}
-\textcolor{blue}{Summarizes the main findings and outlines possible future work.}
 
+\subsection{Conclusion}
+
+This thesis investigated whether reinforcement learning can determine feasible and cost-effective operating setpoints for energy utility systems of different complexity. The setpoint-selection tasks were formulated as finite-horizon Markov decision processes and evaluated for a battery energy storage system and the electrified steam-generation utility system of a cookie production factory. The battery represents a one-dimensional storage-control problem, whereas the cookie-factory mathematical-optimization model contains five coupled control variables and nonlinear process constraints. For the cookie-factory RL formulation, the action space was reduced to two dimensions by allowing the policy to select the storage mode and mass flow while deriving the remaining quantities through the process equations. In both cases, the trained policies were compared with mathematical optimization using the original economic objective, constraint satisfaction, and online computation time.
+
+For the battery system, mathematical optimization achieved the highest mean profit, but the TD3 policy approached its performance closely. Across 1000 randomly sampled 24-hour windows, the mean objective was $-3.0223$~EUR for TD3 and $-3.1851$~EUR for mathematical optimization, giving a mean gap of 0.1628~EUR. TD3 also produced SOC trajectories that used a similar portion of the available storage range. Its main advantage was speed: a complete policy rollout required 0.0082~s on average, compared with 0.5605~s for mathematical optimization, corresponding to a speedup of approximately $68.13\times$. The terminal-SOC study showed that feasibility and economic performance must be considered together. A progressive reachability penalty eliminated the observed terminal violations, but it also increased the objective gap. Without this penalty, the violation rate was 4\%, although the mean shortfall was only 0.000252.
+
+The cookie factory presented a more difficult control problem because nonlinear surrogate equations, storage dynamics, and process constraints must be satisfied simultaneously. Across ten matched 24-hour windows, SAC achieved a mean cost of $2019.9256 \pm 637.5719$~EUR, while mathematical optimization achieved $1898.6259 \pm 694.5588$~EUR. The mean cost gap was 121.2997~EUR, and the mean absolute relative gap was 12.94\%. SAC generated a schedule in 0.0455~s on average, compared with 14.4743~s for mathematical optimization, resulting in a speedup of approximately $318.39\times$. However, the SAC schedules retained violations of the $F_4$ coupling relation and the cyclic terminal-storage condition, while mathematical optimization produced no constraint violation within numerical solver tolerance. Reducing the policy action space to two dimensions simplified the learning problem, but it did not by itself ensure satisfaction of all coupled constraints.
+
+The results therefore provide a qualified answer to the research question. Reinforcement learning can learn continuous setpoint policies that produce economically meaningful schedules with very low online computation time. Its practical value is strongest when decisions must be generated repeatedly under short computation-time limits and when offline training can be performed in advance. In the simpler battery system, the learned policy remained close to the mathematical-optimization benchmark. As system complexity and constraint coupling increased, the gap in operating cost and feasibility became more pronounced. Mathematical optimization remained superior when the best objective value and reliable constraint satisfaction were the primary requirements.
+
+\subsection{Future Work}
+
+Constraint handling should be strengthened for the cookie-factory policy. The observed $F_4$ coupling residual and terminal cyclic-storage deviation could be addressed through constraint-preserving action mappings, action projection, constrained RL methods, or a small repair optimization applied to the policy output. A progressive reachability mechanism similar to the one studied for the battery could provide earlier feedback on whether the terminal TES target remains attainable. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
+
+The present evaluation uses fixed 24-hour price and wind profiles that are available to both methods. A rolling-horizon implementation should instead update forecasts and setpoints as new measurements become available. This would allow the policies to be tested under forecast errors, measurement noise, disturbances, and model--plant mismatch. Domain randomization or targeted retraining could then be used to improve robustness to operating conditions not represented in the original training data.
+
+The mathematical-optimization comparison can also be extended. Warm-started IPOPT and hybrid methods such as BO-IPOPT should be evaluated on the same windows and computation budgets. A fair practical comparison should include solution quality, feasibility, initialization sensitivity, and computation time, while also accounting for the offline training cost of RL and the number of repeated online decisions required to amortize that cost. Hybrid approaches are particularly promising: a learned policy could provide a rapid initial schedule, followed by mathematical optimization to restore feasibility and improve the objective. Finally, the proposed policies should be validated using a higher-fidelity process model and, subsequently, a hardware-in-the-loop or real-plant implementation. 
+
+\cleartooddpage
 %Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
 %Important note: Google Scholar offers the "Cite" feature - the information there must always be checked! They are often not completely correct!
 
