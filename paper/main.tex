@@ -7,7 +7,7 @@
 %Spracheinstellung / language setting / replace "english" if needed
 \usepackage[english]{babel}
 \usepackage[absolute,overlay]{textpos}
-\usepackage[giveninits=true,sorting=none,style=numeric,maxbibnames=5]{biblatex}
+\usepackage[giveninits=true,sorting=none,sortcites=true,style=numeric,maxbibnames=5]{biblatex}
 \usepackage{csquotes}
 \addbibresource{Sources.bib}
 \usepackage{amsmath}
@@ -17,6 +17,7 @@
 \usepackage{amssymb}
 \usepackage{xcolor}
 \usepackage{array}
+\usepackage{longtable}
 \usepackage{indentfirst}
 \setlength{\parindent}{1.5em}
 % Start on a recto page even with the one-sided article layout.
@@ -125,13 +126,11 @@ The evaluation of the proposed method will be conducted through systematic simul
 	\end{center}
 \end{textblock*}
 \begin{textblock*}{\paperwidth}(2.45cm,21cm) % {block width} (coords) 
-	\begin{table}[!ht]
-		\begin{tabular}{ll}
-			{\Large Reviewer:}        & {\Large \FIRSTREVIEWER}  \\[1em]
-			{\Large Reviewer:}        & {\Large \SECONDREVIEWER} \\[1em]
-			{\Large Submission date:} & {\Large \SUBMISSIONDATE}
-		\end{tabular}
-	\end{table}
+	\begin{tabular}{ll}
+		{\Large Reviewer:}        & {\Large \FIRSTREVIEWER}  \\[1em]
+		{\Large Reviewer:}        & {\Large \SECONDREVIEWER} \\[1em]
+		{\Large Submission date:} & {\Large \SUBMISSIONDATE}
+	\end{tabular}
 \end{textblock*}
 
 
@@ -185,6 +184,7 @@ The evaluation of the proposed method will be conducted through systematic simul
 AI    & Artificial Intelligence \\
 ANN   & Artificial Neural Network \\
 BESS  & Battery Energy Storage System \\
+BO    & Bayesian Optimization \\
 CPU   & Central Processing Unit \\
 EUR   & Euro \\
 HTHP  & High-Temperature Heat Pump \\
@@ -203,6 +203,9 @@ WT    & Wind Turbine \\
 \end{tabular}
 \endgroup
 
+\clearpage
+\input{nomenclature}
+
 \newpage\null\thispagestyle{empty}\newpage
 \pagenumbering{arabic}
 
@@ -217,13 +220,15 @@ WT    & Wind Turbine \\
 \section{Introduction}
 \label{Section1}
 
-The operation of modern energy utility systems is shaped by dynamic conditions and multiple sources of uncertainty. Electricity prices vary over time, renewable generation is weather dependent, and storage systems couple current decisions with future operating flexibility \cite{khalid2024smart}. At the same time, industrial energy systems often contain nonlinear component behavior, operating and coupling constraints that must be respected at every time step. The resulting setpoint selection problem is therefore not only an economic problem, but also a constrained sequential decision-making problem.
+Modern energy utility systems supply the electricity and heat needed to sustain industrial production and other essential activities. Their efficient operation is important for meeting energy demand while limiting operating costs and environmental impacts. Key objectives of industrial energy management include reducing operating costs and CO$_2$ emissions, improving energy efficiency, and integrating renewable energy sources. Achieving these objectives requires coordinated decisions about energy conversion, storage, and supply while satisfying the requirements of the processes being served.
 
-In many engineering applications, such setpoints are determined using mathematical optimization. This approach is attractive because physical constraints and objective functions can be formulated explicitly, and mature solvers can compute high-quality solutions for well-defined models. For energy systems, nonlinear programming methods such as IPOPT \cite{wachter2006implementation} are commonly used when component models, storage dynamics, and operational constraints are nonlinear \cite{walden2023nonlinear}. In a real-plant application, Kyriakidis, Kansara, and Rold{\'a}n Serrano show that deterministic and stochastic optimization methods can have high computational costs and slow convergence for large-scale nonlinear problems with complex constraints. They further show that forecast uncertainty, optimization-horizon length, and the available computation time affect operational decisions \cite{kyriakidis2025energy}.
+These operating decisions are shaped by dynamic conditions and multiple sources of uncertainty. Electricity prices vary over time, renewable generation is weather dependent, and storage systems couple current decisions with future operating flexibility \cite{khalid2024smart}. At the same time, industrial energy systems often contain nonlinear component behavior, operating and coupling constraints that must be respected at every time step. The resulting setpoint selection problem is therefore not only an economic problem, but also a constrained sequential decision-making problem.
+
+In many engineering applications, such setpoints are determined using mathematical optimization. This approach is attractive because physical constraints and objective functions can be formulated explicitly, and mature solvers can compute high-quality solutions for well-defined models. For energy systems, nonlinear programming methods such as IPOPT \cite{wachter2006implementation} are commonly used when component models, storage dynamics, and operational constraints are nonlinear \cite{walden2023nonlinear}. However, deterministic global optimization can become computationally demanding for large-scale or nonconvex problems, making it difficult to obtain a globally optimal solution within a practical time limit \cite{lin2012deterministic}. Stochastic global optimization methods can also require many objective-function evaluations and exhibit slow convergence, with computational cost increasing as the problem dimension grows \cite{zhigljavsky2008stochastic}. In industrial energy management, forecast uncertainty, optimization-horizon length, and computation time per rolling-horizon iteration are additional factors that influence system performance \cite{kyriakidis2025energy}.
 
 Reinforcement learning (RL) provides a different perspective. Unlike classical control and optimization methods that solve a trajectory-optimization problem from scratch at each operating horizon, RL agents learn a policy or action-value function gradually through interactive experience. Once trained, this learned representation enables rapid selection of actions from the current observation \cite{sutton2018reinforcement}. This makes RL attractive for real-time or repeated decision-making problems, especially when the system is complex, nonlinear, and operates in a changing environment \cite{pilling2025rl}. Nevertheless, RL does not automatically guarantee feasibility or optimality. For engineering use, a learned policy must be evaluated not only by its reward, but also by its operating cost, constraint satisfaction, and computation time relative to established optimization methods.
 
-This thesis investigates whether RL can be used for optimal setpoint determination in energy utility systems. Two case studies are considered. The first is a battery energy storage system (BESS), which represents a comparatively low-dimensional storage-control problem with time-varying electricity prices. The second is a nonlinear cookie production factory with an electrified steam-generation utility system, wind-power availability, thermal energy storage, and coupled process constraints based on the benchmark systems described by Walden et al. and Kyriakidis et al. \cite{walden2023nonlinear,kyriakidis2024hybrid}.
+This thesis investigates whether RL can be used for optimal setpoint determination in energy utility systems of different complexity. Two case studies are considered to examine how the number of control variables, nonlinear component behavior, and coupling between operational constraints affect the applicability of RL. The first is a battery energy storage system (BESS), which represents a comparatively simple storage-control problem with a single charging or discharging command, state-of-charge dynamics, and time-varying electricity prices. The second is the electrified steam-generation utility system of a cookie production factory, incorporating wind power and thermal energy storage. Based on the benchmark systems described by Walden et al. and Kyriakidis et al. \cite{walden2023nonlinear,kyriakidis2024hybrid}, this case has greater complexity because it combines multiple continuous control variables, nonlinear heat-pump and heat-transfer behavior, and coupled mass-flow, temperature, and storage constraints. Comparing the two cases allows the benefits and limitations of RL to be assessed across a simpler storage system and a more complex industrial energy utility system.
 
 The central research question of this thesis is:
 \begin{quote}
@@ -239,9 +244,9 @@ This question is addressed through the following subquestions:
 
 For each case study, the setpoint optimization problem is first formulated as a Markov decision process (MDP). Deep neural networks are used to parameterize the RL policies that map system observations to continuous setpoint decisions. The resulting policies are evaluated through deterministic rollouts in reinforcement-learning environments, and the resulting schedules are compared with mathematical optimization baselines. The comparison is based on total grid-electricity cost, constraint violations, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
 
-The remainder of this thesis is structured as follows. Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces mathematical optimization as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~\ref{sec:use_case} introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~\ref{sec:methodology} presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~\ref{sec:results_discussion} reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and mathematical optimization. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
+The remainder of this thesis is structured as follows: Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces mathematical optimization as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~\ref{sec:use_case} introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~\ref{sec:methodology} presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~\ref{sec:results_discussion} reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and mathematical optimization. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
 
-\newpage
+\cleartooddpage
 \section{Theory and Background}
 \label{sec:theory_background}
 
@@ -251,7 +256,7 @@ Here, RL is not treated as a substitute for physical constraints. Instead, the s
 
 \subsection{Setpoint Optimization in Energy Utility Systems}
 
-Energy utility systems are operated by choosing setpoints for controllable components such as storage units, heat pumps, valves, and bypasses. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the bypass variable $\beta_1$, or a mass flow rate. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and overall system reliability and lifetime \cite{tran2025safe}.
+Energy utility systems are operated by choosing setpoints that determine how components such as storage units, heat pumps, valves, and bypasses are controlled. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the bypass variable $\beta_1$, or a mass flow rate. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and overall system reliability and lifetime \cite{tran2025safe}.
 
 Setpoint determination is also inherently sequential. The best operating point at one time step cannot be chosen independently of what happened before or what may be needed later. Storage systems make this especially clear. Charging a battery or a thermal energy storage can increase future flexibility, but it may also increase the current electricity cost. Discharging can reduce current grid consumption or generate sale revenue, but it leaves less stored energy for later. Good setpoint decisions must therefore account for inter-temporal dependencies and physical operating limits \cite{walden2023nonlinear}. Each action affects both the immediate economic outcome and the feasible decisions available at later time steps; consequently, its quality must be evaluated over the full planning horizon rather than solely at the current time step \cite{takam2025stochastic}.
 
@@ -259,7 +264,7 @@ In practical operation, the controller also has to react to external signals suc
 
 \subsection{Mathematical Optimization}
 
-Mathematical optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating cost or energy consumption, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
+Mathematical optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating costs, energy consumption, or CO$_2$ emissions, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
 \begin{equation}
 \min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
 \label{eq:general_constrained_optimization}
@@ -274,6 +279,8 @@ Another important distinction is whether the problem is deterministic or stochas
 
 Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. Wächter and Biegler introduce IPOPT as an open-source solver for large-scale nonlinear programming that uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}.
 
+More advanced hybrid optimization methods, such as Bayesian Optimization-Interior Point OPTimizer (BO-IPOPT), have been developed for complex nonlinear, nonconvex, and constrained optimization problems. BO--IPOPT combines the global exploration capability of Bayesian optimization with the efficient local convergence and constraint handling of IPOPT. The method has been evaluated for the optimal operation of an industrial energy conversion system and subsequently enhanced for constrained problems of varying dimensionality, multimodality, and nonlinearity \cite{kyriakidis2024hybrid,kyriakidis2025enhanced}. In this thesis, IPOPT is used as the mathematical-optimization baseline because of its wide applicability to nonlinear optimization problems. The evaluation of BO-IPOPT as an additional global optimization baseline is left for future work.
+
 To illustrate the interior-point principle, consider the general problem in Eq.~\eqref{eq:general_constrained_optimization}. Introducing slack variables converts the inequality constraints into $g(x)+s=0$, where $s\geq 0$. Here, $s=(s_1,\ldots,s_q)^\top$, and $s_j$ is the slack variable associated with the $j$th inequality $g_j(x)\leq 0$. A logarithmic barrier with parameter $\mu>0$ restricts the iterates to the interior, $s>0$, and leads to the subproblem
 \begin{equation}
 \begin{aligned}
@@ -282,7 +289,7 @@ To illustrate the interior-point principle, consider the general problem in Eq.~
 \end{aligned}
 \label{eq:ipopt_barrier_problem}
 \end{equation}
-The logarithmic barrier prevents the iterates from reaching the constraint boundary. IPOPT solves a sequence of such subproblems using a primal-dual Newton method. With equality multipliers $y$ and inequality multipliers $z$, the perturbed Karush--Kuhn--Tucker conditions are
+The logarithmic barrier prevents the iterates from reaching the constraint boundary. IPOPT solves a sequence of such subproblems using a primal-dual Newton method. With equality multipliers $y$ and inequality multipliers $z$, the perturbed Karush-Kuhn-Tucker(KKT) conditions are
 \begin{equation}
 \begin{aligned}
 \nabla f(x)+J_h(x)^\top y+J_g(x)^\top z &= 0, \\
@@ -301,7 +308,7 @@ These considerations motivate the investigation of reinforcement learning as a c
 
 Reinforcement learning (RL) offers a different view of the same setpoint problem. Instead of solving an optimization problem from scratch at every decision time, an agent learns from repeated interaction with an environment. At each time step, the agent observes the current state, selects an action, receives a reward, and observes the next state. Over time, it adapts its policy so that actions leading to high long-term reward become more likely \cite{sutton2018reinforcement}.
 
-\begin{figure}[htbp]
+\begin{figure}[!tb]
     \centering
     \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
     \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process \cite{ebatllep2020markov}.}
@@ -358,7 +365,7 @@ To locate the algorithm used in this thesis, it is helpful to briefly classify t
     \item Tabular and deep RL methods: tabular methods store values explicitly for small state and action spaces. Deep RL uses neural networks as function approximators and is therefore more suitable for large or continuous spaces.
 \end{itemize}
 
-The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. TD3 and SAC are therefore selected because they learn parameterized policies that output continuous actions directly.
+The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. Twin Delayed Deep Deterministic Policy Gradient (TD3) and Soft Actor Critic (SAC) are therefore selected because they learn parameterized policies that output continuous actions directly.
 
 Both methods use an actor-critic architecture. The actor maps the current state to continuous setpoint decisions, while the critic estimates their expected long-term effect on operating cost and future system states. TD3 and SAC are applied to learn continuous setpoint policies for both case studies.
 
@@ -402,16 +409,19 @@ where $a$ is an action sampled from the policy, and $\log \pi(a\mid x)$ is the l
 
 The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
+\cleartooddpage
 \section{Use Cases}
 \label{sec:use_case}
+
+This section presents the two case studies used to evaluate reinforcement learning for setpoint determination at different levels of system complexity. The first subsection introduces the battery energy storage system as the simpler case, with one control command and state-of-charge dynamics. The second subsection presents the cookie production factory as the more complex case, with multiple controllable components, nonlinear process behavior, thermal energy storage, and coupled operational constraints.
 
 \subsection{Battery Energy Storage System}
 
 Battery energy storage systems (BESS) are electrochemical devices that store electrical energy for later use and provide grid services such as energy arbitrage, peak shaving, and short-term balancing. A typical BESS is characterized by its usable energy capacity, maximum charge/discharge power, round-trip efficiency, and state-of-charge (SOC) operating limits. Real-world operation must balance economic objectives (e.g., buying electricity at low prices and selling it at high prices) with engineering constraints (SOC bounds, power limits, efficiency losses).
 
-BESS presents several challenges. Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
+BESS presents several challenges: Decisions are inherently time-coupled because current charging/discharging changes future availability. In addition, uncertain exogenous signals (market prices) require policies that are robust to forecast errors, and hard feasibility constraints must be enforced at every time step. These properties make BESS an illustrative case study for comparing optimization-based and reinforcement-learning approaches to real-time setpoint determination in energy systems.
 
-\begin{figure}[htbp]
+\begin{figure}[!tb]
     \centering
     \includegraphics[width=0.62\textwidth]{figures/battery_model.pdf}
     \caption{Schematic of the battery energy storage system. The battery charges from the grid and sells electricity back to the grid; its state of charge $\mathrm{SOC}(t)$ records the stored energy.}
@@ -427,8 +437,7 @@ The SOC dynamics are modeled as
 where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ the usable energy capacity, and $\Delta t$ the time step. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
-P_t^{\mathrm S}
-&= P_{\max}\Big[
+&P_t^{\mathrm S} = P_{\max}\Big[
 \frac{1}{2}\left(1+\tanh\bigl(k(u_t-\delta)\bigr)\right)u_t
 \nonumber\\
 &\quad {}\times
@@ -440,8 +449,7 @@ P_t^{\mathrm S}
 &\quad {}\times
 \frac{1}{2}\left(1+\tanh\bigl(k(\mathrm{SOC}_t-0.005)\bigr)\right)
 \Big], \quad \forall t, \label{eq:bess_power_mapping} \\
-P_{\text{actual},t}
-&= \frac{P_t^{\mathrm S}}{2}
+&P_{\text{actual},t} = \frac{P_t^{\mathrm S}}{2}
 \Biggl[
 \left(1+\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\eta
 \nonumber\\
@@ -449,13 +457,15 @@ P_{\text{actual},t}
 + \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
 \Biggr],
 \quad \forall t, \label{eq:feasible_actual_power} \\
-\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}}.
+&\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}}.
 \label{eq:terminal_soc_requirement}
 \end{align}
 
-Here, $u_t$ is the normalized control command, $P_{\max}$ is the maximum charging and discharging power, $k$ controls the steepness of the smooth action and SOC gates, and $\delta=0.0025$ defines a small action deadband. The terminal-SOC requirement is $\mathrm{SOC}_{\mathrm{term}}^{\min}=0.5$.
+Here, $u_t$ is the normalized control command and $P_{\max}$ is the maximum charging and discharging power. The parameter $k=700$ controls the steepness of the smooth action and SOC gates: increasing $k$ makes their transitions more abrupt, whereas decreasing it produces a wider and more gradual transition. The parameter $\delta$ shifts the charging and discharging gates away from zero and thereby defines a smooth deadband for small control commands. The implemented value $\delta=0.0025$ corresponds to $0.25\%$ of the maximum normalized action magnitude, or a nominal power command of $0.05\,\mathrm{kW}$ for $P_{\max}=20\,\mathrm{kW}$. This small numerical deadband attenuates near-zero commands and reduces switching around zero while leaving the usable action range effectively unchanged.
 
-The parameter $\eta$ describes the charging and discharging efficiency, while $\epsilon$ controls the smooth transition between the two operating directions. Equation~\eqref{eq:bess_power_mapping} maps the normalized action and current SOC to grid-side battery power. It progressively restricts charging as SOC approaches $0.995$ and discharging as SOC approaches $0.005$. Equation~\eqref{eq:feasible_actual_power} maps grid-side power to storage-side power through the smooth efficiency relation. Finally, the mathematical-optimization model enforces the terminal-SOC requirement in Eq.~\eqref{eq:terminal_soc_requirement} as a hard constraint.
+The parameter $\eta$ describes the charging and discharging efficiency. The power scale $\epsilon=1\,\mathrm{kW}$ determines the width of the smooth transition between the charging and discharging efficiency relations in Eq.~\eqref{eq:feasible_actual_power}. A larger $\epsilon$ produces a more gradual transition around $P_t^{\mathrm S}=0$, while a smaller value more closely approximates an abrupt change between the two operating directions. Equation~\eqref{eq:bess_power_mapping} maps the normalized action and current SOC to grid-side battery power. It progressively restricts charging as SOC approaches $0.995$ and discharging as SOC approaches $0.005$. Equation~\eqref{eq:feasible_actual_power} maps grid-side power to storage-side power through the smooth efficiency relation. Finally, the mathematical-optimization model enforces the terminal-SOC requirement $\mathrm{SOC}_{\mathrm{term}}^{\min}=0.5$ in Eq.~\eqref{eq:terminal_soc_requirement} as a hard constraint.
+
+The battery model has a one-dimensional action space at each time step because the scalar command $u_t$ is the only independently selected control variable. Over the complete horizon, the mathematical optimization therefore determines one charging or discharging command for each time step, while battery power and SOC follow from the model equations.
 
 The battery objective is to maximize profit. The grid-side cost contribution is calculated as the electricity price multiplied by the battery power, and its minimization is equivalent to profit maximization. Accordingly, the mathematical-optimization objective is
 \[
@@ -470,7 +480,7 @@ The second use case represents a non-linear cookie production factory with an el
 
 The system consists of four main units: a wind turbine (WT), a closed reverse Brayton-cycle high-temperature heat pump (HTHP), a sensible thermal energy storage (TES), and a steam generator (SG). The WT supplies renewable electricity, while additional electricity can be purchased from the grid. The HTHP uses a waste-heat air stream as its heat source and delivers high-temperature process heat to an intermediate thermal-oil loop. The thermal oil acts as heat-transfer fluid and can be routed through the TES or directly to the SG by controllable bypasses. The SG provides the required steam conditions for the consumer factory. The HTHP and SG are represented by polynomial surrogate models, while the TES is modeled as a simplified single energy reservoir, and the charging/discharging behavior is represented using efficiency equations.
 
-\begin{figure}[htbp]
+\begin{figure}[!tb]
     \centering
     \includegraphics[width=0.95\textwidth,clip]{figures/cookie_steam_system.pdf}
     \caption{Schematic representation of the electrified steam-generation system serving the cookie production factory. Reproduced from Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
@@ -480,51 +490,34 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{1,\ldots,n\}$:
 \begin{align}
-\min_{\mathbf{x}} \quad J
-&= \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t, \label{eq:cookie_objective} \\
-\text{s.t.} \quad
-P_t^{\mathrm S} + W_t
-&= 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
-T_{\mathrm{II}}^t
-&= F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
-T_{\mathrm{IV}}^t
-&= F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
-T_2^t
-&= \beta_1^t T_{\mathrm{II}}^t + \left(1-\beta_1^t\right)T_1^t, \\
-T_{\mathrm{I}}^t
-&= \beta_2^t T_3^t + \left(1-\beta_2^t\right)T_4^t, \\
-T_2^t
-&= 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^t}, \\
-T_3^t
-&= 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^t}, \\
-\dot{Q}_{s,\mathrm{ch}}^t
-&= 3\dot{m}_{\mathrm{II}}^t c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^t-T_1^t\right)\left(1-\beta_1^t\right), \\
-\dot{Q}_{s,\mathrm{dch}}^t
-&= 3\dot{m}_{\mathrm{I}}^t c_{p,\mathrm{f}}\left(T_4^t-T_3^t\right)\left(1-\beta_2^t\right), \\
-\dot{Q}_{s,\mathrm{ch}}^t \dot{Q}_{s,\mathrm{dch}}^t
-&\leq \gamma, \\
-T_1^t
-&= T_{\mathrm{II}}^t - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^t-T_s^{t-1}\right), \\
-T_4^t
-&= T_3^t - \epsilon_{\mathrm{dch}}\left(T_3^t-T_s^{t-1}\right), \\
-T_s^t
-&= T_s^{t-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^t-\dot{Q}_{s,\mathrm{dch}}^t}{m_s c_{p,\mathrm{s}}}\Delta t, \\
-T_s^0
-&= \tilde{T}_0, \qquad T_s^n = T_s^0, \\
-T_{\mathrm{I}}^t
-&\in [177,250], \qquad \dot{m}_{\mathrm{I}}^t \in [5,16], \\
-T_{\mathrm{III}}^t
-&\in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
+&\min_{x} \quad J = \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t, \label{eq:cookie_objective} \\
+&\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
+&T_{\mathrm{II}}^t = F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
+&T_{\mathrm{IV}}^t = F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
+&T_2^t = \beta_1^t T_{\mathrm{II}}^t + \left(1-\beta_1^t\right)T_1^t, \\
+&T_{\mathrm{I}}^t = \beta_2^t T_3^t + \left(1-\beta_2^t\right)T_4^t, \\
+&T_2^t = 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^t}, \\
+&T_3^t = 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^t}, \\
+&\dot{Q}_{s,\mathrm{ch}}^t = 3\dot{m}_{\mathrm{II}}^t c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^t-T_1^t\right)\left(1-\beta_1^t\right), \\
+&\dot{Q}_{s,\mathrm{dch}}^t = 3\dot{m}_{\mathrm{I}}^t c_{p,\mathrm{f}}\left(T_4^t-T_3^t\right)\left(1-\beta_2^t\right), \\
+&\dot{Q}_{s,\mathrm{ch}}^t \dot{Q}_{s,\mathrm{dch}}^t \leq \gamma, \\
+&T_1^t = T_{\mathrm{II}}^t - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^t-T_s^{t-1}\right), \\
+&T_4^t = T_3^t - \epsilon_{\mathrm{dch}}\left(T_3^t-T_s^{t-1}\right), \\
+&T_s^t = T_s^{t-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^t-\dot{Q}_{s,\mathrm{dch}}^t}{m_s c_{p,\mathrm{s}}}\Delta t, \\
+&T_s^0 = \tilde{T}_0, \qquad T_s^n = T_s^0, \\
+&T_{\mathrm{I}}^t \in [177,250], \qquad \dot{m}_{\mathrm{I}}^t \in [5,16], \\
+&T_{\mathrm{III}}^t \in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
-Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $W_t$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. The remaining constraints describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
+Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $W_t$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. Equations~\eqref{eq:cookie_power_balance}--\eqref{eq:cookie_bounds} comprise 16 numbered constraint relations. Together, they describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
 
 % The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
 % In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $W_t$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $W_{t+1:t+H}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
-This use case is more complex than the battery system because it combines non-linear surrogate equations, thermal storage dynamics, multiple coupled continuous control variables, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
+The cookie-factory mathematical-optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_1^t$ and $\beta_2^t$, the compressor-speed-related variable $R^t$, the mass flow rate $\dot{m}_{\mathrm{I}}^t$, and the HTHP inlet temperature $T_{\mathrm{I}}^t$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. This use case is more complex than the battery system because it combines five continuous control dimensions with non-linear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
+\cleartooddpage
 \section{Methodology}
 \label{sec:methodology}
 
@@ -605,7 +598,7 @@ The BESS reward is the negative grid-side electricity cost at each time step, wi
 
 The main SAC and TD3 hyperparameters used in the implementation are summarized in Table~\ref{tab:sac_training_setup}. The same learning-rate schedule and discount factor are used for both use cases to provide a consistent baseline configuration. The learning-rate schedule was selected through preliminary experiments. Differences between the two training setups mainly arise from the different state variables, action spaces, and constraint structures of the two environments.
 
-\begin{table}[htbp]
+\begin{table}[!tb]
 \centering
 \begin{tabular}{>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}}
 \hline
@@ -660,6 +653,7 @@ The evaluation also records trajectory-level operating indicators. For the BESS,
 
 Finally, computation time is used to assess practical applicability. For mathematical optimization, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
 
+\cleartooddpage
 \section{Results and Discussion}
 \label{sec:results_discussion}
 
@@ -675,7 +669,7 @@ The linear schedule achieved the best mean reward and the lowest mean objective 
 
 The trained SAC and TD3 policies were compared with mathematical optimization over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_mathematical_comparison} summarizes the resulting objective values, computation times, and SOC ranges, using mathematical optimization as the baseline.
 
-\begin{table}[htbp]
+\begin{table}[!tb]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -697,7 +691,7 @@ Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.179
 
 Mathematical optimization achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to the mathematical-optimization baseline. The mean objective gap was $0.1628 \pm 0.1284$ EUR for TD3 and $0.2215 \pm 0.0811$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than mathematical optimization. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the discounted return, whereas SAC balances discounted-return maximization with maintaining policy entropy. Further TD3 results are presented below.
 
-\begin{figure}[htbp]
+\begin{figure}[!tb]
     \centering
     \includegraphics[width=0.95\textwidth]{figures/model_comparison_distances_td3.png}
     \caption{TD3 and mathematical-optimization objective values for ten randomly selected 24-hour comparison windows. The lower panel shows the corresponding TD3--mathematical-optimization gaps.}
@@ -710,7 +704,7 @@ The SOC trajectories are also similar in the current comparison. The TD3 policy 
 
 Figure~\ref{fig:battery_td3_dispatch} shows an illustrative 24-hour dispatch trajectory for a TD3 policy and the mathematical optimization solution over the 24-hour horizon. The upper panel compares grid-power profiles and electricity price, showing that the TD3 actions closely follow the mathematical-optimization schedule. The lower panel compares SOC trajectories, both of which satisfy the terminal-SOC requirement.
 
-\begin{figure}[htbp]
+\begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
     \caption{Illustrative 24-hour battery dispatch comparison between the TD3 policy and mathematical optimization.}
@@ -725,6 +719,7 @@ The main advantage of the TD3 policy was computation time. The trained TD3 model
 
 \subsection{Key Findings}
 
+\cleartooddpage
 \section{Conclusion and Future Work}
 \label{sec:conclusion_future_work}
 \textcolor{blue}{Summarizes the main findings and outlines possible future work.}
