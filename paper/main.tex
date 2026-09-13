@@ -11,7 +11,10 @@
 \usepackage{csquotes}
 \addbibresource{Sources.bib}
 \usepackage{amsmath}
+\usepackage{mathtools}
+\mathtoolsset{showonlyrefs}
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage{hyperref}
 \usepackage{setspace}
 \usepackage{amssymb}
@@ -371,7 +374,7 @@ Both methods use an actor-critic architecture. The actor maps the current state 
 
 \subsubsection{TD3 and SAC}
 
-\paragraph{Twin Delayed Deep Deterministic Policy Gradient (TD3).}
+\paragraph{Twin Delayed Deep Deterministic Policy Gradient (TD3):}
 TD3 uses a deterministic actor, $\mu_\theta(x)$, that maps the current state directly to a continuous action. Two critics estimate the action value, and the smaller estimate is used when constructing the learning target to reduce overestimation bias. TD3 further stabilizes learning through delayed actor updates and target-policy smoothing, in which small noise is added to target actions during critic updates \cite{fujimoto2018addressing}.
 \[
 J_{\mathrm{TD3}}(\theta)
@@ -383,7 +386,7 @@ q_{\phi_1}\bigl(x,\mu_\theta(x)\bigr)
 \]
 Here, $J_{\mathrm{TD3}}(\theta)$ is the actor objective; $\theta$ denotes the actor parameters; $\mathcal{D}$ is the replay buffer from which states $x$ are sampled; $\mu_\theta(x)$ is the deterministic action proposed by the actor; and $q_{\phi_1}$ is the first critic, parameterized by $\phi_1$, which estimates the action value. The TD3 actor is trained to maximize this objective, producing one deterministic action, $a=\mu_\theta(x)$, for each state.
 
-\paragraph{Soft Actor-Critic (SAC).}
+\paragraph{Soft Actor-Critic (SAC):}
 SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}.
 \[
 J_{\mathrm{SAC}}(\pi)
@@ -405,7 +408,7 @@ For a state $x$, the policy entropy is defined as
 = -\mathbb{E}_{a\sim\pi(\cdot\mid x)}
 \left[\log \pi(a\mid x)\right].
 \]
-where $a$ is an action sampled from the policy, and $\log \pi(a\mid x)$ is the logarithm of its probability density. During training, entropy is estimated from sampled actions as $\mathcal{H}(\pi(\cdot\mid x))\approx-\log\pi(a\mid x)$ \cite{haarnoja2018soft}.
+Thus, entropy is an expectation over the policy's action distribution rather than a quantity associated with a single action. During SAC training, an action $a\sim\pi(\cdot\mid x)$ is sampled from the current policy. The quantity $-\log\pi(a\mid x)$ is a stochastic single-sample estimate of the entropy term: although one sample is generally not equal to the exact entropy, its expectation over actions drawn from the policy equals $\mathcal{H}(\pi(\cdot\mid x))$. Such stochastic estimates allow SAC to optimize the entropy-regularized objective using minibatch gradient updates \cite{haarnoja2018soft}.
 
 The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
@@ -428,7 +431,7 @@ BESS presents several challenges: Decisions are inherently time-coupled because 
     \label{fig:battery_model}
 \end{figure}
 
-A battery energy storage system provides flexible power by buying electricity when prices are low and selling it back to the grid when prices are high. This price-arbitrage operation maximizes profit. For simplicity, the same time-varying electricity price $S_t$ is used for purchases and sales.
+A battery energy storage system provides flexible power by buying electricity when prices are low and selling it back to the grid when prices are high. This price-arbitrage operation maximizes profit. A fixed buy--sell price spread $\Delta_s\geq 0$ can be represented by defining the purchase price as $S_t^{\mathrm{buy}}=S_t$ and the selling price as $S_t^{\mathrm{sell}}=S_t-\Delta_s$. In the numerical experiments considered here, $\Delta_s=0$, so the same time-varying electricity price is used for purchases and sales.
 
 The SOC dynamics are modeled as
 \[
@@ -457,40 +460,60 @@ where $P_{\text{actual},t}$ is the effective storage-side power after efficiency
 + \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
 \Biggr],
 \quad \forall t, \label{eq:feasible_actual_power} \\
-&\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}}.
+&\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}},
+\qquad \mathrm{SOC}_{\mathrm{term}}=0.5.
 \label{eq:terminal_soc_requirement}
 \end{align}
 
 Here, $u_t$ is the normalized control command and $P_{\max}$ is the maximum charging and discharging power. The parameter $k=700$ controls the steepness of the smooth action and SOC gates: increasing $k$ makes their transitions more abrupt, whereas decreasing it produces a wider and more gradual transition. The parameter $\delta$ shifts the charging and discharging gates away from zero and thereby defines a smooth deadband for small control commands. The implemented value $\delta=0.0025$ corresponds to $0.25\%$ of the maximum normalized action magnitude, or a nominal power command of $0.05\,\mathrm{kW}$ for $P_{\max}=20\,\mathrm{kW}$. This small numerical deadband attenuates near-zero commands and reduces switching around zero while leaving the usable action range effectively unchanged.
 
-The parameter $\eta$ describes the charging and discharging efficiency. The power scale $\epsilon=1\,\mathrm{kW}$ determines the width of the smooth transition between the charging and discharging efficiency relations in Eq.~\eqref{eq:feasible_actual_power}. A larger $\epsilon$ produces a more gradual transition around $P_t^{\mathrm S}=0$, while a smaller value more closely approximates an abrupt change between the two operating directions. Equation~\eqref{eq:bess_power_mapping} maps the normalized action and current SOC to grid-side battery power. It progressively restricts charging as SOC approaches $0.995$ and discharging as SOC approaches $0.005$. Equation~\eqref{eq:feasible_actual_power} maps grid-side power to storage-side power through the smooth efficiency relation. Finally, the mathematical-optimization model enforces the terminal-SOC requirement $\mathrm{SOC}_{\mathrm{term}}^{\min}=0.5$ in Eq.~\eqref{eq:terminal_soc_requirement} as a hard constraint.
+The parameter $\eta$ describes the charging and discharging efficiency. The power scale $\epsilon=1\,\mathrm{kW}$ determines the width of the smooth transition between the charging and discharging efficiency relations in Eq.~\eqref{eq:feasible_actual_power}. A larger $\epsilon$ produces a more gradual transition around $P_t^{\mathrm S}=0$, while a smaller value more closely approximates an abrupt change between the two operating directions. Equation~\eqref{eq:bess_power_mapping} maps the normalized action and current SOC to grid-side battery power. It progressively restricts charging as SOC approaches $0.995$ and discharging as SOC approaches $0.005$. Equation~\eqref{eq:feasible_actual_power} maps grid-side power to storage-side power through the smooth efficiency relation.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_smooth_mappings.pdf}
+    \caption{Visualization of the smooth battery mappings in Eqs.~(\ref{eq:bess_power_mapping}) and~(\ref{eq:feasible_actual_power}). Panel (a) shows grid-side power as a function of the normalized action for representative SOC values. Panel (b) shows the conversion from grid-side to storage-side power. The plotted parameters are $P_{\max}=20\,\mathrm{kW}$, $k=700$, $\delta=0.0025$, $\eta=0.9$, and $\epsilon=1\,\mathrm{kW}$.}
+    \label{fig:battery_smooth_mappings}
+\end{figure}
+
+As shown in Fig.~\ref{fig:battery_smooth_mappings}(a), the mapping is approximately $P_t^{\mathrm S}=P_{\max}u_t$ when the SOC is far from its limits and the action lies outside the narrow deadband. At $\mathrm{SOC}_t=0$, negative actions are suppressed to prevent further discharge; at $\mathrm{SOC}_t=1$, positive actions are suppressed to prevent further charging. At the gate locations $\mathrm{SOC}_t=0.005$ and $\mathrm{SOC}_t=0.995$, the corresponding power is reduced by one half. Figure~\ref{fig:battery_smooth_mappings}(b) illustrates the efficiency relation: away from the transition around zero, positive charging power is multiplied approximately by $\eta$, whereas negative discharging power is multiplied approximately by $1/\eta$. The hyperbolic tangent provides a differentiable transition between these two regimes.
 
 The battery model has a one-dimensional action space at each time step because the scalar command $u_t$ is the only independently selected control variable. Over the complete horizon, the mathematical optimization therefore determines one charging or discharging command for each time step, while battery power and SOC follow from the model equations.
 
-The battery objective is to maximize profit. The grid-side cost contribution is calculated as the electricity price multiplied by the battery power, and its minimization is equivalent to profit maximization. Accordingly, the mathematical-optimization objective is
+The battery objective is to maximize profit. Let $P_t^+=\max(P_t^{\mathrm S},0)$ denote purchased power and $P_t^-=\max(-P_t^{\mathrm S},0)$ denote sold power. Minimizing the net grid-side cost is equivalent to maximizing profit, giving the general objective
 \[
 \min_{\{u_t\}_{t=0}^{N-1}} J
-= \sum_{t=0}^{N-1} S_t P_t^{\mathrm S}\Delta t,
+= \sum_{t=0}^{N-1}
+\left(S_t^{\mathrm{buy}}P_t^+-S_t^{\mathrm{sell}}P_t^-\right)\Delta t.
 \]
-where $S_t$ is the electricity price at time step $t$. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. Main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
+With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J=\sum_t S_tP_t^{\mathrm S}\Delta t$. This equation represents the physical economic objective used to compare the methods. In the mathematical-optimization formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. Main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \subsection{Cookie Production Factory}
 
 The second use case represents a non-linear cookie production factory with an electrified steam-generation utility system. The production process requires a constant supply of process heat in the form of superheated steam, while the utility system must decide how to operate the energy conversion components under fluctuating wind generation $W_t$ and electricity prices $S_t$. The operational objective is to satisfy the steam demand while minimizing grid electricity cost over a finite scheduling horizon. The system model is based on the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and later used as a renewable steam-generation benchmark by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.
 
-The system consists of four main units: a wind turbine (WT), a closed reverse Brayton-cycle high-temperature heat pump (HTHP), a sensible thermal energy storage (TES), and a steam generator (SG). The WT supplies renewable electricity, while additional electricity can be purchased from the grid. The HTHP uses a waste-heat air stream as its heat source and delivers high-temperature process heat to an intermediate thermal-oil loop. The thermal oil acts as heat-transfer fluid and can be routed through the TES or directly to the SG by controllable bypasses. The SG provides the required steam conditions for the consumer factory. The HTHP and SG are represented by polynomial surrogate models, while the TES is modeled as a simplified single energy reservoir, and the charging/discharging behavior is represented using efficiency equations.
+The system consists of four main units: a wind turbine (WT), a closed reverse Brayton-cycle high-temperature heat pump (HTHP), a sensible thermal energy storage (TES), and a steam generator (SG). The WT supplies renewable electricity, while additional electricity can be purchased from the grid. The HTHP uses a waste-heat air stream as its heat source and delivers high-temperature process heat to an intermediate heat-transfer-fluid (HTF) loop. The HTF can be routed through the TES or directly to the SG by controllable bypasses. The SG provides the required steam conditions for the consumer factory. The HTHP and SG are represented by polynomial surrogate models, while the TES is modeled as a simplified single energy reservoir, and the charging/discharging behavior is represented using efficiency equations. Figure~\ref{fig:cookie_steam_system} provides an overview of the complete system, while Fig.~\ref{fig:cookie_detailed_flow_chart} shows the detailed HTF flow paths and bypass variables.
 
-\begin{figure}[!tb]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\textwidth,clip]{figures/cookie_steam_system.pdf}
-    \caption{Schematic representation of the electrified steam-generation system serving the cookie production factory. Reproduced from Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
+    \caption{Schematic overview of the electrified steam-generation system serving the cookie production factory. Adapted from Fig.~2 of Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
     \label{fig:cookie_steam_system}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/cookie_detailed_flow_chart_kyriakidis.png}
+    \caption{Detailed flow chart of the HTHP, TES, SG, and controllable bypasses in the electrified steam-generation system. Reproduced and cropped from Fig.~3 of Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
+    \label{fig:cookie_detailed_flow_chart}
 \end{figure}
 
 
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{1,\ldots,n\}$:
 \begin{align}
-&\min_{x} \quad J = \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t, \label{eq:cookie_objective} \\
+&\min_{\{\beta_1^t,\beta_2^t,R^t,\dot m_{\mathrm I}^t,T_{\mathrm I}^t\}_{t=1}^{n}}
+\quad J = \sum_{t=1}^{n} P_t^{\mathrm S} S_t \Delta t,
+\label{eq:cookie_objective} \\
 &\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
 &T_{\mathrm{II}}^t = F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
 &T_{\mathrm{IV}}^t = F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
@@ -509,7 +532,59 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &T_{\mathrm{III}}^t \in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
-Here, $S_t$ denotes the spot electricity price, $P_t^{\mathrm S}$ denotes grid power, and $W_t$ denotes available wind power at time step $t$. The objective in Eq.~\eqref{eq:cookie_objective} minimizes the electricity cost of grid power consumption. The power balance in Eq.~\eqref{eq:cookie_power_balance} couples grid electricity, wind power, and HTHP demand. Equations~\eqref{eq:cookie_power_balance}--\eqref{eq:cookie_bounds} comprise 16 numbered constraint relations. Together, they describe the HTHP and SG surrogate models, bypass mixing, TES charging and discharging, the prohibition of simultaneous charge and discharge, cyclic storage operation, and the admissible operating ranges of the main decision variables.
+In this formulation, the superscript $t$ denotes the value of a quantity at
+discrete time step $t$, where $t\in\{1,\ldots,n\}$ and $n$ is the number of
+steps in the scheduling horizon. The objective
+$J$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
+$P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
+power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
+$P_t^{\mathrm S}S_t\Delta t$ over the horizon. The subscript beneath the
+minimum lists the five time-dependent quantities selected independently by the
+mathematical optimizer: the two bypass settings $\beta_1^t$ and $\beta_2^t$,
+the compressor rotational-speed variable $R^t$, the mass flow
+$\dot m_{\mathrm I}^t$, and the HTHP inlet temperature $T_{\mathrm I}^t$.
+
+The Roman subscripts $\mathrm I$--$\mathrm{IV}$ and the Arabic subscripts
+$1$--$4$ identify physical locations in the HTF circuit shown in
+Fig.~\ref{fig:cookie_detailed_flow_chart}; they are not time indices.
+$T_{\mathrm I}^t$ and $T_{\mathrm{II}}^t$ are respectively the inlet and outlet
+temperatures of the high-temperature heat exchanger (HTHX), whereas
+$T_{\mathrm{III}}^t$ and $T_{\mathrm{IV}}^t$ are the inlet and outlet
+temperatures of the low-temperature heat exchanger (LTHX). The temperatures
+$T_1^t$ and $T_4^t$ are the TES outlet temperatures during charging and
+discharging, respectively, while $T_2^t$ and $T_3^t$ are the steam-generator
+inlet and outlet temperatures. The quantities $\dot m_{\mathrm I}^t$ and
+$\dot m_{\mathrm{II}}^t$ denote the HTHX inlet and outlet HTF mass-flow
+rates. The implemented closed-loop model uses the same per-HTHP flow variable
+for these two locations. The functions $F_{\mathrm{HTHP}}$,
+$F_{\mathrm{HTHX}}$, and $F_{\mathrm{LTHX}}$ are polynomial surrogate models
+for the electrical demand of one HTHP, the HTHX outlet temperature, and the
+LTHX outlet temperature, respectively.
+
+The bypass settings $\beta_1^t,\beta_2^t\in[0,1]$ determine the TES operating
+mode. A value of one fully bypasses the associated storage path: charging uses
+$\beta_1^t<1$ and $\beta_2^t=1$, discharging uses $\beta_2^t<1$ and
+$\beta_1^t=1$, and $\beta_1^t=\beta_2^t=1$ represents idle operation.
+$\dot Q_{s,\mathrm{ch}}^t$ and $\dot Q_{s,\mathrm{dch}}^t$ are the TES charging
+and discharging heat-flow rates. The parameter
+$c_{p,\mathrm f}$ is the specific heat capacity of the HTF, while
+$\epsilon_{\mathrm{ch}}$ and $\epsilon_{\mathrm{dch}}$ are the charging and
+discharging effectiveness factors. The small relaxation parameter $\gamma$
+in $\dot Q_{s,\mathrm{ch}}^t\dot Q_{s,\mathrm{dch}}^t\leq\gamma$ prevents
+simultaneous charging and discharging when it is chosen close to zero.
+
+Finally, $T_s^t$ is the TES temperature, $m_s$ is the mass of the
+storage medium, and $c_{p,\mathrm s}$ is its specific heat capacity. The
+quantity $T_s^{t-1}$ is therefore the storage temperature from the preceding
+time step. The prescribed initial temperature is $\tilde T_0$, so
+$T_s^0=\tilde T_0$, and the equality $T_s^n=T_s^0$ imposes cyclic terminal
+operation. The final interval relations specify the validity and operating
+bounds of the surrogate model. The power balance in
+Eq.~\eqref{eq:cookie_power_balance} and the remaining relations through
+Eq.~\eqref{eq:cookie_bounds} collectively describe the surrogate components,
+bypass mixing, TES dynamics, mutually exclusive charging and discharging,
+cyclic operation, and admissible operating ranges. All symbols and their units
+are also collected in the nomenclature.
 
 % The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
@@ -532,6 +607,7 @@ The following subsections specify the state variables, action spaces, transition
 The reward definitions follow the respective operational objectives and include penalty terms for constraint violations where required. In both cases, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
 
 \subsection{Reinforcement Learning Framework}
+\label{sec:rl_framework}
 
 The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium \cite{towers2024gymnasium}, while the continuous-control policies are trained using Stable-Baselines3 \cite{raffin2021stablebaselines3}. Each interaction is stored as a transition
 \[
@@ -560,7 +636,7 @@ r_t = -\frac{S_t P_t^{\mathrm S}\Delta t}{1000}
 -\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(SOC_{\min}^{\mathrm{terminal}}-SOC_N,0\right),
 \]
-where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
+where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
 
 As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
 \[
@@ -583,6 +659,128 @@ r_t^{\mathrm{reach}}
 \]
 where $\lambda_{\mathrm{reach}}>0$ weights the reachability penalty. Unlike the terminal penalty described above, this penalty provides feedback before the final time step and encourages the policy to preserve sufficient energy for the terminal requirement. The resulting feasibility--cost trade-off is reported in Section~\ref{sec:results_discussion}.
 
+For the cookie factory, the observation contains the normalized TES
+temperature, current electricity price and wind availability, the previous
+operating mode, the previously applied compressor-speed variable and $F_4$
+residual, the position within the episode, the terminal-temperature gap, the
+previous action, and the complete price and wind forecasts. The policy action
+is reduced to
+\[
+a_t=\left(b_t,\dot m_{\mathrm I}^t\right),
+\qquad b_t\in[-1,1],\quad \dot m_{\mathrm I}^t\in[5,16],
+\]
+where $b_t$ is a signed TES-mode command. The idle band has a half-width of
+$\delta_\beta=0.05$. This value was selected as a small numerical tolerance
+around zero. It suppresses mode switching caused by small variations in the
+policy output while retaining most of the normalized action range for active
+charging and discharging. The value was fixed during the experiments and was
+not separately optimized. The environment maps $b_t$ to the two physical
+bypass settings according to Eq.~\eqref{eq:cookie_beta_mapping}:
+\begin{equation}
+\left(\beta_1^t,\beta_2^t\right)=
+\begin{cases}
+\displaystyle\left(1,\frac{1+b_t}{1-\delta_\beta}\right),
+    & -1\leq b_t<-\delta_\beta \quad \text{(discharging)},\\[2mm]
+(1,1),
+    & |b_t|\leq\delta_\beta \quad \text{(idle)},\\[1mm]
+\displaystyle\left(\frac{1-b_t}{1-\delta_\beta},1\right),
+    & \delta_\beta<b_t\leq1 \quad \text{(charging)}.
+\end{cases}
+\label{eq:cookie_beta_mapping}
+\end{equation}
+Consequently, the inactive path always has a bypass value of one. The mapping
+therefore satisfies $\beta_1^t+\beta_2^t\geq1$ and prevents simultaneous TES
+charging and discharging without requiring the policy to learn these two
+conditions from reward penalties.
+
+After obtaining $\beta_1^t$, $\beta_2^t$, and $\dot m_{\mathrm I}^t$, the
+environment evaluates the steam-generator relations, the discharging-side TES
+effectiveness relation, and the $F_5$ mixing relation to determine $T_2^t$,
+$T_3^t$, $T_4^t$, and $T_{\mathrm I}^t$. The compressor-speed variable $R^t$
+is then derived from the $F_4$ coupling relation rather than selected directly
+by the policy. Substitution of
+$T_1^t=T_{\mathrm{II}}^t-\epsilon_{\mathrm{ch}}
+(T_{\mathrm{II}}^t-T_s^{t-1})$ into $F_4$ gives the required HTHX outlet
+temperature in Eq.~\eqref{eq:cookie_required_TII}:
+\begin{equation}
+T_{\mathrm{II,req}}^t=
+\frac{T_2^t-\epsilon_{\mathrm{ch}}(1-\beta_1^t)T_s^{t-1}}
+{1-\epsilon_{\mathrm{ch}}+\epsilon_{\mathrm{ch}}\beta_1^t}.
+\label{eq:cookie_required_TII}
+\end{equation}
+The environment consequently solves Eq.~\eqref{eq:cookie_R_derivation}:
+\begin{equation}
+F_{\mathrm{HTHX}}\!\left(
+T_{\mathrm I}^t,\dot m_{\mathrm I}^t,T_{\mathrm{III}}^t,R^t
+\right)-T_{\mathrm{II,req}}^t=0,
+\qquad R^t\in[0.8,1.53].
+\label{eq:cookie_R_derivation}
+\end{equation}
+Because the HTHX surrogate is cubic in $R^t$, multiple real roots can occur.
+When several bounded roots exist, the root closest to the previously applied
+value $R^{t-1}$ is selected to avoid unnecessary switching. At the first time
+step the interval midpoint, $R^0=1.165$, is used as the reference. If no real
+root lies within the allowed interval, the bounded value that minimizes the
+absolute surrogate mismatch is applied. The remaining mismatch is measured by
+the $F_4$ residual
+\[
+v_{F_4,t}=\left|
+T_2^t-\beta_1^tT_{\mathrm{II}}^t
+-(1-\beta_1^t)T_1^t
+\right|.
+\]
+
+\begin{samepage}
+The cookie-factory reward contains the economic cost and the constraints that
+are not guaranteed by the action mapping. Define $[z]_+=\max(z,0)$,
+$\Delta T_s=T_s^{\max}-T_s^{\min}$, and the violation magnitudes
+\begin{align*}
+v_{s,t}={}&[T_s^{\min}-T_s^{t+1}]_+
+          +[T_s^{t+1}-T_s^{\max}]_+,\\
+v_{\mathrm I,t}={}&[177-T_{\mathrm I}^t]_+
+          +[T_{\mathrm I}^t-250]_+,\\
+v_{Q,t}={}&[-\dot Q_{s,\mathrm{ch}}^t]_+
+          +[-\dot Q_{s,\mathrm{dch}}^t]_+
+          +[\dot Q_{s,\mathrm{ch}}^t-\dot Q_s^{\max}]_+
+          +[\dot Q_{s,\mathrm{dch}}^t-\dot Q_s^{\max}]_+,\\
+v_{P,t}={}&[-P_t^{\mathrm S}]_+
+          +[P_t^{\mathrm S}-P_{\mathrm S}^{\max}]_+.
+\end{align*}
+\end{samepage}
+For the one-hour time steps used here, the grid cost is
+$C_t=S_tP_t^{\mathrm S}/1000$. The implemented reward is
+\begin{align}
+r_t^{\mathrm{cookie}}={}&-C_t
+-\lambda_s\frac{v_{s,t}}{\Delta T_s}
+-\lambda_{\mathrm I}\frac{v_{\mathrm I,t}}{250-177}
+-\lambda_Q\frac{v_{Q,t}}{\dot Q_s^{\max}}
+-\lambda_{F_4}\frac{v_{F_4,t}}{\Delta T_s}
+\nonumber\\
+&-\lambda_P\frac{v_{P,t}}{P_{\mathrm S}^{\max}}
+-\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{cyc}}
+ \frac{|T_s^N-T_s^0|}{\Delta T_s}.
+\label{eq:cookie_reward}
+\end{align}
+The values used in training are $T_s^{\min}=183\,{}^\circ\mathrm C$,
+$T_s^{\max}=324\,{}^\circ\mathrm C$,
+$\dot Q_s^{\max}=5000\,\mathrm{kW}$,
+$P_{\mathrm S}^{\max}=5000\,\mathrm{kW}$,
+$\lambda_s=20$, $\lambda_{\mathrm I}=10$, $\lambda_Q=5000$,
+$\lambda_{F_4}=500$, $\lambda_P=3000$, and
+$\lambda_{\mathrm{cyc}}=3000$. These coefficients were selected empirically
+during training. Because each violation is normalized
+before weighting, the coefficient magnitudes express relative priorities rather
+than compensating for different physical units. The comparatively large
+$\lambda_Q$ and $\lambda_P$ strongly discourage heat-flow and grid-power
+violations. The terminal coefficient $\lambda_{\mathrm{cyc}}$ is also large
+because its penalty is applied only once, at the end of the episode. The smaller $\lambda_s$ and
+$\lambda_{\mathrm I}$ reflect that the storage-state and inlet-temperature
+bounds were largely satisfied during preliminary runs. These values are fixed
+engineering choices rather than proven optimal coefficients. Thus, the physical
+operating cost remains identifiable within the reward, while the normalized
+penalties provide training feedback for state, inlet-temperature, heat-flow,
+$F_4$-coupling, grid-power, and terminal-cyclic violations.
+
 After training, both policies are evaluated deterministically to compare schedules. For SAC, the mean action of the stochastic policy is selected at each time step. TD3 directly outputs a deterministic action. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical-optimization baseline in terms of cost, constraint satisfaction, and computation time.
 
 \subsection{Training Setup}
@@ -594,28 +792,32 @@ For both use cases, one episode corresponds to a 24-step scheduling horizon. Dur
 
 The training environments are wrapped with monitoring and vectorized environment interfaces. Monitoring records episode rewards and lengths for later inspection, while the vectorized wrapper provides the interface expected by the Stable-Baselines3 implementation of SAC and TD3. Only one environment instance is used at a time in the current setup, so the vectorization is mainly an interface layer rather than a parallel simulation strategy.
 
-The BESS reward is the negative grid-side electricity cost at each time step, with an additional terminal penalty if the final SOC falls below the desired terminal level. The cookie factory reward also starts from the negative grid-electricity cost, but includes additional penalties for different constraint violations. The penalty terms are therefore more important in the second use case, because feasibility cannot be represented by simple action bounds alone.
+The environment-specific action mappings and reward definitions are given in
+Section~\ref{sec:rl_framework}, including the cookie-factory reward in
+Eq.~\eqref{eq:cookie_reward}. The cookie-factory penalties are particularly important because
+its coupled nonlinear feasibility requirements cannot all be represented by
+simple action bounds.
 
-The main SAC and TD3 hyperparameters used in the implementation are summarized in Table~\ref{tab:sac_training_setup}. The same learning-rate schedule and discount factor are used for both use cases to provide a consistent baseline configuration. The learning-rate schedule was selected through preliminary experiments. Differences between the two training setups mainly arise from the different state variables, action spaces, and constraint structures of the two environments.
+Hyperparameter selection was performed over 50 tuning trials. The best-performing configuration from this search was adopted for both the battery and cookie-factory case studies and is summarized in Table~\ref{tab:sac_training_setup}. Since the selected training settings are identical for the two use cases, they are presented in one shared column. The environments themselves still differ in their state variables, action spaces, dynamics, and constraint structures.
 
 \begin{table}[!tb]
 \centering
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.36\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}>{\raggedright\arraybackslash}p{0.24\textwidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.43\textwidth}>{\raggedright\arraybackslash}p{0.47\textwidth}}
 \hline
-Parameter & Battery system & Cookie factory \\
+Parameter & Selected setting for both use cases \\
 \hline
-Algorithm & SAC and TD3 & SAC and TD3 \\
-Policy & MLP policy & MLP policy \\
-Network architecture & SAC:3$\times$256; ~~TD3:400,300 ReLU & SAC:3$\times$256; ~~~~~~TD3:400,300 ReLU \\
-Replay buffer size & 200000 & 200000 \\
-Batch size & 256 & 256 \\
-Learning rate & linear schedule from $3\cdot10^{-4}$ & linear schedule from $3\cdot10^{-4}$ \\
-Discount factor $\gamma_{\mathrm{RL}}$ & 0.99 & 0.99 \\
-Target smoothing coefficient $\tau$ & 0.005 & 0.005 \\
-Episode length & 24 steps & 24 steps \\
+Algorithm & SAC and TD3 \\
+Policy & MLP policy \\
+Network architecture & SAC: 3$\times$256 ReLU; TD3: 400, 300 ReLU \\
+Replay buffer size & 200000 \\
+Batch size & 256 \\
+Learning rate & linear schedule from $3\cdot10^{-4}$ \\
+Discount factor $\gamma_{\mathrm{RL}}$ & 0.99 \\
+Target smoothing coefficient $\tau$ & 0.005 \\
+Episode length & 24 steps \\
 \hline
 \end{tabular}
-\caption{Main SAC and TD3 training settings used for the two reinforcement-learning environments. TD3 uses the Stable-Baselines3 default network architecture; the remaining listed settings are shared.}
+\caption{Best-performing training configuration selected from 50 hyperparameter-tuning trials and used for both reinforcement-learning environments. TD3 uses the Stable-Baselines3 default network architecture; the remaining listed settings are shared by SAC and TD3.}
 \label{tab:sac_training_setup}
 \end{table}
 
@@ -629,7 +831,7 @@ The primary economic metric is the total net grid-side cost over the evaluation 
 \[
 J_{\mathrm{grid}} = \sum_{t=0}^{N-1} C_t,
 \]
-where $C_t$ is the grid-electricity cost at time step $t$. For the battery system, this cost is computed from the electricity price and the battery power exchanged with the grid, using the same price for purchases and sales; minimizing $J_{\mathrm{grid}}$ is equivalent to maximizing profit. For the cookie factory, it is computed from the grid power required by the heat-pump system after accounting for available wind power and is minimized directly. Thus, a lower value of $J_{\mathrm{grid}}$ indicates higher profit for the battery and lower operating cost for the cookie factory.
+where $C_t$ is the grid-electricity cost at time step $t$. For the battery system, this cost may generally include the fixed buy--sell spread $\Delta_s$ defined above; the numerical experiments use $\Delta_s=0$. Minimizing $J_{\mathrm{grid}}$ is equivalent to maximizing profit. For the cookie factory, the cost is computed from the grid power required by the heat-pump system after accounting for available wind power and is minimized directly. Thus, a lower value of $J_{\mathrm{grid}}$ indicates higher profit for the battery and lower operating cost for the cookie factory.
 
 The cumulative reward is reported as a secondary metric:
 \[
@@ -717,26 +919,29 @@ The main advantage of the TD3 policy was computation time. The trained TD3 model
 
 \subsection{Cookie Production Factory}
 
-The trained SAC policy was compared with mathematical optimization over ten matched 24-hour windows. Table~\ref{tab:cookie_sac_comparison} summarizes the economic objective, computation time, and aggregate constraint violation. The mathematical-optimization formulation achieved the lower cost in all ten windows. Its mean cost was $1898.6259 \pm 694.5588$~EUR, compared with $2019.9256 \pm 637.5719$~EUR for SAC. The resulting mean SAC--mathematical-optimization gap was 121.2997~EUR, and the mean absolute relative gap was 12.94\%.
+The trained SAC policy was evaluated against mathematical optimization on 100 matched, randomly sampled 24-hour windows, with both methods receiving identical price and wind data in each comparison. Mathematical optimization achieved a mean cost of $2107.8703 \pm 727.2706$~EUR, compared with $2194.2083 \pm 681.6013$~EUR for SAC. The resulting mean SAC--mathematical-optimization gap was 86.3380~EUR, and the mean absolute relative gap was 6.78\%. The TD3 values discussed separately below come from the earlier ten-window evaluation and are therefore not used for a direct ranking against SAC.
 
-\begin{table}[!b]
+\begin{table}[!tb]
 \centering
 \scriptsize
-\setlength{\tabcolsep}{5pt}
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.42\textwidth}>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.25\textwidth}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.31\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}}
 \hline
 Metric & SAC policy & Mathematical optimization \\
 \hline
-Mean cost [EUR] & $2019.9256 \pm 637.5719$ & $1898.6259 \pm 694.5588$ \\
-Mean computation time [s] & $0.0455$ & $14.4743$ \\
-Mean total constraint violation & $1.4341$ & None within numerical tolerance \\
+Mean cost [EUR] & $2194.2083 \pm 681.6013$ & $2107.8703 \pm 727.2706$ \\
+Mean computation time [s] & $0.0239$ & $11.4853$ \\
+Mean $F_4$ residual per window & $0.5215$ & $1.4534\times10^{-12}$ \\
+Mean flow-bound violation per window & $1.0598$ & $7.2676\times10^{-8}$ \\
+Mean grid-power violation per window & $4.9168$ & $0$ \\
+Mean terminal cyclic deviation per window & $1.7603$ & $0$ \\
 \hline
 \end{tabular}
-\caption{Comparison of the trained SAC policy and mathematical optimization over ten matched 24-hour cookie-factory windows. Lower values are better for the cost and constraint-violation metrics.}
-\label{tab:cookie_sac_comparison}
+\caption{Comparison of the trained SAC policy and mathematical optimization over 100 matched 24-hour cookie-factory windows. Lower values are better. Constraint quantities are reported separately because they have different physical units.}
+\label{tab:cookie_mathematical_comparison}
 \end{table}
 
-The trained SAC policy required 0.0455~s on average to generate a schedule, whereas mathematical optimization required 14.4743~s. Thus, SAC was approximately $318.39\times$ faster during online evaluation; its offline training time is not included in this comparison. This reduction in computation time was accompanied by lower economic performance and weaker constraint satisfaction. The mean total constraint violation was 1.4341 for SAC, while mathematical optimization produced no constraint violation within numerical solver tolerance. For SAC, the nonzero mean contributions were 0.3867 from the $F_4$ coupling residual and 1.0473 from the terminal cyclic-storage condition; the reported flow, grid-power, inlet-temperature, and state-bound violations were zero on average.
+The trained SAC policy required 0.0239~s on average to generate a schedule, whereas mathematical optimization required 11.4853~s. Thus, SAC was approximately $479.73\times$ faster during online evaluation; its offline training time is not included in this comparison. This reduction in computation time was accompanied by lower economic performance and weaker constraint satisfaction. For SAC, the mean totals per window were 0.5215 for the $F_4$ coupling residual, 1.0598 for flow-bound violations, 4.9168 for grid-power violations, and 1.7603 for the terminal cyclic-storage deviation. The corresponding mathematical-optimization values were $1.4534\times10^{-12}$, $7.2676\times10^{-8}$, zero, and zero, respectively. Inlet-temperature and state-bound violations were zero on average for SAC. The categories are reported separately because they have different physical units and should not be interpreted as one homogeneous aggregate quantity.
 
 Figure~\ref{fig:cookie_sac_dispatch} illustrates the schedules produced for one 24-hour window. In this example, SAC obtained a cost of 1391.71~EUR, while mathematical optimization obtained 1130.70~EUR, corresponding to a gap of 261.01~EUR, or approximately 23.1\% relative to the mathematical-optimization result. Both schedules respond to the available wind power and time-varying electricity price. However, mathematical optimization uses a broader TES temperature range: it charges the storage during the earlier part of the horizon and discharges strongly during the high-price period around hours 17--20. The SAC policy follows a less pronounced storage trajectory and consequently requires more grid electricity in parts of the horizon.
 
@@ -747,7 +952,20 @@ Figure~\ref{fig:cookie_sac_dispatch} illustrates the schedules produced for one 
     \label{fig:cookie_sac_dispatch}
 \end{figure}
 
-These results show that the trained policy can generate setpoints rapidly using the reduced two-dimensional cookie-factory action space, but the mathematical-optimization baseline retains an advantage in both operating cost and feasibility.
+In the separate ten-window evaluation, TD3 achieved a mean cost of $2002.4080 \pm 640.7368$~EUR against a mathematical-optimization baseline of $1898.6259 \pm 694.5588$~EUR. The mean objective gap was 103.7821~EUR, and the mean absolute relative gap was 11.65\%. Mathematical optimization achieved a lower cost in every evaluated window. Since these windows differ from the larger SAC evaluation set, the SAC and TD3 sample means do not support a controlled ranking of the two policies.
+
+TD3 required 0.0350~s on average to generate a schedule, compared with 14.4743~s for mathematical optimization, corresponding to an online speedup of approximately $414.08\times$. Offline training is excluded. Its mean total constraint violation was 12.2023. The main TD3 contributions were flow-bound violations (7.0701), the $F_4$ coupling residual (1.9889), grid-power violations (1.6226), and the terminal cyclic-storage deviation (1.5208). Inlet-temperature and state-bound violations were zero on average. These aggregate values combine residuals with different physical units and should be interpreted together with the individual violation categories.
+
+Figure~\ref{fig:cookie_td3_comparison} shows the cost, runtime, and aggregate constraint violation for each TD3 comparison window. The policy consistently generated schedules faster than mathematical optimization, but several windows exhibited pronounced feasibility errors. Consequently, the smaller economic gap does not establish TD3 as a better feasible controller than SAC for this case study.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/cookie_factory_comparison_td3.png}
+    \caption{TD3 and mathematical optimization (Pyomo) over ten matched 24-hour cookie-factory windows: operating cost, online computation time, and aggregate constraint violation. The optimization results are taken from the SAC evaluation.}
+    \label{fig:cookie_td3_comparison}
+\end{figure}
+
+These results show that both trained policies can generate setpoints rapidly using the reduced two-dimensional cookie-factory action space, but the mathematical-optimization baseline retains an advantage in both operating cost and feasibility.
 
 \subsection{Key Findings}
 
@@ -761,13 +979,13 @@ This thesis investigated whether reinforcement learning can determine feasible a
 
 For the battery system, mathematical optimization achieved the highest mean profit, but the TD3 policy approached its performance closely. Across 1000 randomly sampled 24-hour windows, the mean objective was $-3.0223$~EUR for TD3 and $-3.1851$~EUR for mathematical optimization, giving a mean gap of 0.1628~EUR. TD3 also produced SOC trajectories that used a similar portion of the available storage range. Its main advantage was speed: a complete policy rollout required 0.0082~s on average, compared with 0.5605~s for mathematical optimization, corresponding to a speedup of approximately $68.13\times$. The terminal-SOC study showed that feasibility and economic performance must be considered together. A progressive reachability penalty eliminated the observed terminal violations, but it also increased the objective gap. Without this penalty, the violation rate was 4\%, although the mean shortfall was only 0.000252.
 
-The cookie factory presented a more difficult control problem because nonlinear surrogate equations, storage dynamics, and process constraints must be satisfied simultaneously. Across ten matched 24-hour windows, SAC achieved a mean cost of $2019.9256 \pm 637.5719$~EUR, while mathematical optimization achieved $1898.6259 \pm 694.5588$~EUR. The mean cost gap was 121.2997~EUR, and the mean absolute relative gap was 12.94\%. SAC generated a schedule in 0.0455~s on average, compared with 14.4743~s for mathematical optimization, resulting in a speedup of approximately $318.39\times$. However, the SAC schedules retained violations of the $F_4$ coupling relation and the cyclic terminal-storage condition, while mathematical optimization produced no constraint violation within numerical solver tolerance. Reducing the policy action space to two dimensions simplified the learning problem, but it did not by itself ensure satisfaction of all coupled constraints.
+The cookie factory presented a more difficult control problem because nonlinear surrogate equations, storage dynamics, and process constraints must be satisfied simultaneously. Across 100 matched 24-hour windows, SAC achieved a mean cost of $2194.2083 \pm 681.6013$~EUR, while mathematical optimization achieved $2107.8703 \pm 727.2706$~EUR. The mean cost gap was 86.3380~EUR, and the mean absolute relative gap was 6.78\%. SAC generated a schedule in 0.0239~s on average, compared with 11.4853~s for mathematical optimization, resulting in a speedup of approximately $479.73\times$. Its mean per-window $F_4$, flow-bound, grid-power, and terminal cyclic quantities were 0.5215, 1.0598, 4.9168, and 1.7603, respectively, while the corresponding mathematical-optimization quantities were negligible. The separate ten-window TD3 experiment produced a mean cost of $2002.4080 \pm 640.7368$~EUR against $1898.6259 \pm 694.5588$~EUR for mathematical optimization, with a mean gap of 103.7821~EUR and a mean absolute relative gap of 11.65\%. Because SAC and TD3 were evaluated on different window sets, their sample means are not used to rank the policies directly. Reducing the policy action space to two dimensions simplified the learning problem, but it did not by itself ensure satisfaction of all coupled constraints.
 
 The results therefore provide a qualified answer to the research question. Reinforcement learning can learn continuous setpoint policies that produce economically meaningful schedules with very low online computation time. Its practical value is strongest when decisions must be generated repeatedly under short computation-time limits and when offline training can be performed in advance. In the simpler battery system, the learned policy remained close to the mathematical-optimization benchmark. As system complexity and constraint coupling increased, the gap in operating cost and feasibility became more pronounced. Mathematical optimization remained superior when the best objective value and reliable constraint satisfaction were the primary requirements.
 
 \subsection{Future Work}
 
-Constraint handling should be strengthened for the cookie-factory policy. The observed $F_4$ coupling residual and terminal cyclic-storage deviation could be addressed through constraint-preserving action mappings, action projection, constrained RL methods, or a small repair optimization applied to the policy output. A progressive reachability mechanism similar to the one studied for the battery could provide earlier feedback on whether the terminal TES target remains attainable. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
+Constraint handling should be strengthened for the cookie-factory policy. In particular, the observed grid-power violations should be addressed through a constraint-preserving action mapping or action projection. The $F_4$ coupling residual and terminal cyclic-storage deviation could likewise be addressed through constrained RL methods or a small repair optimization applied to the policy output. A progressive reachability mechanism similar to the one studied for the battery could provide earlier feedback on whether the terminal TES target remains attainable. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
 
 The present evaluation uses fixed 24-hour price and wind profiles that are available to both methods. A rolling-horizon implementation should instead update forecasts and setpoints as new measurements become available. This would allow the policies to be tested under forecast errors, measurement noise, disturbances, and model--plant mismatch. Domain randomization or targeted retraining could then be used to improve robustness to operating conditions not represented in the original training data.
 
