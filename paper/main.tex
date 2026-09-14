@@ -245,7 +245,7 @@ This question is addressed through the following subquestions:
     \item Under which conditions does RL offer a practical advantage, and where do classical optimization methods remain superior?
 \end{itemize}
 
-For each case study, the setpoint optimization problem is first formulated as a Markov decision process (MDP). Deep neural networks are used to parameterize the RL policies that map system observations to continuous setpoint decisions. The resulting policies are evaluated through deterministic rollouts in reinforcement-learning environments, and the resulting schedules are compared with mathematical optimization baselines. The comparison is based on total grid-electricity cost, constraint violations, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
+For each case study, the setpoint optimization problem is first formulated as a Markov decision process (MDP). Deep neural networks are used to parameterize the RL policies that map system observations to continuous setpoint decisions. The resulting policies are evaluated through deterministic rollouts in reinforcement-learning environments, and the resulting schedules are compared with mathematical optimization. The comparison is based on total grid-electricity cost, constraint violations, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
 
 The remainder of this thesis is structured as follows: Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces mathematical optimization as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~\ref{sec:use_case} introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~\ref{sec:methodology} presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~\ref{sec:results_discussion} reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and mathematical optimization. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
 
@@ -282,7 +282,7 @@ Another important distinction is whether the problem is deterministic or stochas
 
 Nonlinear constrained problems are usually solved with dedicated numerical solvers. Interior-point methods are common in this setting. Wächter and Biegler introduce IPOPT as an open-source solver for large-scale nonlinear programming that uses a primal-dual interior-point method with a filter line-search strategy \cite{wachter2006implementation}.
 
-More advanced hybrid optimization methods, such as Bayesian Optimization-Interior Point OPTimizer (BO-IPOPT), have been developed for complex nonlinear, nonconvex, and constrained optimization problems. BO--IPOPT combines the global exploration capability of Bayesian optimization with the efficient local convergence and constraint handling of IPOPT. The method has been evaluated for the optimal operation of an industrial energy conversion system and subsequently enhanced for constrained problems of varying dimensionality, multimodality, and nonlinearity \cite{kyriakidis2024hybrid,kyriakidis2025enhanced}. In this thesis, IPOPT is used as the mathematical-optimization baseline because of its wide applicability to nonlinear optimization problems. The evaluation of BO-IPOPT as an additional global optimization baseline is left for future work.
+More advanced hybrid optimization methods, such as Bayesian Optimization-Interior Point OPTimizer (BO-IPOPT), have been developed for complex nonlinear, nonconvex, and constrained optimization problems. BO--IPOPT combines the global exploration capability of Bayesian optimization with the efficient local convergence and constraint handling of IPOPT. The method has been evaluated for the optimal operation of an industrial energy conversion system and subsequently enhanced for constrained problems of varying dimensionality, multimodality, and nonlinearity \cite{kyriakidis2024hybrid,kyriakidis2025enhanced}. In this thesis, IPOPT is used for mathematical optimization because of its wide applicability to nonlinear optimization problems. The evaluation of BO-IPOPT as an additional global optimization method is left for future work.
 
 To illustrate the interior-point principle, consider the general problem in Eq.~\eqref{eq:general_constrained_optimization}. Introducing slack variables converts the inequality constraints into $g(x)+s=0$, where $s\geq 0$. Here, $s=(s_1,\ldots,s_q)^\top$, and $s_j$ is the slack variable associated with the $j$th inequality $g_j(x)\leq 0$. A logarithmic barrier with parameter $\mu>0$ restricts the iterates to the interior, $s>0$, and leads to the subproblem
 \begin{equation}
@@ -781,7 +781,7 @@ operating cost remains identifiable within the reward, while the normalized
 penalties provide training feedback for state, inlet-temperature, heat-flow,
 $F_4$-coupling, grid-power, and terminal-cyclic violations.
 
-After training, both policies are evaluated deterministically to compare schedules. For SAC, the mean action of the stochastic policy is selected at each time step. TD3 directly outputs a deterministic action. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the mathematical-optimization baseline in terms of cost, constraint satisfaction, and computation time.
+After training, both policies are evaluated deterministically to compare schedules. For SAC, the mean action of the stochastic policy is selected at each time step. TD3 directly outputs a deterministic action. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with mathematical optimization in terms of cost, constraint satisfaction, and computation time.
 
 \subsection{Training Setup}
 
@@ -825,7 +825,7 @@ Both SAC policies use three hidden layers of 256 neurons with ReLU activation fu
 
 \subsection{Evaluation Metrics}
 
-The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with the mathematical optimization baseline on the same grid-price and wind-availability profiles.
+The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with mathematical optimization on the same grid-price and wind-availability profiles.
 
 The primary economic metric is the total net grid-side cost over the evaluation horizon:
 \[
@@ -860,16 +860,16 @@ Finally, computation time is used to assess practical applicability. For mathema
 \label{sec:results_discussion}
 
 
-The previous section described the RL formulation, training setup, and evaluation procedure for both use cases. This section presents and discusses the resulting policy performance relative to mathematical optimization. All computations were performed in Python~3.14.1, with Gymnasium~1.2.2 used to implement the reinforcement-learning environments and Stable-Baselines3~2.7.0, based on PyTorch~2.9.1, used to train the RL policies. Experiments were conducted on an AMD Ryzen~7 7840HS CPU with Radeon~780M Graphics.
+The previous section described the RL formulation, training setup, and evaluation procedure for both use cases. This section presents and discusses the resulting policy performance relative to mathematical optimization. All computations were performed in Python~3.14.1, with Gymnasium~1.2.2 used to implement the reinforcement-learning environments and Stable-Baselines3~2.7.0, based on PyTorch~2.9.1, used to train the RL policies. Experiments were conducted on an AMD Ryzen~7 7840HS CPU with Radeon~780M Graphics. Offline training time is excluded from all online computation-time comparisons reported in this section.
+
+For both the battery and cookie-factory case studies, six algorithm-schedule configurations were compared: SAC and TD3 were each evaluated with a constant learning rate, a linear-decay schedule, and a power-law-decay schedule. For each case study, all six configurations were trained and evaluated over 50 independent runs using the corresponding environment and the same evaluation setup.
+
+In both case studies, the linear schedule achieved the best mean reward and the lowest mean objective value among the tested configurations. However, the differences between the three schedules were small relative to the variation in objective values across runs. This indicates that neither environment was highly sensitive to the exact learning-rate decay shape in these experiments. The linear schedule was therefore used as a stable baseline for the subsequent comparisons against mathematical optimization.
 
 
 \subsection{Battery Energy Storage System}
 
-The battery case study was first used to compare different learning-rate schedules for SAC and TD3. Each configuration was trained and evaluated over 50 runs on the same battery environment and evaluation setup.
-
-The linear schedule achieved the best mean reward and the lowest mean objective value among the tested configurations. However, the differences between the three schedules were small relative to the variation in objective values across runs. This indicates that the battery environment is not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore used as a stable baseline for the subsequent comparison against mathematical optimization.
-
-The trained SAC and TD3 policies were compared with mathematical optimization over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_mathematical_comparison} summarizes the resulting objective values, computation times, and SOC ranges, using mathematical optimization as the baseline.
+The trained SAC and TD3 policies were compared with mathematical optimization over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_mathematical_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
 
 \begin{table}[!tb]
 \centering
@@ -883,15 +883,16 @@ Mean objective [EUR] & $-2.8911 \pm 1.2408$ & $-3.0223 \pm 1.2208$ & $-3.1851 \p
 Objective range [EUR] & $[-7.7304,-0.3483]$ & $[-7.7841,-0.2604]$ & $[-7.8530,-0.4353]$ \\
 Mean computation time [s] & $0.0126 \pm 0.0105$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
 Time range [s] & $[0.0102,0.3444]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
+Active offline training time [min] & $36$ & $23$ & Not applicable \\
 Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
 Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
 \hline
 \end{tabular}
-\caption{Comparison between the trained SAC and TD3 policies and mathematical optimization over 1000 random 24-hour windows. Mathematical optimization serves as the baseline; lower (more negative) objective values correspond to higher profit.}
+\caption{Comparison between the trained SAC and TD3 policies and mathematical optimization over 1000 random 24-hour windows. Lower (more negative) objective values correspond to higher profit.}
 \label{tab:battery_mathematical_comparison}
 \end{table}
 
-Mathematical optimization achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to the mathematical-optimization baseline. The mean objective gap was $0.1628 \pm 0.1284$ EUR for TD3 and $0.2215 \pm 0.0811$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than mathematical optimization. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the discounted return, whereas SAC balances discounted-return maximization with maintaining policy entropy. Further TD3 results are presented below.
+Mathematical optimization achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to mathematical optimization. The mean objective gap was $0.1628 \pm 0.1284$ EUR for TD3 and $0.2215 \pm 0.0811$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than mathematical optimization. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the discounted return, whereas SAC balances discounted-return maximization with maintaining policy entropy. Further TD3 results are presented below.
 
 \begin{figure}[!tb]
     \centering
@@ -904,70 +905,80 @@ The small objective gaps shown in Figure~\ref{fig:td3_objective_gaps} indicate t
 
 The SOC trajectories are also similar in the current comparison. The TD3 policy reached a mean minimum SOC of 0.1947 and a mean maximum SOC of 0.8905, while the mathematical solution reached a mean minimum SOC of 0.1925 and a mean maximum SOC of 0.8793. This indicates that both methods used a comparable portion of the available storage flexibility.
 
-Figure~\ref{fig:battery_td3_dispatch} shows an illustrative 24-hour dispatch trajectory for a TD3 policy and the mathematical optimization solution over the 24-hour horizon. The upper panel compares grid-power profiles and electricity price, showing that the TD3 actions closely follow the mathematical-optimization schedule. The lower panel compares SOC trajectories, both of which satisfy the terminal-SOC requirement.
+Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for the best TD3 policy and the mathematical-optimization solution. The upper panel compares battery-power profiles and electricity price, while the lower panel compares the corresponding SOC trajectories. Figure~\ref{fig:battery_threshold_dispatch} separately illustrates the fixed-threshold strategy. This controller charges when the electricity price is at most 15~EUR/MWh and discharges when it is at least 25~EUR/MWh.
 
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
-    \caption{Illustrative 24-hour battery dispatch comparison between the TD3 policy and mathematical optimization.}
+    \caption{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and mathematical optimization.}
     \label{fig:battery_td3_dispatch}
 \end{figure}
 
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_fixed_threshold_dispatch.png}
+    \caption{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15~EUR/MWh and discharges at prices of at least 25~EUR/MWh.}
+    \label{fig:battery_threshold_dispatch}
+\end{figure}
+
+The fixed-threshold strategy achieved an objective value of $-1.07$~EUR, corresponding to a profit of 1.07~EUR, and returned the SOC to 0.50 at the end of the illustrated horizon. The TD3 policy achieved a profit of 1.84~EUR in the same window. Based on these displayed values, TD3 produced approximately 72.0\% more profit than the fixed-threshold strategy.
+
 In a separate feasibility evaluation, the TD3 policy without the progressive reachability penalty violated the terminal-SOC constraint in 4\% of the evaluation windows. Adding the progressive penalty reduced the violation rate to zero but increased the mean objective gap between TD3 and mathematical optimization to $0.2436 \pm 0.1473$ EUR, illustrating the trade-off between strict terminal-constraint satisfaction and economic performance. Upon further investigation, the mean terminal-SOC shortfall without the progressive penalty was only 0.000252. Given its higher profit, this small shortfall was considered tolerable, and the TD3 policy without the progressive reachability penalty was selected as the final model.
 
-The main advantage of the TD3 policy was computation time. The trained TD3 model required, on average, 0.0082~s to generate a 24-hour rollout, while mathematical optimization required 0.5605~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $68.13\times$. For TD3, approximately one hour of offline training is required beforehand and is therefore not included in the online computation time. These results therefore illustrate the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and approaches the mathematical optimization result closely, while direct optimization still provides the best objective value.
+The main advantage of the TD3 policy was computation time. The trained TD3 model required, on average, 0.0082~s to generate a 24-hour rollout, while mathematical optimization required 0.5605~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $68.13\times$. TD3 required 23 minutes of offline training, which is not included in the online computation time. These results therefore illustrate the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and approaches the mathematical optimization result closely, while direct optimization still provides the best objective value.
 
 \subsection{Cookie Production Factory}
 
-The trained SAC policy was evaluated against mathematical optimization on 100 matched, randomly sampled 24-hour windows, with both methods receiving identical price and wind data in each comparison. Mathematical optimization achieved a mean cost of $2107.8703 \pm 727.2706$~EUR, compared with $2194.2083 \pm 681.6013$~EUR for SAC. The resulting mean SAC--mathematical-optimization gap was 86.3380~EUR, and the mean absolute relative gap was 6.78\%. The TD3 values discussed separately below come from the earlier ten-window evaluation and are therefore not used for a direct ranking against SAC.
+SAC, TD3, and mathematical optimization were evaluated using the same 200 randomly selected 24-hour windows, with identical electricity-price and wind-power data provided to each method. Table \ref{tab:cookie_mathematical_comparison} summarizes the resulting objective values, computation times, and constraint violations for all 200 comparisons.
 
-\begin{table}[!tb]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.31\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
 \hline
-Metric & SAC policy & Mathematical optimization \\
+Metric & SAC policy & TD3 policy & Mathematical optimization \\
 \hline
-Mean cost [EUR] & $2194.2083 \pm 681.6013$ & $2107.8703 \pm 727.2706$ \\
-Mean computation time [s] & $0.0239$ & $11.4853$ \\
-Mean $F_4$ residual per window & $0.5215$ & $1.4534\times10^{-12}$ \\
-Mean flow-bound violation per window & $1.0598$ & $7.2676\times10^{-8}$ \\
-Mean grid-power violation per window & $4.9168$ & $0$ \\
-Mean terminal cyclic deviation per window & $1.7603$ & $0$ \\
+Mean objective [EUR] & $2092.5760 \pm 667.5588$ & $2081.3496 \pm 685.5216$ & $2012.2433 \pm 709.8310$ \\
+Objective range [EUR] & $[-186.86,3578.93]$ & $[-482.44,3590.87]$ & $[-888.04,3486.53]$ \\
+Mean computation time [s] & $0.0217 \pm 0.0282$ & $0.0180 \pm 0.0154$ & $11.5901 \pm 4.5103$ \\
+Time range [s] & $[0.0132,0.4026]$ & $[0.0099,0.2182]$ & $[4.6821,30.4373]$ \\
+Active offline training time [h] & $2.81$ & $1.24$ & Not applicable \\
+Mean $F_4$ residual per window [$^\circ$C] & $0.4555$ & $0.5300$ & $0$ \\
+Mean flow-bound violation per window [kW] & $0.5989$ & $3.5719$ & $0$ \\
+Mean grid-power violation per window [kW] & $98.3749$ & $68.5787$ & $0$ \\
+Mean terminal cyclic deviation per window [$^\circ$C] & $1.8380$ & $2.1386$ & $0$ \\
 \hline
 \end{tabular}
-\caption{Comparison of the trained SAC policy and mathematical optimization over 100 matched 24-hour cookie-factory windows. Lower values are better. Constraint quantities are reported separately because they have different physical units.}
+\caption{Comparison of the trained SAC and TD3 policies with mathematical optimization over 200 matched 24-hour cookie-factory windows. Lower objective, computation-time, and constraint values are better. Constraint quantities are reported separately because they have different physical units.}
 \label{tab:cookie_mathematical_comparison}
 \end{table}
 
-The trained SAC policy required 0.0239~s on average to generate a schedule, whereas mathematical optimization required 11.4853~s. Thus, SAC was approximately $479.73\times$ faster during online evaluation; its offline training time is not included in this comparison. This reduction in computation time was accompanied by lower economic performance and weaker constraint satisfaction. For SAC, the mean totals per window were 0.5215 for the $F_4$ coupling residual, 1.0598 for flow-bound violations, 4.9168 for grid-power violations, and 1.7603 for the terminal cyclic-storage deviation. The corresponding mathematical-optimization values were $1.4534\times10^{-12}$, $7.2676\times10^{-8}$, zero, and zero, respectively. Inlet-temperature and state-bound violations were zero on average for SAC. The categories are reported separately because they have different physical units and should not be interpreted as one homogeneous aggregate quantity.
+SAC achieved a mean cost of $2092.5760 \pm 667.5588$~EUR, compared with $2012.2433 \pm 709.8310$~EUR for mathematical optimization. Its mean cost gap was 80.3327~EUR and its mean absolute relative gap was 6.31\%. SAC required 0.0217~s per schedule, whereas mathematical optimization required 11.5901~s, corresponding to an online speedup of approximately $533.81\times$. For SAC, the mean values per window were 0.4555 for the $F_4$ coupling residual, 0.5989 for flow-bound violations, 98.3749 for grid-power violations, and 1.8380 for the terminal cyclic-storage deviation. The corresponding mathematical-optimization values were all 0.
 
-Figure~\ref{fig:cookie_sac_dispatch} illustrates the schedules produced for one 24-hour window. In this example, SAC obtained a cost of 1391.71~EUR, while mathematical optimization obtained 1130.70~EUR, corresponding to a gap of 261.01~EUR, or approximately 23.1\% relative to the mathematical-optimization result. Both schedules respond to the available wind power and time-varying electricity price. However, mathematical optimization uses a broader TES temperature range: it charges the storage during the earlier part of the horizon and discharges strongly during the high-price period around hours 17--20. The SAC policy follows a less pronounced storage trajectory and consequently requires more grid electricity in parts of the horizon.
+TD3 achieved a mean cost of $2081.3496 \pm 685.5216$~EUR. Relative to mathematical optimization, its mean cost gap was 69.1063~EUR and its mean absolute relative gap was 5.66\%. TD3 required 0.0180~s per schedule, corresponding to an online speedup of approximately $645.06\times$. For TD3, the mean values per window were 0.5300 for the $F_4$ coupling residual, 3.5719 for flow-bound violations, 68.5787 for grid-power violations, and 2.1386 for the terminal cyclic-storage deviation. Inlet-temperature and state-bound violations were zero on average for both RL policies.
 
-\begin{figure}[!tb]
-    \centering
-    \includegraphics[width=\textwidth]{figures/cookie_factory_dispatch_plot_sac.png}
-    \caption{Illustrative 24-hour cookie-factory dispatch comparison between the SAC policy and mathematical optimization. ``Math'' denotes mathematical optimization. Positive net thermal flow indicates TES charging, and negative net thermal flow indicates discharging.}
-    \label{fig:cookie_sac_dispatch}
-\end{figure}
+On the matched test set, TD3 is the better of the two RL policies overall: it produced the smaller economic gap, the smaller mean absolute relative gap, and the shorter online computation time, and the smaller grid-power violation. SAC nevertheless performed better for the $F_4$ residual, flow-bound violations, and terminal cyclic deviation. This qualification is important because the constraint categories have different physical units and cannot be combined into a physically meaningful single score. Neither learned policy matched the near-zero residuals of mathematical optimization, so TD3's advantage is an empirical comparison between the two learned controllers. The results therefore indicate that the learned policies can generate setpoints rapidly, but they remain less feasible than mathematical optimization.
 
-In the separate ten-window evaluation, TD3 achieved a mean cost of $2002.4080 \pm 640.7368$~EUR against a mathematical-optimization baseline of $1898.6259 \pm 694.5588$~EUR. The mean objective gap was 103.7821~EUR, and the mean absolute relative gap was 11.65\%. Mathematical optimization achieved a lower cost in every evaluated window. Since these windows differ from the larger SAC evaluation set, the SAC and TD3 sample means do not support a controlled ranking of the two policies.
-
-TD3 required 0.0350~s on average to generate a schedule, compared with 14.4743~s for mathematical optimization, corresponding to an online speedup of approximately $414.08\times$. Offline training is excluded. Its mean total constraint violation was 12.2023. The main TD3 contributions were flow-bound violations (7.0701), the $F_4$ coupling residual (1.9889), grid-power violations (1.6226), and the terminal cyclic-storage deviation (1.5208). Inlet-temperature and state-bound violations were zero on average. These aggregate values combine residuals with different physical units and should be interpreted together with the individual violation categories.
-
-Figure~\ref{fig:cookie_td3_comparison} shows the cost, runtime, and aggregate constraint violation for each TD3 comparison window. The policy consistently generated schedules faster than mathematical optimization, but several windows exhibited pronounced feasibility errors. Consequently, the smaller economic gap does not establish TD3 as a better feasible controller than SAC for this case study.
+Figure~\ref{fig:cookie_objective_comparison} shows the TD3 and mathematical-optimization objective values and their absolute differences for ten comparisons. The mathematical-optimization values are those reported in Table~\ref{tab:cookie_mathematical_comparison}. Since the TD3 schedules contain constraint violations, the lower-panel quantities are descriptive objective gaps and should not be interpreted as optimality gaps between equally feasible solutions.
 
 \begin{figure}[!tb]
     \centering
-    \includegraphics[width=0.9\textwidth]{figures/cookie_factory_comparison_td3.png}
-    \caption{TD3 and mathematical optimization (Pyomo) over ten matched 24-hour cookie-factory windows: operating cost, online computation time, and aggregate constraint violation. The optimization results are taken from the SAC evaluation.}
-    \label{fig:cookie_td3_comparison}
+    \includegraphics[width=0.98\textwidth]{figures/cookie_factory_objective_comparison.png}
+    \caption{TD3 and mathematical-optimization objective values for the first ten matched 24-hour cookie-factory windows. The lower panel shows the corresponding absolute TD3--mathematical-optimization objective gaps.}
+    \label{fig:cookie_objective_comparison}
 \end{figure}
 
-These results show that both trained policies can generate setpoints rapidly using the reduced two-dimensional cookie-factory action space, but the mathematical-optimization baseline retains an advantage in both operating cost and feasibility.
+Figure~\ref{fig:cookie_td3_dispatch} illustrates the schedules produced for one 24-hour window. In this example, TD3 obtained a cost of 1244.27~EUR, while mathematical optimization obtained 1130.70~EUR, corresponding to a gap of 113.57~EUR, or approximately 10.0\% relative to the mathematical-optimization result. The upper panel shows the TD3 power balance, including the available wind power, grid power, HTHP power demand, and time-varying electricity price. The lower panel directly compares the grid-power schedules. Mathematical optimization concentrates grid consumption more strongly in lower-price periods and reduces it around the highest-price hours, whereas TD3 follows a smoother profile and continues purchasing more grid electricity during some higher-price periods.
 
-\subsection{Key Findings}
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=\textwidth]{figures/cookie_factory_dispatch_plot_td3.png}
+    \caption{Illustrative 24-hour cookie-factory dispatch comparison between the TD3 policy and mathematical optimization. The upper panel shows the TD3 power balance and electricity price; the lower panel compares the TD3 and mathematical-optimization grid-power profiles. ``Math'' denotes mathematical optimization.}
+    \label{fig:cookie_td3_dispatch}
+\end{figure}
+
+These results show that mathematical optimization retains an advantage in both operating cost and feasibility. Nevertheless, both trained policies achieve operating costs close to mathematical optimization while generating setpoints rapidly.
 
 \cleartooddpage
 \section{Conclusion and Future Work}
@@ -975,26 +986,27 @@ These results show that both trained policies can generate setpoints rapidly usi
 
 \subsection{Conclusion}
 
-This thesis investigated whether reinforcement learning can determine feasible and cost-effective operating setpoints for energy utility systems of different complexity. The setpoint-selection tasks were formulated as finite-horizon Markov decision processes and evaluated for a battery energy storage system and the electrified steam-generation utility system of a cookie production factory. The battery represents a one-dimensional storage-control problem, whereas the cookie-factory mathematical-optimization model contains five coupled control variables and nonlinear process constraints. For the cookie-factory RL formulation, the action space was reduced to two dimensions by allowing the policy to select the storage mode and mass flow while deriving the remaining quantities through the process equations. In both cases, the trained policies were compared with mathematical optimization using the original economic objective, constraint satisfaction, and online computation time.
+This thesis investigated whether reinforcement learning can determine feasible and cost-effective operating setpoints for energy utility systems of different complexity. The setpoint-selection tasks were formulated as finite-horizon Markov decision processes and evaluated for a battery energy storage system and the electrified steam-generation utility system of a cookie production factory. The battery represents a one-dimensional storage-control problem, whereas the cookie-factory mathematical-optimization model contains five coupled control variables and nonlinear process constraints. For the cookie-factory RL formulation, the action space was reduced to two dimensions by allowing the policy to select a signed storage-mode command and mass flow while deriving the remaining quantities through the process equations. In both cases, the trained policies were compared with mathematical optimization using the original economic objective, constraint satisfaction, and online computation time.
 
-For the battery system, mathematical optimization achieved the highest mean profit, but the TD3 policy approached its performance closely. Across 1000 randomly sampled 24-hour windows, the mean objective was $-3.0223$~EUR for TD3 and $-3.1851$~EUR for mathematical optimization, giving a mean gap of 0.1628~EUR. TD3 also produced SOC trajectories that used a similar portion of the available storage range. Its main advantage was speed: a complete policy rollout required 0.0082~s on average, compared with 0.5605~s for mathematical optimization, corresponding to a speedup of approximately $68.13\times$. The terminal-SOC study showed that feasibility and economic performance must be considered together. A progressive reachability penalty eliminated the observed terminal violations, but it also increased the objective gap. Without this penalty, the violation rate was 4\%, although the mean shortfall was only 0.000252.
+For the battery system, mathematical optimization achieved the highest mean profit, but the TD3 policy approached its performance closely. Across 1000 randomly sampled 24-hour windows, the mean objective was $-3.0223$~EUR for TD3 and $-3.1851$~EUR for mathematical optimization, giving a mean gap of 0.1628~EUR. TD3 also produced SOC trajectories that used a similar portion of the available storage range. Its main advantage was speed: a complete policy rollout required 0.0082~s on average, compared with 0.5605~s for mathematical optimization, corresponding to a speedup of approximately $68.13\times$.
 
-The cookie factory presented a more difficult control problem because nonlinear surrogate equations, storage dynamics, and process constraints must be satisfied simultaneously. Across 100 matched 24-hour windows, SAC achieved a mean cost of $2194.2083 \pm 681.6013$~EUR, while mathematical optimization achieved $2107.8703 \pm 727.2706$~EUR. The mean cost gap was 86.3380~EUR, and the mean absolute relative gap was 6.78\%. SAC generated a schedule in 0.0239~s on average, compared with 11.4853~s for mathematical optimization, resulting in a speedup of approximately $479.73\times$. Its mean per-window $F_4$, flow-bound, grid-power, and terminal cyclic quantities were 0.5215, 1.0598, 4.9168, and 1.7603, respectively, while the corresponding mathematical-optimization quantities were negligible. The separate ten-window TD3 experiment produced a mean cost of $2002.4080 \pm 640.7368$~EUR against $1898.6259 \pm 694.5588$~EUR for mathematical optimization, with a mean gap of 103.7821~EUR and a mean absolute relative gap of 11.65\%. Because SAC and TD3 were evaluated on different window sets, their sample means are not used to rank the policies directly. Reducing the policy action space to two dimensions simplified the learning problem, but it did not by itself ensure satisfaction of all coupled constraints.
+The cookie factory presented a more difficult control problem because nonlinear surrogate equations, storage dynamics, and process constraints must be satisfied simultaneously. Across the 200 matched comparisons with mathematical optimization, SAC produced a mean cost gap of 80.3327~EUR and a mean absolute relative gap of 6.31\%, while TD3 produced a smaller mean gap of 69.1063~EUR and a smaller mean absolute relative gap of 5.66\%. SAC and TD3 generated schedules in 0.0217~s and 0.0180~s on average, corresponding to speedups of approximately $533.81\times$ and $645.06\times$, respectively. TD3 is therefore selected as the better cookie-factory RL policy overall based on its economic performance, online speed, and smaller grid-power violation. However, SAC yielded smaller $F_4$, flow-bound, and terminal cyclic quantities, and both policies remained substantially less feasible than mathematical optimization.
 
-The results therefore provide a qualified answer to the research question. Reinforcement learning can learn continuous setpoint policies that produce economically meaningful schedules with very low online computation time. Its practical value is strongest when decisions must be generated repeatedly under short computation-time limits and when offline training can be performed in advance. In the simpler battery system, the learned policy remained close to the mathematical-optimization benchmark. As system complexity and constraint coupling increased, the gap in operating cost and feasibility became more pronounced. Mathematical optimization remained superior when the best objective value and reliable constraint satisfaction were the primary requirements.
+These online speed advantages required offline training. Training the battery policies required 36 minutes for SAC and 23 minutes for TD3, while training the cookie-factory policies required 2.81 hours and 1.24 hours, respectively.
+
+The results therefore provide a qualified answer to the research question. Reinforcement learning can learn continuous setpoint policies that produce economically meaningful schedules with very low online computation time. Its practical value is strongest when decisions must be generated repeatedly under short computation-time limits and when offline training can be performed in advance. In the simpler battery system, the learned policy remained close to mathematical optimization. As system complexity and constraint coupling increased, the gap in operating cost and feasibility became more pronounced. Mathematical optimization remained superior when the best objective value and reliable constraint satisfaction were the primary requirements.
 
 \subsection{Future Work}
 
-Constraint handling should be strengthened for the cookie-factory policy. In particular, the observed grid-power violations should be addressed through a constraint-preserving action mapping or action projection. The $F_4$ coupling residual and terminal cyclic-storage deviation could likewise be addressed through constrained RL methods or a small repair optimization applied to the policy output. A progressive reachability mechanism similar to the one studied for the battery could provide earlier feedback on whether the terminal TES target remains attainable. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
+Constraint handling should be strengthened for the cookie-factory policy. In particular, the observed grid-power violations should be addressed through a constraint-preserving action mapping or action projection. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
 
 The present evaluation uses fixed 24-hour price and wind profiles that are available to both methods. A rolling-horizon implementation should instead update forecasts and setpoints as new measurements become available. This would allow the policies to be tested under forecast errors, measurement noise, disturbances, and model--plant mismatch. Domain randomization or targeted retraining could then be used to improve robustness to operating conditions not represented in the original training data.
 
-The mathematical-optimization comparison can also be extended. Warm-started IPOPT and hybrid methods such as BO-IPOPT should be evaluated on the same windows and computation budgets. A fair practical comparison should include solution quality, feasibility, initialization sensitivity, and computation time, while also accounting for the offline training cost of RL and the number of repeated online decisions required to amortize that cost. Hybrid approaches are particularly promising: a learned policy could provide a rapid initial schedule, followed by mathematical optimization to restore feasibility and improve the objective. Finally, the proposed policies should be validated using a higher-fidelity process model and, subsequently, a hardware-in-the-loop or real-plant implementation. 
+The mathematical-optimization comparison can also be extended. The schedule generated by the RL policy could be used to warm-start IPOPT, while hybrid methods such as BO-IPOPT should be evaluated on the same windows and computation budgets. Such hybrid approaches could combine rapid RL setpoint generation with mathematical optimization to restore feasibility and improve the objective. Finally, the proposed policies should be validated using a higher-fidelity real-plant implementation. 
 
 \cleartooddpage
 %Bibliography: Sources are stored in the bibtex file "Sources.bib" and referenced in the text via the reference \cite{Abbreviation}.
 %Important note: Google Scholar offers the "Cite" feature - the information there must always be checked! They are often not completely correct!
 
 \printbibliography
-
 \end{document}
