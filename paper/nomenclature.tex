@@ -1,0 +1,124 @@
+\section*{Nomenclature}
+\addcontentsline{toc}{section}{Nomenclature}
+
+Symbols are grouped by context. A dash denotes a dimensionless quantity;
+``varies'' denotes a quantity whose units depend on the model, scaling, or
+constraint. Time is expressed in hours for electricity-cost and battery-energy
+calculations and in seconds for the thermal-storage balance when heat rates are
+in kW and heat capacities in kJ/(kg\,K).
+
+\begingroup
+\footnotesize
+\renewcommand{\arraystretch}{1.05}
+\begin{longtable}{@{}p{0.25\textwidth}>{\raggedright\arraybackslash}p{0.52\textwidth}>{\raggedright\arraybackslash}p{0.16\textwidth}@{}}
+\textbf{Symbol} & \textbf{Definition} & \textbf{Unit} \\
+\hline
+\endfirsthead
+\textbf{Symbol} & \textbf{Definition} & \textbf{Unit} \\
+\hline
+\endhead
+\hline
+\endfoot
+\multicolumn{3}{@{}l}{\textbf{Time, energy, and economic quantities}} \\*
+$t, i$ & Discrete time index and summation index & -- \\
+$N$ & Number of decision steps in the scheduling horizon & -- \\
+$\Delta t$ & Duration of one time step & h or s \\
+$S_t$ & Spot electricity price & EUR/MWh \\
+$S_t^{\mathrm{buy}},S_t^{\mathrm{sell}}$ & Electricity purchase and sale prices & EUR/MWh \\
+$\Delta_s$ & Fixed difference between the purchase and sale prices & EUR/MWh \\
+$P_t^{\mathrm S}$ & Grid-side electrical power; positive for purchase & kW \\
+$P_t^+,P_t^-$ & Purchased and sold power magnitudes, respectively & kW \\
+$W_t$ & Available wind power & kW \\
+$C_t$ & Grid-electricity cost at one time step & EUR \\
+$J, J_{\mathrm{grid}}$ & Total operating or net grid-electricity cost, with the appropriate energy-unit conversion & EUR \\
+\multicolumn{3}{@{}l}{\textbf{Battery energy storage}} \\*
+$E_{\max}$ & Usable battery energy capacity & kWh \\
+$P_{\max}$ & Maximum charging and discharging power & kW \\
+$P_{\mathrm{actual},t}$ & Effective storage-side power after efficiency losses & kW \\
+$u_t$ & Normalized battery control command & -- \\
+$\mathrm{SOC}_t$ & Battery state of charge at time step $t$ & -- \\
+$\mathrm{SOC}_{\mathrm{final}}$ & Final state of charge & -- \\
+$\mathrm{SOC}_{\mathrm{term}}$ & Required minimum terminal state of charge & -- \\
+$\mathrm{SOC}^{\mathrm{reach}}_t$ & Minimum state of charge that preserves terminal-target reachability & -- \\
+$\eta$ & Charging and discharging efficiency & -- \\
+$k$ & Steepness parameter of the smooth action and SOC gates & -- \\
+$\delta$ & Normalized action deadband & -- \\
+$\epsilon$ & Power scale for the smooth efficiency transition & kW \\
+\multicolumn{3}{@{}l}{\textbf{Cookie production factory and thermal storage}} \\*
+$T_{\mathrm I}^t,T_{\mathrm{II}}^t$ & HTHX inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_{\mathrm{III}}^t,T_{\mathrm{IV}}^t$ & LTHX inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_1^t,T_4^t$ & TES outlet temperatures during charging and discharging, respectively & $^\circ$C \\
+$T_2^t,T_3^t$ & Steam-generator inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_s^t$ & Thermal energy storage temperature & $^\circ$C \\
+$\tilde{T}_0$ & Prescribed initial thermal-storage temperature & $^\circ$C \\
+$\dot{m}_{\mathrm I}^t,\dot{m}_{\mathrm{II}}^t$ & HTHX inlet and outlet heat-transfer-fluid mass-flow rates & kg/s \\
+$m_s$ & Mass of the thermal-storage medium & kg \\
+$c_{p,\mathrm f}, c_{p,\mathrm s}$ & Specific heat capacities of the heat-transfer fluid and storage medium & kJ/(kg\,K) \\
+$R^t$ & Compressor-speed-related control variable & -- \\
+$\beta_1^t,\beta_2^t$ & TES charging-side and discharging-side bypass settings & -- \\
+$b_t$ & Signed cookie-factory TES-mode command & -- \\
+$\delta_\beta$ & Half-width of the idle band in the signed TES-mode command & -- \\
+$\dot{Q}_{s,\mathrm{ch}}^t$ & Thermal-storage charging heat rate & kW \\
+$\dot{Q}_{s,\mathrm{dch}}^t$ & Thermal-storage discharging heat rate & kW \\
+$\dot Q_s^{\max}$ & Maximum permitted TES charging or discharging heat rate & kW \\
+$P_{\mathrm S}^{\max}$ & Maximum permitted cookie-factory grid power & kW \\
+$T_s^{\min},T_s^{\max}$ & Lower and upper TES temperature limits & $^\circ$C \\
+$\Delta T_s$ & TES temperature span, $T_s^{\max}-T_s^{\min}$ & $^\circ$C \\
+$T_{\mathrm{II,req}}^t$ & HTHX outlet temperature required to satisfy the $F_4$ coupling relation & $^\circ$C \\
+$\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & Thermal-storage charging and discharging effectiveness & -- \\
+$\gamma$ & Upper bound on the product of charging and discharging heat rates & kW$^2$ \\
+$F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
+$F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Surrogate models for high- and low-temperature heat-exchanger outlet temperatures & $^\circ$C \\
+$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations & -- \\
+\multicolumn{3}{@{}l}{\textbf{Mathematical optimization}} \\*
+$x,x^\star$ & Decision vector and optimal decision vector & varies \\
+$\Omega$ & Domain of the decision variables & varies \\
+$n,p,q$ & Numbers of decision variables, equality constraints, and inequality constraints in the general optimization problem & -- \\
+$f(x)$ & Objective function & varies \\
+$h(x),g(x)$ & Equality- and inequality-constraint functions & varies \\
+$s,s_j$ & Slack vector and its $j$th component & varies \\
+$\mu$ & Logarithmic barrier parameter & varies \\
+$y,z$ & Equality- and inequality-constraint multipliers & varies \\
+$J_h,J_g$ & Jacobian matrices of the constraint functions & varies \\
+$S=\operatorname{diag}(s)$ & Diagonal matrix of slack variables & varies \\
+\multicolumn{3}{@{}l}{\textbf{Reinforcement learning and evaluation}} \\*
+$\mathcal{X},\mathcal{A}$ & State and action spaces & varies \\
+$x_t,x'$ & Current state and next state & varies \\
+$X_t,A_t$ & Random state and action at time step $t$ & varies \\
+$a_t,a_t^{\mathrm{phys}}$ & Policy action and corresponding physical setpoints & varies \\
+$\mathcal{M}$ & Map from policy actions to physical setpoints & varies \\
+$p(x'\mid x,a)$ & Transition probability or probability density & varies \\
+$\pi,\pi_\theta(a\mid x)$ & Policy and parameterized stochastic policy & varies \\
+$\mu_\theta(x)$ & Deterministic TD3 actor & varies \\
+$\theta,\phi_1$ & Actor parameters and first-critic parameters & varies \\
+$\mathcal{D}$ & Replay buffer & -- \\
+$\tau_t$ & Stored transition tuple & varies \\
+$d_t$ & Episode-end indicator & -- \\
+$r(x,a),r_t$ & Reward function and time-step reward & varies \\
+$r_t^{\mathrm{cookie}}$ & Cookie-factory time-step reward & varies \\
+$r_t^{\mathrm{reach}}$ & Reward including the terminal-SOC reachability penalty & varies \\
+$G_t$ & Discounted return from time step $t$ & varies \\
+$\gamma_{\mathrm{RL}}$ & Reward discount factor & -- \\
+$v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & varies \\
+$v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & varies \\
+$q_{\phi_1}$ & First parameterized critic & varies \\
+$J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & TD3 actor and SAC policy objectives & varies \\
+$\alpha$ & Weight of the SAC entropy term & varies \\
+$\mathcal{H}$ & Policy entropy & -- \\
+$\tau$ & Target-network soft-update coefficient & -- \\
+$[z]_+$ & Positive part of $z$, defined as $\max(z,0)$ & same as $z$ \\
+$v_{\ell,t},v_{\mathrm{T},t}$ & Constraint-violation and terminal-violation terms & varies \\
+$v_{s,t},v_{\mathrm I,t},v_{Q,t},v_{P,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, heat-flow, grid-power, and coupling violations & varies \\
+$\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & varies \\
+$\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty weights & reward units \\
+$\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty weights & reward units \\
+$\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & varies \\
+$R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & varies \\
+$V_{\mathrm{tot}}$ & Sum of recorded constraint-violation magnitudes & varies \\
+$f_{\mathrm{viol}}$ & Fraction of time steps with constraint violations & -- \\
+$\varepsilon$ & Numerical tolerance used in violation detection & varies \\
+$\mathbb{E},\mathbb{E}_\pi$ & Expectation and expectation under policy $\pi$ & varies \\
+$\mathbf{1}$ & Vector of ones & -- \\
+$\mathbb{I},\mathbf{1}_{\{\cdot\}}$ & Indicator functions & -- \\
+\end{longtable}
+\endgroup
