@@ -38,8 +38,7 @@ and sac for other action (parameterized RL)
 
 Cookie factory observation additions:
 - Previous applied compressor-speed value R_(k-1), normalized to [0, 1].
-- Previous normalized projection correction (R_applied - R_commanded) / (1.53 - 0.8).
-- Previous normalized F4 residual after projection.
+- Previous normalized F4 residual after deriving R.
 - Normalized time index k / (K - 1), indicating progress through the episode.
 - Normalized terminal TES-temperature gap (T_s_0 - T_s_k) / (T_s_max - T_s_min).
 - Previous signed storage-mode command beta_command_(k-1).
@@ -86,8 +85,8 @@ Constraints that can still be violated
    Violation: abs(T_2 - (T_1*(1-beta1) + T_II*beta1)).
    T_2 comes from the steam-generator surrogate, while T_1 and T_II depend on the
    storage state, HTHP surrogate, mass flow, and compressor speed. The beta command
-   does not algebraically solve F4. The environment therefore projects the commanded
-   compressor speed to the nearest value in [0.8, 1.53] that satisfies F4. If no
+   does not algebraically solve F4. The environment derives compressor speed by
+   solving F4 within [0.8, 1.53], selecting the root nearest the previous R. If no
    feasible root exists, it applies the bounded value with the smallest residual and
    reports that residual to the next observation and the info dictionary.
 
@@ -115,13 +114,13 @@ Constraints that can still be violated
 6. Terminal cyclic condition
    Requirement: T_s at the final step must equal the initial T_s_0.
    Intermediate actions can leave net stored or discharged energy at the end of the
-   episode. This condition is penalized only at termination and is not enforced by
-   projection. The observed SAC terminal gap was 2.6646 degrees Celsius.
+   episode. This condition is penalized only at termination; exact return to the
+   initial temperature is not guaranteed.
 
 Reward penalties used for training
 
 - lambda_bound=20.0 for storage-state violations.
-- lambda_terminal=1000.0 for the final cyclic-temperature gap.
+- lambda_terminal=3000.0 for the final cyclic-temperature gap.
 - lambda_coupling=500.0 for the F4 residual (F5 is exact).
 - lambda_grid=3000.0 for grid-power violations.
 - lambda_T_I=10.0 for inlet-temperature violations.
@@ -148,3 +147,23 @@ temperature, storage state, and terminal cyclic violations.
 ---------------------------------------------------------------------
 1. try adding reachability penalty in cookie model.
 2. extend section where i describe cookie model.(describe the notation.)
+
+
+-----------------------------------------------------------------------------------------
+1. reduce page length
+2. change result as suggested by electricity
+3. have subscection in methodology.
+4. mention about why 5 actions was reduced to 2 actions..
+5. fix TI to TIII, in the equation(5)
+6. add some plots(finding R) (R may not be feasible if massflow is higer than 0.8)
+7. combine task desciption and abstract. (remove the cost just compare the result in surface)
+8. check battery model mathematical equation
+9. why betta is not 0.
+10. mention why use previous action in RL.
+11. running cost and terminal cost.
+12. describe finite time horizon and how terminal penalty is absorved in the running cost.
+13. keep just 2 digits( specally in results)
+14. mention +- (SD)
+15. give some interpretation in the result section.
+16. make footnote for units.
+17. instead of mathematical optimization say benchmark optimization
