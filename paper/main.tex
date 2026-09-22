@@ -82,30 +82,36 @@ Title and name of adviser (optional)
 19 September 2026
 }
 %%% ENTER THE ABSTRACT IN ENGLISH HERE %%%
-%%% Should not exceed half a page %%%
+%%% Should not exceed one page %%%
 \newcommand{\ABSTRACT}{
-Optimal setpoint determination in energy utility systems requires a balance
-between economic performance, constraint satisfaction, and computation time.
-This thesis evaluates whether reinforcement learning can provide effective
-setpoints for two systems of different complexity: a battery energy storage
-system and the electrified steam-generation utility system of a cookie
-production factory. Both problems are formulated as finite-horizon Markov
-decision processes, and policies are trained using Soft Actor-Critic (SAC) and
-Twin Delayed Deep Deterministic Policy Gradient (TD3). Their schedules are
-compared with mathematical optimization using identical input data and are
-assessed in terms of economic objective, feasibility, and online computation
-time.
+Energy utility systems operate under dynamic conditions in which electricity
+prices, renewable generation, storage states, and interacting process
+variables affect operating cost, efficiency, reliability, and constraint
+satisfaction. Improving their operation can also support renewable-energy
+integration and reduce energy-related carbon emissions. Their setpoints are
+conventionally determined using mathematical optimization, which depends on
+accurate system models and can become computationally demanding as system
+complexity increases. Time-varying inputs, renewable-energy uncertainty, and
+model--plant mismatch further motivate the investigation of data-driven
+alternatives. This thesis therefore evaluates whether reinforcement learning
+can provide effective setpoints with low online computation time for two
+systems of different complexity: a battery energy storage system and the
+electrified steam-generation utility system of a cookie production factory.
 
-For the battery system, TD3 achieved a mean objective of $-3.02$~EUR across
-1000 randomly sampled 24-hour windows, compared with $-3.19$~EUR for
-mathematical optimization. Its mean objective gap was therefore 0.16~EUR,
-while its average rollout time of 0.0082~s was approximately $68.13\times$
-faster. For the cookie factory, TD3 achieved a mean cost of 2081.35~EUR across
-200 matched windows, compared with 2012.24~EUR for mathematical optimization.
-The mean cost gap was 69.11~EUR and the mean absolute relative gap was 5.66\%,
-while online setpoint generation was approximately $645.06\times$ faster.
-However, both cookie-factory policies produced constraint violations, whereas
-mathematical optimization remained feasible.
+Both problems are formulated as finite-horizon Markov decision processes, and
+policies are trained using Soft Actor-Critic (SAC) and Twin Delayed Deep
+Deterministic Policy Gradient (TD3). Their schedules are compared with
+mathematical optimization using identical input data and are assessed in terms
+of economic objective, feasibility, and online computation time.
+
+For the battery system, TD3 closely approached the economic performance of
+mathematical optimization while generating schedules approximately
+$68\times$ faster. For the more complex cookie factory, TD3 outperformed SAC
+economically and achieved a mean absolute relative gap of 5.66\% from the
+mathematical-optimization result, while online setpoint generation was
+approximately $645\times$ faster. However, both cookie-factory policies
+produced constraint violations, whereas mathematical optimization remained
+feasible.
 
 The results show that trained reinforcement-learning policies can generate
 economically meaningful setpoints with very low online computation time after
@@ -116,14 +122,6 @@ complex cookie-factory model.
 %%% Should not exceed half a page %%%
 \newcommand{\ZUSAMMENFASSUNG}{
 Beispielzusammenfassung in Deutsch.
-}
-%%% ENTER THE (exact) TASK DESCRIPTION HERE %%%
-\newcommand{\TASKDESCRIPTION}{
-Energy utility systems are the backbone of industries. Their complexity ranges from small, localized systems to vast, highly interconnected infrastructure networks. Most of them operate under dynamic conditions where multiple interacting variables influence operational efficiency, cost, reliability, and stability. Conventionally, optimal setpoints for such systems are determined using mathematical optimization. These approaches rely on accurate system models and are typically formulated as constrained optimization problems. While effective for well-defined and moderately sized systems, classical optimization becomes computationally expensive as system complexity increases. Furthermore, time-varying dynamics, uncertainty from the integration of renewable sources, and model-plant mismatches make it challenging to use purely model-based approaches.
-
-This thesis investigates whether reinforcement learning can find optimal operating setpoints for two case studies of different complexity: a battery energy storage system and a nonlinear cookie production factory. For each system, the control task is formulated as a Markov decision process (MDP) with explicit state, action, and reward definitions aligned with operational objectives. The RL agent is trained to produce adaptive setpoint policies that maximize battery profit or minimize cookie-factory operating cost while penalizing constraint violations and preserving stable operation. The learned policies are then benchmarked against established mathematical optimization methods to determine where RL provides practical benefits and where its limitations remain.
-
-The evaluation of the proposed method will be conducted through systematic simulation studies on two energy system case studies of varying complexity. Performance will be assessed using quantitative metrics including economic performance, constraint violation frequency, and computational time. The results will provide a structured comparison between reinforcement learning and classical optimization and will determine under which conditions RL offers practical advantages for real-time setpoint optimization in complex energy utility systems. 
 }
 \begin{document}
 
@@ -171,11 +169,6 @@ The evaluation of the proposed method will be conducted through systematic simul
 	{Cottbus, \SUBMISSIONDATE}{\hspace*{2.725cm}\underline{~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}} \\
 	{\hspace*{7.75cm} Signature of the author}
 \end{textblock*}
-
-\startnewpage
-\section*{\underline{Task description}}
-\vspace{0.5cm}
-\TASKDESCRIPTION
 
 \startnewpage
 \section*{\underline{Abstract}}
