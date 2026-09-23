@@ -98,20 +98,21 @@ can provide effective setpoints with low online computation time for two
 systems of different complexity: a battery energy storage system and the
 electrified steam-generation utility system of a cookie production factory.
 
-Both problems are formulated as finite-horizon Markov decision processes, and
-policies are trained using Soft Actor-Critic (SAC) and Twin Delayed Deep
+Both problems are formulated as finite-horizon Markov decision processes, and actor-critic agents are trained using Soft Actor-Critic (SAC) and Twin Delayed Deep
 Deterministic Policy Gradient (TD3). Their schedules are compared with
 mathematical optimization using identical input data and are assessed in terms
 of economic objective, feasibility, and online computation time.
 
 For the battery system, TD3 closely approached the economic performance of
 mathematical optimization while generating schedules approximately
-$68\times$ faster. For the more complex cookie factory, TD3 outperformed SAC
-economically and achieved a mean absolute relative gap of 5.66\% from the
-mathematical-optimization result, while online setpoint generation was
-approximately $645\times$ faster. However, both cookie-factory policies
-produced constraint violations, whereas mathematical optimization remained
-feasible.
+$68\times$ faster. For the more complex cookie factory, SAC and TD3 achieved
+mean absolute relative objective gaps of 6.31\% and 5.66\%, respectively,
+while generating setpoints approximately $534\times$ and $645\times$ faster
+than mathematical optimization. Although SAC had the larger economic gap, it
+produced smaller $F_4$-coupling residuals, heat-flow-bound violations, and
+terminal cyclic deviations, whereas TD3 produced smaller grid-power
+violations. Both cookie-factory policies produced constraint violations,
+whereas mathematical optimization remained feasible.
 
 The results show that trained reinforcement-learning policies can generate
 economically meaningful setpoints with very low online computation time after
