@@ -278,7 +278,7 @@ The remainder of this thesis is structured as follows: Section~\ref{sec:theory_b
 
 This section provides the theoretical basis for the setpoint optimization problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem can be viewed from two perspectives: as a model-based constrained optimization problem and as a sequential decision-making problem that can be addressed with reinforcement learning. The section first introduces setpoint optimization in energy utility systems and its formulation as a constrained mathematical optimization problem. It then presents the fundamental concepts of RL and the MDP formulation \cite{sutton2018reinforcement}, followed by descriptions of the TD3 \cite{fujimoto2018addressing} and SAC \cite{haarnoja2018soft} algorithms for continuous control evaluated in this work.
 
-Here, RL is not treated as a substitute for physical constraints. Instead, the setpoint-optimization problem is formulated as an MDP, with feasibility enforced where possible through action bounds, state-dependent mappings, and system dynamics, and otherwise discouraged through reward penalties. This distinction is important when comparing RL with mathematical optimization, because a low-cost policy is only useful if its decisions remain feasible.
+Here, RL is not treated as a substitute for physical constraints. Instead, the setpoint optimization problem is formulated as an MDP, with feasibility enforced where possible through action bounds, state-dependent mappings, and system dynamics, and otherwise discouraged through reward penalties. This distinction is important when comparing RL with mathematical optimization, because a low-cost policy is only useful if its decisions remain feasible.
 
 \subsection{Setpoint Optimization in Energy Utility Systems}
 
@@ -451,7 +451,7 @@ BESS operation presents several challenges. Decisions are inherently time-couple
 \begin{figure}[!b]
     \centering
     \includegraphics[width=0.62\textwidth]{figures/battery_model.pdf}
-    \caption{Schematic of the battery energy storage system. The battery charges from the grid and sells electricity back to the grid; its state of charge $\mathrm{SOC}(t)$ records the stored energy.}
+    \caption{Schematic of the battery energy storage system. The battery charges from the grid and sells electricity back to the grid; its state of charge $\mathrm{SOC}_t$ records the stored energy.}
     \label{fig:battery_model}
 \end{figure}
 
@@ -461,7 +461,7 @@ The SOC dynamics are modeled as
 \[
 \mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t}{E_{\max}},
 \]
-where $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t$ is the time step. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
+Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t$ is the time-step duration. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
 &P_t^{\mathrm S} = P_{\max}\Big[
@@ -484,7 +484,7 @@ where $P_{\text{actual},t}$ is the effective storage-side power after efficiency
 + \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
 \Biggr],
 \quad \forall t, \label{eq:feasible_actual_power} \\
-&\mathrm{SOC}_{\mathrm{final}} \geq \mathrm{SOC}_{\mathrm{term}},
+&\mathrm{SOC}_N \geq \mathrm{SOC}_{\mathrm{term}},
 \qquad \mathrm{SOC}_{\mathrm{term}}=0.5.
 \label{eq:terminal_soc_requirement}
 \end{align}
@@ -534,75 +534,75 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 \end{figure}
 
 
-The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{1,\ldots,N\}$:
+The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
-&\min_{\{\beta_1^t,\beta_2^t,R^t,\dot m_{\mathrm I}^t,T_{\mathrm I}^t\}_{t=1}^{N}}
-\quad J = \sum_{t=1}^{N} P_t^{\mathrm S} S_t \Delta t,
+&\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{I},t}\}_{t=0}^{N-1}}
+\quad J = \sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t,
 \label{eq:cookie_objective} \\
-&\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \label{eq:cookie_power_balance} \\
-&T_{\mathrm{II}}^t = F_{\mathrm{HTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
-&T_{\mathrm{IV}}^t = F_{\mathrm{LTHX}}\left(T_{\mathrm{I}}^t,\dot{m}_{\mathrm{I}}^t,T_{\mathrm{III}}^t,R^t\right), \\
-&T_2^t = \beta_1^t T_{\mathrm{II}}^t + \left(1-\beta_1^t\right)T_1^t, \\
-&T_{\mathrm{I}}^t = \beta_2^t T_3^t + \left(1-\beta_2^t\right)T_4^t, \\
-&T_2^t = 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II}}^t}, \\
-&T_3^t = 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I}}^t}, \\
-&\dot{Q}_{s,\mathrm{ch}}^t = 3\dot{m}_{\mathrm{II}}^t c_{p,\mathrm{f}}\left(T_{\mathrm{II}}^t-T_1^t\right)\left(1-\beta_1^t\right), \\
-&\dot{Q}_{s,\mathrm{dch}}^t = 3\dot{m}_{\mathrm{I}}^t c_{p,\mathrm{f}}\left(T_4^t-T_3^t\right)\left(1-\beta_2^t\right), \\
-&\dot{Q}_{s,\mathrm{ch}}^t \dot{Q}_{s,\mathrm{dch}}^t \leq \gamma, \\
-&T_1^t = T_{\mathrm{II}}^t - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II}}^t-T_s^{t-1}\right), \\
-&T_4^t = T_3^t - \epsilon_{\mathrm{dch}}\left(T_3^t-T_s^{t-1}\right), \\
-&T_s^t = T_s^{t-1} + \frac{\dot{Q}_{s,\mathrm{ch}}^t-\dot{Q}_{s,\mathrm{dch}}^t}{m_s c_{p,\mathrm{s}}}\Delta t, \\
-&T_s^0 = \tilde{T}_0, \qquad T_s^N = T_s^0, \\
-&T_{\mathrm{I}}^t \in [177,250], \qquad \dot{m}_{\mathrm{I}}^t \in [5,16], \\
-&T_{\mathrm{III}}^t \in [60,100], \qquad R^t \in [0.8,1.53], \qquad \beta_1^t,\beta_2^t \in [0,1].
+&\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \label{eq:cookie_power_balance} \\
+&T_{\mathrm{II},t} = F_{\mathrm{HTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
+&T_{\mathrm{IV},t} = F_{\mathrm{LTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
+&T_{2,t} = \beta_{1,t} T_{\mathrm{II},t} + \left(1-\beta_{1,t}\right)T_{1,t}, \\
+&T_{\mathrm{I},t} = \beta_{2,t} T_{3,t} + \left(1-\beta_{2,t}\right)T_{4,t}, \\
+&T_{2,t} = 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II},t}}, \\
+&T_{3,t} = 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I},t}}, \\
+&\dot{Q}_{s,\mathrm{ch},t} = 3\dot{m}_{\mathrm{II},t} c_{p,\mathrm{f}}\left(T_{\mathrm{II},t}-T_{1,t}\right)\left(1-\beta_{1,t}\right), \\
+&\dot{Q}_{s,\mathrm{dch},t} = 3\dot{m}_{\mathrm{I},t} c_{p,\mathrm{f}}\left(T_{4,t}-T_{3,t}\right)\left(1-\beta_{2,t}\right), \\
+&\dot{Q}_{s,\mathrm{ch},t} \dot{Q}_{s,\mathrm{dch},t} \leq \gamma, \\
+&T_{1,t} = T_{\mathrm{II},t} - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II},t}-T_{s,t}\right), \\
+&T_{4,t} = T_{3,t} - \epsilon_{\mathrm{dch}}\left(T_{3,t}-T_{s,t}\right), \\
+&T_{s,t+1} = T_{s,t} + \frac{\dot{Q}_{s,\mathrm{ch},t}-\dot{Q}_{s,\mathrm{dch},t}}{m_s c_{p,\mathrm{s}}}\Delta t, \\
+&T_{s,0} = \tilde{T}_0, \qquad T_{s,N} = T_{s,0}, \\
+&T_{\mathrm{I},t} \in [177,250], \qquad \dot{m}_{\mathrm{I},t} \in [5,16], \\
+&T_{\mathrm{III},t} \in [60,100], \qquad R_t \in [0.8,1.53], \qquad \beta_{1,t},\beta_{2,t} \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
-In this formulation, the superscript $t$ denotes the value of a quantity at
-discrete time step $t$, where $t\in\{1,\ldots,N\}$ and $N$ is the number of
+In this formulation, the final subscript $t$ denotes the discrete time step,
+where $t\in\{0,\ldots,N-1\}$ and $N$ is the number of steps in the
 steps in the scheduling horizon. The objective
 $J$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
 $P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
 power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
 $P_t^{\mathrm S}S_t\Delta t$ over the horizon. The subscript beneath the
 minimum lists the five time-dependent quantities selected independently by the
-mathematical optimizer: the two bypass settings $\beta_1^t$ and $\beta_2^t$,
-the compressor rotational-speed variable $R^t$, the mass flow
-$\dot m_{\mathrm I}^t$, and the HTHP inlet temperature $T_{\mathrm I}^t$.
+mathematical optimizer: the two bypass settings $\beta_{1,t}$ and $\beta_{2,t}$,
+the compressor rotational-speed variable $R_t$, the mass flow
+$\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$.
 
-The Roman subscripts $\mathrm I$--$\mathrm{IV}$ and the Arabic subscripts
-$1$--$4$ identify physical locations in the HTF circuit shown in
-Fig.~\ref{fig:cookie_detailed_flow_chart}; they are not time indices.
-$T_{\mathrm I}^t$ and $T_{\mathrm{II}}^t$ are respectively the inlet and outlet
+In compound subscripts such as those in $T_{\mathrm{I},t}$ and $T_{1,t}$, the
+Roman labels $\mathrm I$--$\mathrm{IV}$ and Arabic labels $1$--$4$ identify
+physical locations in the HTF circuit shown in Fig.~\ref{fig:cookie_detailed_flow_chart}, whereas the final subscript $t$ is the time index.
+$T_{\mathrm{I},t}$ and $T_{\mathrm{II},t}$ are respectively the inlet and outlet
 temperatures of the high-temperature heat exchanger (HTHX), whereas
-$T_{\mathrm{III}}^t$ and $T_{\mathrm{IV}}^t$ are the inlet and outlet
+$T_{\mathrm{III},t}$ and $T_{\mathrm{IV},t}$ are the inlet and outlet
 temperatures of the low-temperature heat exchanger (LTHX). The temperatures
-$T_1^t$ and $T_4^t$ are the TES outlet temperatures during charging and
-discharging, respectively, while $T_2^t$ and $T_3^t$ are the steam-generator
-inlet and outlet temperatures. The quantities $\dot m_{\mathrm I}^t$ and
-$\dot m_{\mathrm{II}}^t$ denote the HTHX inlet and outlet HTF mass-flow
+$T_{1,t}$ and $T_{4,t}$ are the TES outlet temperatures during charging and
+discharging, respectively, while $T_{2,t}$ and $T_{3,t}$ are the steam-generator
+inlet and outlet temperatures. The quantities $\dot{m}_{\mathrm{I},t}$ and
+$\dot{m}_{\mathrm{II},t}$ denote the HTHX inlet and outlet HTF mass-flow
 rates. The implemented closed-loop model uses the same per-HTHP flow variable
 for these two locations. The functions $F_{\mathrm{HTHP}}$,
 $F_{\mathrm{HTHX}}$, and $F_{\mathrm{LTHX}}$ are polynomial surrogate models
 for the electrical demand of one HTHP, the HTHX outlet temperature, and the
 LTHX outlet temperature, respectively.
 
-The bypass settings $\beta_1^t,\beta_2^t\in[0,1]$ determine the TES operating
+The bypass settings $\beta_{1,t},\beta_{2,t}\in[0,1]$ determine the TES operating
 mode. A value of one fully bypasses the associated storage path: charging uses
-$\beta_1^t<1$ and $\beta_2^t=1$, discharging uses $\beta_2^t<1$ and
-$\beta_1^t=1$, and $\beta_1^t=\beta_2^t=1$ represents idle operation.
-$\dot Q_{s,\mathrm{ch}}^t$ and $\dot Q_{s,\mathrm{dch}}^t$ are the TES charging
+$\beta_{1,t}<1$ and $\beta_{2,t}=1$, discharging uses $\beta_{2,t}<1$ and
+$\beta_{1,t}=1$, and $\beta_{1,t}=\beta_{2,t}=1$ represents idle operation.
+$\dot{Q}_{s,\mathrm{ch},t}$ and $\dot{Q}_{s,\mathrm{dch},t}$ are the TES charging
 and discharging heat-flow rates. The parameter
 $c_{p,\mathrm f}$ is the specific heat capacity of the HTF, while
 $\epsilon_{\mathrm{ch}}$ and $\epsilon_{\mathrm{dch}}$ are the charging and
 discharging effectiveness factors. The small relaxation parameter $\gamma$
-in $\dot Q_{s,\mathrm{ch}}^t\dot Q_{s,\mathrm{dch}}^t\leq\gamma$ prevents
+in $\dot{Q}_{s,\mathrm{ch},t}\dot{Q}_{s,\mathrm{dch},t}\leq\gamma$ prevents
 simultaneous charging and discharging when it is chosen close to zero.
 
-Finally, $T_s^t$ is the TES temperature, $m_s$ is the mass of the
-storage medium, and $c_{p,\mathrm s}$ is its specific heat capacity. The
-quantity $T_s^{t-1}$ is therefore the storage temperature from the preceding
-time step. The prescribed initial temperature is $\tilde T_0$, so
-$T_s^0=\tilde T_0$, and the equality $T_s^N=T_s^0$ imposes cyclic terminal
+Finally, $T_{s,t}$ is the TES temperature at the beginning of decision step $t$,
+and $T_{s,t+1}$ is the updated temperature after applying the decision at that
+step. The parameters $m_s$ and $c_{p,\mathrm s}$ denote the storage-medium mass
+and specific heat capacity, respectively. The prescribed initial temperature is
+$\tilde T_0$, so $T_{s,0}=\tilde T_0$, and $T_{s,N}=T_{s,0}$ imposes cyclic terminal
 operation. The final interval relations specify the validity and operating
 bounds of the surrogate model. The power balance in
 Eq.~\eqref{eq:cookie_power_balance} and the remaining relations through
@@ -615,7 +615,7 @@ are also collected in the nomenclature.
 
 % In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $W_t$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $W_{t+1:t+H}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
-The cookie-factory mathematical-optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_1^t$ and $\beta_2^t$, the compressor-speed-related variable $R^t$, the mass flow rate $\dot{m}_{\mathrm{I}}^t$, and the HTHP inlet temperature $T_{\mathrm{I}}^t$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed storage-mode command and the mass flow rate $\dot{m}_{\mathrm{I}}^t$. The environment maps the storage-mode command to $\beta_1^t$ and $\beta_2^t$ and derives $R^t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines nonlinear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
+The cookie-factory mathematical-optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_{1,t}$ and $\beta_{2,t}$, the compressor-speed-related variable $R_t$, the mass flow rate $\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed storage-mode command and the mass flow rate $\dot{m}_{\mathrm{I},t}$. The environment maps the storage-mode command to $\beta_{1,t}$ and $\beta_{2,t}$ and derives $R_t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines nonlinear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the existing mathematical optimization formulation.
 
 \startnewpage
 \section{Methodology}
@@ -659,7 +659,7 @@ More specifically, the battery reward implemented in the environment is
 \[
 r_t = -\frac{S_t P_t^{\mathrm S}\Delta t}{1000}
 -\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
-\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_{\mathrm{final}},0\right),
+\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
 where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
 
@@ -691,8 +691,8 @@ residual, the position within the episode, the terminal-temperature gap, the
 previous action, and the complete price and wind forecasts. The policy action
 is reduced to
 \[
-a_t=\left(b_t,\dot m_{\mathrm I}^t\right),
-\qquad b_t\in[-1,1],\quad \dot m_{\mathrm I}^t\in[5,16],
+a_t=\left(b_t,\dot{m}_{\mathrm{I},t}\right),
+\qquad b_t\in[-1,1],\quad \dot{m}_{\mathrm{I},t}\in[5,16],
 \]
 where $b_t$ is a signed TES-mode command. The idle band has a half-width of
 $\delta_\beta=0.05$. This value was selected as a small numerical tolerance
@@ -702,7 +702,7 @@ charging and discharging. The value was fixed during the experiments and was
 not separately optimized. The environment maps $b_t$ to the two physical
 bypass settings according to Eq.~\eqref{eq:cookie_beta_mapping}:
 \begin{equation}
-\left(\beta_1^t,\beta_2^t\right)=
+\left(\beta_{1,t},\beta_{2,t}\right)=
 \begin{cases}
 \displaystyle\left(1,\frac{1+b_t}{1-\delta_\beta}\right),
     & -1\leq b_t<-\delta_\beta \quad \text{(discharging)},\\[2mm]
@@ -714,44 +714,44 @@ bypass settings according to Eq.~\eqref{eq:cookie_beta_mapping}:
 \label{eq:cookie_beta_mapping}
 \end{equation}
 Consequently, the inactive path always has a bypass value of one. The mapping
-therefore satisfies $\beta_1^t+\beta_2^t\geq1$ and prevents simultaneous TES
+therefore satisfies $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous TES
 charging and discharging without requiring the policy to learn these two
 conditions from reward penalties.
 
-After obtaining $\beta_1^t$, $\beta_2^t$, and $\dot m_{\mathrm I}^t$, the
+After obtaining $\beta_{1,t}$, $\beta_{2,t}$, and $\dot{m}_{\mathrm{I},t}$, the
 environment evaluates the steam-generator relations, the discharging-side TES
-effectiveness relation, and the $F_5$ mixing relation to determine $T_2^t$,
-$T_3^t$, $T_4^t$, and $T_{\mathrm I}^t$. The compressor-speed variable $R^t$
+effectiveness relation, and the $F_5$ mixing relation to determine $T_{2,t}$,
+$T_{3,t}$, $T_{4,t}$, and $T_{\mathrm{I},t}$. The compressor-speed variable $R_t$
 is then derived from the $F_4$ coupling relation rather than selected directly
 by the policy. Substitution of
-$T_1^t=T_{\mathrm{II}}^t-\epsilon_{\mathrm{ch}}
-(T_{\mathrm{II}}^t-T_s^{t-1})$ into $F_4$ gives the required HTHX outlet
+$T_{1,t}=T_{\mathrm{II},t}-\epsilon_{\mathrm{ch}}
+(T_{\mathrm{II},t}-T_{s,t})$ into $F_4$ gives the required HTHX outlet
 temperature in Eq.~\eqref{eq:cookie_required_TII}:
 \begin{equation}
-T_{\mathrm{II,req}}^t=
-\frac{T_2^t-\epsilon_{\mathrm{ch}}(1-\beta_1^t)T_s^{t-1}}
-{1-\epsilon_{\mathrm{ch}}+\epsilon_{\mathrm{ch}}\beta_1^t}.
+T_{\mathrm{II,req},t}=
+\frac{T_{2,t}-\epsilon_{\mathrm{ch}}(1-\beta_{1,t})T_{s,t}}
+{1-\epsilon_{\mathrm{ch}}+\epsilon_{\mathrm{ch}}\beta_{1,t}}.
 \label{eq:cookie_required_TII}
 \end{equation}
 The environment consequently solves Eq.~\eqref{eq:cookie_R_derivation}:
 \begin{equation}
 F_{\mathrm{HTHX}}\!\left(
-T_{\mathrm I}^t,\dot m_{\mathrm I}^t,T_{\mathrm{III}}^t,R^t
-\right)-T_{\mathrm{II,req}}^t=0,
-\qquad R^t\in[0.8,1.53].
+T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t
+\right)-T_{\mathrm{II,req},t}=0,
+\qquad R_t\in[0.8,1.53].
 \label{eq:cookie_R_derivation}
 \end{equation}
-Because the HTHX surrogate is cubic in $R^t$, multiple real roots can occur.
+Because the HTHX surrogate is cubic in $R_t$, multiple real roots can occur.
 When several bounded roots exist, the root closest to the previously applied
-value $R^{t-1}$ is selected to avoid unnecessary switching. At the first time
-step, the interval midpoint, $R^0=1.165$, is used as the reference. If no real
+value $R_{t-1}$ is selected for $t\geq1$ to avoid unnecessary switching. At
+$t=0$, where no previous value exists, the interval midpoint $R_{\mathrm{ref}}=1.165$ is used as the reference. If no real
 root lies within the allowed interval, the bounded value that minimizes the
 absolute surrogate mismatch is applied. The remaining mismatch is measured by
 the $F_4$ residual
 \[
 v_{F_4,t}=\left|
-T_2^t-\beta_1^tT_{\mathrm{II}}^t
--(1-\beta_1^t)T_1^t
+T_{2,t}-\beta_{1,t}T_{\mathrm{II},t}
+-(1-\beta_{1,t})T_{1,t}
 \right|.
 \]
 
@@ -760,14 +760,14 @@ The cookie-factory reward contains the economic cost and the constraints that
 are not guaranteed by the action mapping. Define $[z]_+=\max(z,0)$,
 $\Delta T_s=T_s^{\max}-T_s^{\min}$, and the violation magnitudes
 \begin{align*}
-v_{s,t}={}&[T_s^{\min}-T_s^{t+1}]_+
-          +[T_s^{t+1}-T_s^{\max}]_+,\\
-v_{\mathrm I,t}={}&[177-T_{\mathrm I}^t]_+
-          +[T_{\mathrm I}^t-250]_+,\\
-v_{Q,t}={}&[-\dot Q_{s,\mathrm{ch}}^t]_+
-          +[-\dot Q_{s,\mathrm{dch}}^t]_+
-          +[\dot Q_{s,\mathrm{ch}}^t-\dot Q_s^{\max}]_+
-          +[\dot Q_{s,\mathrm{dch}}^t-\dot Q_s^{\max}]_+,\\
+v_{s,t}={}&[T_s^{\min}-T_{s,t+1}]_+
+          +[T_{s,t+1}-T_s^{\max}]_+,\\
+v_{\mathrm I,t}={}&[177-T_{\mathrm{I},t}]_+
+          +[T_{\mathrm{I},t}-250]_+,\\
+v_{Q,t}={}&[-\dot{Q}_{s,\mathrm{ch},t}]_+
+          +[-\dot{Q}_{s,\mathrm{dch},t}]_+
+          +[\dot{Q}_{s,\mathrm{ch},t}-\dot Q_s^{\max}]_+
+          +[\dot{Q}_{s,\mathrm{dch},t}-\dot Q_s^{\max}]_+,\\
 v_{P,t}={}&[-P_t^{\mathrm S}]_+
           +[P_t^{\mathrm S}-P_{\mathrm S}^{\max}]_+.
 \end{align*}
@@ -787,7 +787,7 @@ r_t^{\mathrm{cookie}}={}&-C_t
 \nonumber\\
 &-\lambda_P\frac{v_{P,t}}{P_{\mathrm S}^{\max}}
 -\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{cyc}}
- \frac{|T_s^N-T_s^0|}{\Delta T_s}.
+ \frac{|T_{s,N}-T_{s,0}|}{\Delta T_s}.
 \label{eq:cookie_reward}
 \end{align}
 The values used in training are $T_s^{\min}=183\,{}^\circ\mathrm C$,
