@@ -1,10 +1,7 @@
 \section*{Nomenclature}
 \addcontentsline{toc}{section}{Nomenclature}
 
-Symbols are grouped by context. A dash denotes a dimensionless quantity. Time
-is expressed in hours for electricity-cost and battery-energy
-calculations and in seconds for the thermal-storage balance when heat rates are
-in kW and heat capacities in kJ/(kg\,K).
+Symbols are grouped by context. A dash denotes a dimensionless quantity.
 
 \begingroup
 \footnotesize
@@ -19,9 +16,9 @@ in kW and heat capacities in kJ/(kg\,K).
 \hline
 \endfoot
 \multicolumn{3}{@{}l}{\textbf{Time, energy, and economic quantities}} \\*
-$t, i$ & Discrete time index and summation index & -- \\
+$t,i,j,\ell$ & Time, summation, and component indices; the applicable meaning and range are stated with each equation & -- \\
 $N$ & Number of decision steps in the scheduling horizon & -- \\
-$\Delta t$ & Duration of one time step & h or s \\
+$\Delta t_{\mathrm h},\Delta t_{\mathrm s}$ & Duration of one time step in hours and seconds, respectively; $\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ & h; s \\
 $S_t$ & Spot electricity price & EUR/MWh \\
 $S_t^{\mathrm{buy}},S_t^{\mathrm{sell}}$ & Electricity purchase and sale prices & EUR/MWh \\
 $\Delta_s$ & Fixed difference between the purchase and sale prices & EUR/MWh \\
@@ -35,8 +32,8 @@ $E_{\max}$ & Usable battery energy capacity & kWh \\
 $P_{\max}$ & Maximum charging and discharging power & kW \\
 $P_{\mathrm{actual},t}$ & Effective storage-side power after efficiency losses & kW \\
 $u_t$ & Normalized battery control command & -- \\
-$\mathrm{SOC}_t$ & Battery state of charge at time step $t$ & -- \\
-$\mathrm{SOC}_{\mathrm{final}}$ & Final state of charge & -- \\
+$\mathrm{SOC}_t$ & Battery state of charge at the beginning of decision step $t$ & -- \\
+$\mathrm{SOC}_N$ & Terminal state of charge after $N$ decisions & -- \\
 $\mathrm{SOC}_{\mathrm{term}}$ & Required minimum terminal state of charge & -- \\
 $\mathrm{SOC}^{\mathrm{reach}}_t$ & Minimum state of charge that preserves terminal-target reachability & -- \\
 $\eta$ & Charging and discharging efficiency & -- \\
@@ -44,26 +41,27 @@ $k$ & Steepness parameter of the smooth action and SOC gates & -- \\
 $\delta$ & Normalized action deadband & -- \\
 $\epsilon$ & Power scale for the smooth efficiency transition & kW \\
 \multicolumn{3}{@{}l}{\textbf{Cookie production factory and thermal storage}} \\*
-$T_{\mathrm I}^t,T_{\mathrm{II}}^t$ & HTHX inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_{\mathrm{III}}^t,T_{\mathrm{IV}}^t$ & LTHX inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_1^t,T_4^t$ & TES outlet temperatures during charging and discharging, respectively & $^\circ$C \\
-$T_2^t,T_3^t$ & Steam-generator inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_s^t$ & Thermal energy storage temperature & $^\circ$C \\
+$T_{\mathrm{I},t},T_{\mathrm{II},t}$ & HTHX inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_{\mathrm{III},t},T_{\mathrm{IV},t}$ & LTHX inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_{1,t},T_{4,t}$ & TES outlet temperatures during charging and discharging, respectively & $^\circ$C \\
+$T_{2,t},T_{3,t}$ & Steam-generator inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_{s,t}$ & TES temperature at the beginning of decision step $t$; $T_{s,N}$ is the terminal temperature & $^\circ$C \\
 $\tilde{T}_0$ & Prescribed initial thermal-storage temperature & $^\circ$C \\
-$\dot{m}_{\mathrm I}^t,\dot{m}_{\mathrm{II}}^t$ & HTHX inlet and outlet heat-transfer-fluid mass-flow rates & kg/s \\
+$\dot{m}_{\mathrm{I},t},\dot{m}_{\mathrm{II},t}$ & HTHX inlet and outlet heat-transfer-fluid mass-flow rates & kg/s \\
 $m_s$ & Mass of the thermal-storage medium & kg \\
 $c_{p,\mathrm f}, c_{p,\mathrm s}$ & Specific heat capacities of the heat-transfer fluid and storage medium & kJ/(kg\,K) \\
-$R^t$ & Compressor-speed-related control variable & -- \\
-$\beta_1^t,\beta_2^t$ & TES charging-side and discharging-side bypass settings & -- \\
+$R_t$ & Compressor-speed-related control variable & -- \\
+$R_{\mathrm{ref}}$ & Reference value used to select the initial compressor-speed root & -- \\
+$\beta_{1,t},\beta_{2,t}$ & TES charging-side and discharging-side bypass settings & -- \\
 $b_t$ & Signed cookie-factory TES-mode command & -- \\
 $\delta_\beta$ & Half-width of the idle band in the signed TES-mode command & -- \\
-$\dot{Q}_{s,\mathrm{ch}}^t$ & Thermal-storage charging heat rate & kW \\
-$\dot{Q}_{s,\mathrm{dch}}^t$ & Thermal-storage discharging heat rate & kW \\
+$\dot{Q}_{s,\mathrm{ch},t}$ & Thermal-storage charging heat rate & kW \\
+$\dot{Q}_{s,\mathrm{dch},t}$ & Thermal-storage discharging heat rate & kW \\
 $\dot Q_s^{\max}$ & Maximum permitted TES charging or discharging heat rate & kW \\
 $P_{\mathrm S}^{\max}$ & Maximum permitted cookie-factory grid power & kW \\
 $T_s^{\min},T_s^{\max}$ & Lower and upper TES temperature limits & $^\circ$C \\
 $\Delta T_s$ & TES temperature span, $T_s^{\max}-T_s^{\min}$ & $^\circ$C \\
-$T_{\mathrm{II,req}}^t$ & HTHX outlet temperature required to satisfy the $F_4$ coupling relation & $^\circ$C \\
+$T_{\mathrm{II,req},t}$ & HTHX outlet temperature required to satisfy the $F_4$ coupling relation & $^\circ$C \\
 $\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & Thermal-storage charging and discharging effectiveness & -- \\
 $\gamma$ & Upper bound on the product of charging and discharging heat rates & kW$^2$ \\
 $F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
@@ -74,7 +72,8 @@ $x,x^\star$ & Decision vector and optimal decision vector & * \\
 $\Omega$ & Domain of the decision variables & * \\
 $n,p,q$ & Numbers of decision variables, equality constraints, and inequality constraints in the general optimization problem & -- \\
 $f(x)$ & Objective function & * \\
-$h(x),g(x)$ & Equality- and inequality-constraint functions & * \\
+$h(x),g(x)$ & Aggregate equality- and inequality-constraint vectors & * \\
+$g_j(x)$ & $j$th inequality-constraint function & * \\
 $s,s_j$ & Slack vector and its $j$th component & * \\
 $\mu$ & Logarithmic barrier parameter & * \\
 $y,z$ & Equality- and inequality-constraint multipliers & * \\
@@ -102,16 +101,16 @@ $v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & 
 $v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & * \\
 $q_{\phi_1}$ & First parameterized critic & * \\
 $J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & TD3 actor and SAC policy objectives & * \\
-$\alpha$ & Weight of the SAC entropy term & * \\
+$\alpha$ & Weight of the SAC entropy term & ** \\
 $\mathcal{H}$ & Policy entropy & -- \\
 $\tau$ & Target-network soft-update coefficient & -- \\
-$[z]_+$ & Positive part of $z$, defined as $\max(z,0)$ & same as $z$ \\
+$[\,\cdot\,]_+$ & Positive-part operator & same as its argument \\
 $v_{\ell,t},v_{\mathrm{T},t}$ & Constraint-violation and terminal-violation terms & * \\
 $v_{s,t},v_{\mathrm I,t},v_{Q,t},v_{P,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, heat-flow, grid-power, and coupling violations & * \\
 $\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & * \\
 $\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty weights & ** \\
 $\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty weights & ** \\
-$\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & * \\
+$\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & ** \\
 $R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & * \\
 $V_{\mathrm{tot}}$ & Sum of recorded constraint-violation magnitudes & * \\
 $f_{\mathrm{viol}}$ & Fraction of time steps with constraint violations & -- \\
