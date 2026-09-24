@@ -200,8 +200,6 @@ Beispielzusammenfassung in Deutsch.
 \begin{tabular}{@{}p{0.20\textwidth}p{0.72\textwidth}@{}}
 \textbf{Abbreviation} & \textbf{Definition} \\
 \hline
-AI    & Artificial Intelligence \\
-ANN   & Artificial Neural Network \\
 BESS  & Battery Energy Storage System \\
 BO    & Bayesian Optimization \\
 CPU   & Central Processing Unit \\
@@ -459,9 +457,9 @@ A battery energy storage system provides flexible power by buying electricity wh
 
 The SOC dynamics are modeled as
 \[
-\mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t}{E_{\max}},
+\mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t_{\mathrm h}}{E_{\max}},
 \]
-Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t$ is the time-step duration. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
+Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t_{\mathrm h}$ is the time-step duration in hours. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
 &P_t^{\mathrm S} = P_{\max}\Big[
@@ -507,10 +505,10 @@ The battery model has a one-dimensional action space at each time step because t
 The battery objective is to maximize profit. Let $P_t^+=\max(P_t^{\mathrm S},0)$ denote purchased power and $P_t^-=\max(-P_t^{\mathrm S},0)$ denote sold power. Minimizing the net grid-side cost is equivalent to maximizing profit, giving the general objective
 \[
 \min_{\{u_t\}_{t=0}^{N-1}} J
-= \sum_{t=0}^{N-1}
-\left(S_t^{\mathrm{buy}}P_t^+-S_t^{\mathrm{sell}}P_t^-\right)\Delta t.
+= \frac{1}{1000}\sum_{t=0}^{N-1}
+\left(S_t^{\mathrm{buy}}P_t^+-S_t^{\mathrm{sell}}P_t^-\right)\Delta t_{\mathrm h}.
 \]
-With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J=\sum_t S_tP_t^{\mathrm S}\Delta t$. This equation represents the physical economic objective used to compare the methods. In the mathematical-optimization formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
+With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J=\sum_t S_tP_t^{\mathrm S}\Delta t_{\mathrm h}/1000$. The factor $1000$ converts kWh to MWh so that $J$ is expressed in euros. This equation represents the physical economic objective used to compare the methods. In the mathematical-optimization formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \FloatBarrier
 \subsection{Cookie Production Factory}
@@ -537,7 +535,7 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
 &\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{I},t}\}_{t=0}^{N-1}}
-\quad J = \sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t,
+\quad J = \frac{1}{1000}\sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t_{\mathrm h},
 \label{eq:cookie_objective} \\
 &\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \label{eq:cookie_power_balance} \\
 &T_{\mathrm{II},t} = F_{\mathrm{HTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
@@ -551,7 +549,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &\dot{Q}_{s,\mathrm{ch},t} \dot{Q}_{s,\mathrm{dch},t} \leq \gamma, \\
 &T_{1,t} = T_{\mathrm{II},t} - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II},t}-T_{s,t}\right), \\
 &T_{4,t} = T_{3,t} - \epsilon_{\mathrm{dch}}\left(T_{3,t}-T_{s,t}\right), \\
-&T_{s,t+1} = T_{s,t} + \frac{\dot{Q}_{s,\mathrm{ch},t}-\dot{Q}_{s,\mathrm{dch},t}}{m_s c_{p,\mathrm{s}}}\Delta t, \\
+&T_{s,t+1} = T_{s,t} + \frac{\dot{Q}_{s,\mathrm{ch},t}-\dot{Q}_{s,\mathrm{dch},t}}{m_s c_{p,\mathrm{s}}}\Delta t_{\mathrm s}, \\
 &T_{s,0} = \tilde{T}_0, \qquad T_{s,N} = T_{s,0}, \\
 &T_{\mathrm{I},t} \in [177,250], \qquad \dot{m}_{\mathrm{I},t} \in [5,16], \\
 &T_{\mathrm{III},t} \in [60,100], \qquad R_t \in [0.8,1.53], \qquad \beta_{1,t},\beta_{2,t} \in [0,1].
@@ -563,7 +561,11 @@ steps in the scheduling horizon. The objective
 $J$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
 $P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
 power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
-$P_t^{\mathrm S}S_t\Delta t$ over the horizon. The subscript beneath the
+$P_t^{\mathrm S}S_t\Delta t_{\mathrm h}/1000$ over the horizon. Here,
+$\Delta t_{\mathrm h}$ is the step duration in hours, while
+$\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ is used in the thermal-storage
+balance because the heat rates are expressed in kW and the heat capacities in
+kJ/(kg\,K). The subscript beneath the
 minimum lists the five time-dependent quantities selected independently by the
 mathematical optimizer: the two bypass settings $\beta_{1,t}$ and $\beta_{2,t}$,
 the compressor rotational-speed variable $R_t$, the mass flow
@@ -657,18 +659,18 @@ where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are cons
 
 More specifically, the battery reward implemented in the environment is
 \[
-r_t = -\frac{S_t P_t^{\mathrm S}\Delta t}{1000}
+r_t = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
 -\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
-where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. The factor $1000$ converts the energy charge to euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
+where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
 
 As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
 \[
 \mathrm{SOC}^{\mathrm{reach}}_t
 = \max\!\left(
 \mathrm{SOC}_{\mathrm{term}}
-- (N-t)\frac{\eta P_{\max}\Delta t}{E_{\max}},
+- (N-t)\frac{\eta P_{\max}\Delta t_{\mathrm h}}{E_{\max}},
 0
 \right).
 \]
@@ -757,7 +759,8 @@ T_{2,t}-\beta_{1,t}T_{\mathrm{II},t}
 
 \begin{samepage}
 The cookie-factory reward contains the economic cost and the constraints that
-are not guaranteed by the action mapping. Define $[z]_+=\max(z,0)$,
+are not guaranteed by the action mapping. Define the positive-part operator by
+$[\,\cdot\,]_+=\max(\,\cdot\,,0)$,
 $\Delta T_s=T_s^{\max}-T_s^{\min}$, and the violation magnitudes
 \begin{align*}
 v_{s,t}={}&[T_s^{\min}-T_{s,t+1}]_+
