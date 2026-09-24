@@ -323,7 +323,13 @@ where $J_h$ and $J_g$ are the Jacobians of the equality and inequality constrain
 
 Nocedal and Wright note that the performance of nonlinear optimization algorithms depends on formulation quality, particularly the constraint structure, variable scaling, and initial point \cite{nocedal2006numerical}.
 
-These considerations motivate the investigation of reinforcement learning as an alternative to solving a finite-horizon nonlinear program for every scheduling window. The following section introduces its fundamental principles and its formulation for setpoint optimization.
+The KKT conditions are not specific to IPOPT. They are also relevant when an RL-generated schedule is evaluated as a solution to the original constrained problem. To be described as locally optimal, the RL schedule would need to satisfy the original constraints and the KKT conditions.
+
+The RL methods used in this thesis do not explicitly enforce the KKT conditions. Therefore, the RL schedules are not claimed to be optimal. Their objective values and constraint violations are reported separately and compared with the IPOPT optimization baseline. The main motivation for investigating RL is its potential to generate control decisions quickly once training has been completed offline.
+
+The following section introduces the fundamental principles of RL and its formulation for setpoint optimization.
+
+\FloatBarrier
 
 \subsection{Reinforcement Learning}
 
