@@ -287,10 +287,10 @@ In practical operation, the controller also has to react to external signals suc
 
 Constrained nonlinear programming provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating costs, energy consumption, or CO$_2$ emissions, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
 \begin{equation}
-\min_{x \in \Omega} f(x) \quad \text{s.t.} \quad h(x) = 0,\; g(x) \le 0,
+\min_{\xi \in \Omega} f(\xi) \quad \text{s.t.} \quad h(\xi) = 0,\; c(\xi) \le 0,
 \label{eq:general_constrained_optimization}
 \end{equation}
-Here, $x \in \Omega \subseteq \mathbb{R}^n$ denotes the decision variables, $f : \mathbb{R}^n \to \mathbb{R}$ is the objective function, $h : \mathbb{R}^n \to \mathbb{R}^p$ represents equality constraints, and $g : \mathbb{R}^n \to \mathbb{R}^q$ represents inequality constraints. The solution $x^\star$ is optimal if it minimizes the objective while satisfying all constraints.
+Here, $\xi \in \Omega \subseteq \mathbb{R}^{n_\xi}$ denotes the decision vector, $f : \mathbb{R}^{n_\xi} \to \mathbb{R}$ is the objective function, $h : \mathbb{R}^{n_\xi} \to \mathbb{R}^{n_h}$ represents the equality constraints, and $c : \mathbb{R}^{n_\xi} \to \mathbb{R}^{n_c}$ represents the inequality constraints. The solution $\xi^\star$ is optimal if it minimizes the objective while satisfying all constraints.
 
 For finite-horizon setpoint optimization, the decision vector contains the control actions for several time steps. The objective is usually the accumulated operating cost over the horizon. The constraints describe system dynamics, energy balances, storage bounds, and terminal requirements. This time-coupled structure is important because a state such as battery state of charge or thermal storage temperature depends on previous decisions.
 
@@ -302,24 +302,24 @@ Nonlinear constrained problems are usually solved with dedicated numerical solve
 
 More advanced hybrid optimization methods, such as Bayesian Optimization-Interior Point OPTimizer (BO-IPOPT), have been developed for complex nonlinear, nonconvex, and constrained optimization problems. BO-IPOPT combines the global exploration capability of Bayesian optimization with the efficient local convergence and constraint handling of IPOPT. The method has been evaluated for the optimal operation of an industrial energy conversion system and subsequently enhanced for constrained problems of varying dimensionality, multimodality, and nonlinearity \cite{kyriakidis2024hybrid,kyriakidis2025enhanced}. In this thesis, IPOPT is used to solve the finite-horizon nonlinear programs and serves as the optimization baseline. The evaluation of BO-IPOPT as an additional global optimization method is left for future work.
 
-IPOPT handles the inequality constraints in Eq.~\eqref{eq:general_constrained_optimization} by introducing the slack vector $s=(s_1,\ldots,s_q)^\top$. Each inequality $g_j(x)\leq 0$ is then expressed as $g_j(x)+s_j=0$ with $s_j\geq 0$. To keep the slack variables strictly positive during the optimization, the interior-point formulation augments the objective with a logarithmic barrier parameterized by $\mu>0$. This yields the barrier subproblem \cite{wachter2006implementation}
+IPOPT handles the inequality constraints in Eq.~\eqref{eq:general_constrained_optimization} by introducing the slack vector $s=(s_1,\ldots,s_{n_c})^\top$. Each inequality $c_j(\xi)\leq 0$ is then expressed as $c_j(\xi)+s_j=0$ with $s_j\geq 0$. To keep the slack variables strictly positive during the optimization, the interior-point formulation augments the objective with a logarithmic barrier parameterized by $\mu_{\mathrm b}>0$. This yields the barrier subproblem \cite{wachter2006implementation}
 \begin{equation}
 \begin{aligned}
-\min_{x,s}\quad & f(x) - \mu\sum_{j=1}^{q}\ln(s_j) \\
-\text{s.t.}\quad & h(x)=0, \qquad g(x)+s=0, \qquad s>0.
+\min_{\xi,s}\quad & f(\xi) - \mu_{\mathrm b}\sum_{j=1}^{n_c}\ln(s_j) \\
+\text{s.t.}\quad & h(\xi)=0, \qquad c(\xi)+s=0, \qquad s>0.
 \end{aligned}
 \label{eq:ipopt_barrier_problem}
 \end{equation}
 The logarithmic barrier prevents the iterates from reaching the constraint boundary. IPOPT solves a sequence of such subproblems using a primal-dual Newton method. With equality multipliers $y$ and inequality multipliers $z$, the perturbed Karush-Kuhn-Tucker(KKT) conditions are
 \begin{equation}
 \begin{aligned}
-\nabla f(x)+J_h(x)^\top y+J_g(x)^\top z &= 0, \\
-h(x) &= 0, \qquad g(x)+s=0, \\
-S z &= \mu\mathbf{1}, \qquad s>0,\; z>0,
+\nabla f(\xi)+J_h(\xi)^\top y+J_c(\xi)^\top z &= 0, \\
+h(\xi) &= 0, \qquad c(\xi)+s=0, \\
+S z &= \mu_{\mathrm b}\mathbf{1}, \qquad s>0,\; z>0,
 \end{aligned}
 \label{eq:ipopt_kkt}
 \end{equation}
-where $J_h$ and $J_g$ are the Jacobians of the equality and inequality constraints, respectively, and $S=\operatorname{diag}(s)$. As $\mu$ is reduced towards zero, the perturbed complementarity condition $Sz=\mu\mathbf{1}$ approaches the KKT complementarity condition of the original constrained problem \cite{wachter2006implementation}. 
+where $J_h$ and $J_c$ are the Jacobians of the equality and inequality constraints, respectively, and $S=\operatorname{diag}(s)$. As $\mu_{\mathrm b}$ is reduced towards zero, the perturbed complementarity condition $Sz=\mu_{\mathrm b}\mathbf{1}$ approaches the KKT complementarity condition of the original constrained problem \cite{wachter2006implementation}.
 
 Nocedal and Wright note that the performance of nonlinear optimization algorithms depends on formulation quality, particularly the constraint structure, variable scaling, and initial point \cite{nocedal2006numerical}.
 
@@ -338,28 +338,37 @@ Reinforcement learning (RL) offers a different view of the same setpoint problem
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=0.82\textwidth]{figures/markov_diagram_v2.pdf}
-    \caption{Interaction loop between the reinforcement-learning agent and the environment in a Markov decision process \cite{ebatllep2020markov}.}
+    \caption{Agent--environment interaction using the notation of this thesis. At time $t$, the agent observes state $x_t$ and selects $a_t\in D_t(x_t)$; the environment evaluates $r_t(x_t,a_t)$ and generates $x_{t+1}$ according to $Q_t(\cdot\mid x_t,a_t)$.}
     \label{fig:rl_interaction_loop}
 \end{figure}
 
-Formally, RL problems are commonly modeled as a Markov Decision Process (MDP), defined by the tuple \cite{sutton2018reinforcement}
+Following Bäuerle and Rieder \cite{baeuerle2011markov}, a non-stationary Markov decision model with planning horizon $N\in\mathbb{N}$ consists of the data
 \[
-\left(\mathcal{X}, \mathcal{A}, p, r, \gamma_{\mathrm{RL}}\right),
+\left(E,A,D_t,Q_t,r_t,g_N\right),
 \]
-where
+with the following meaning for $t=0,1,\ldots,N-1$:
 \begin{itemize}
-    \item $\mathcal{X}$ is the set of states representing the system,
-    \item $\mathcal{A}$ is the set of actions,
-    \item $p(x' \mid x,a)$ defines the transition dynamics,
-    \item $r(x,a)$ is the reward function,
-    \item $\gamma_{\mathrm{RL}} \in [0,1]$ is the discount factor.
+    \item $E$ is the state space and $A$ is the action space,
+    \item $D_t(x)\subseteq A$ is the set of admissible actions in state $x$ at time $t$,
+    \item $Q_t(\cdot\mid x,a)$ is the transition kernel,
+    \item $r_t(x,a)$ is the stage-reward function, and
+    \item $g_N(x)$ is the terminal-reward function.
 \end{itemize}
 
-Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A policy $\pi(a \mid x)$ describes how the agent selects actions. To evaluate a decision, RL considers both its immediate reward and the rewards obtained thereafter. For a finite horizon of $N$ decision steps, this quantity, called the return, is
+Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A non-stationary policy is a sequence $\pi=(\pi_t)_{t=0}^{N-1}$, where $\pi_t(a\mid x)$ denotes the conditional probability of selecting action $a$ in state $x$ at time $t$. Thus, $\pi_t$ is the decision rule used at time $t$, and the vertical bar means ``given the state $x$.'' For the deterministic policy used by TD3, this distribution reduces to a single action, written as $a_t=\pi_t(x_t)$. Following the finite-horizon convention in Section~2.2 of Bäuerle and Rieder \cite{baeuerle2011markov}, the total return from time $t$ is
+\begin{samepage}
 \[
-G_t = \sum_{i=0}^{N-t-1} \gamma_{\mathrm{RL}}^i r(x_{t+i},a_{t+i}),
+\begin{aligned}
+G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}^{\,i-t}r_i(X_i,A_i)
+      +\gamma_{\mathrm{RL}}^{\,N-t}g_N(X_N),\\
+\gamma_{\mathrm{RL}} & = 1 \quad \text{for the finite-horizon problems considered here}.
+\end{aligned}
 \]
-and the learning objective is to find a policy that maximizes the expected return. The value function and action-value function of a policy $\pi$ are defined as
+With this setting, the expression is equivalent to the total-reward form used by Bäuerle and Rieder.
+\end{samepage}
+In the implemented environments, each terminal penalty is included in the final stage reward. Accordingly, $g_N\equiv0$ is used in the return above so that the terminal contribution is not counted twice.
+
+The learning objective is to find a policy that maximizes the expected return. The value function and action-value function of a policy $\pi$ are defined as
 \[
 v_t^\pi(x) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x\right],
 \qquad
@@ -367,17 +376,15 @@ q_t^\pi(x,a) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x, A_t=a\right].
 \]
 The value function estimates the expected return from a state, whereas the action-value function estimates the expected return from a state-action pair. These estimates allow the agent to consider the future consequences of a decision, not only its immediate reward.
 
-For a finite-horizon problem, the optimal action-value function can be written recursively as
+For a finite-horizon problem, the optimal value functions satisfy
 \[
 q_t^\star(x,a)
-= r(x,a)
-+ \gamma_{\mathrm{RL}}\,
-\mathbb{E}\!\left[
-v_{t+1}^\star(x')
-\mid x,a
-\right].
+= r_t(x,a)
++ \gamma_{\mathrm{RL}}\int_E v_{t+1}^\star(x')\,Q_t(\mathrm{d}x'\mid x,a),
+\qquad
+v_t^\star(x)=\sup_{a\in D_t(x)}q_t^\star(x,a),
 \]
-Here, $x'$ denotes the next state. Rather than calculating this expectation from a known system model, RL learns an approximation of the action-value function from sampled transitions $(x_t,a_t,r_t,x_{t+1})$. The policy is then improved to select actions with higher estimated long-term return. This illustrates the central idea of RL: actions are evaluated not only by their immediate reward, but also by their expected future consequences \cite{sutton2018reinforcement}.
+with terminal condition $v_N^\star(x)=g_N(x)$. Rather than evaluating the transition kernel analytically, model-free RL learns an approximation of the action-value function from sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1})$. The policy is then improved to select actions with higher estimated long-term return. This illustrates the central idea of RL: actions are evaluated not only by their immediate reward, but also by their expected future consequences \cite{sutton2018reinforcement}.
 
 Classical dynamic programming can solve MDPs through backward recursion. However, this approach becomes impractical when the state or action space grows, a difficulty known as the curse of dimensionality \cite{sutton2018reinforcement}. Realistic energy systems often have continuous states, continuous actions, and long horizons, so exact dynamic-programming solutions are often computationally infeasible.
 
@@ -414,26 +421,26 @@ Here, $J_{\mathrm{TD3}}(\theta)$ is the actor objective; $\theta$ denotes the ac
 \paragraph{Soft Actor-Critic (SAC):}
 SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}.
 \[
-J_{\mathrm{SAC}}(\pi)
+J_{\mathrm{SAC}}(\theta)
 =
-\mathbb{E}_{\pi}\!\left[
+\mathbb{E}_{\pi_\theta}\!\left[
 \sum_{t=0}^{N-1}\gamma_{\mathrm{RL}}^t
 \left(
-r(x_t,a_t)
+r_t(x_t,a_t)
 +
-\alpha\mathcal{H}(\pi(\cdot\mid x_t))
+\alpha\mathcal{H}(\pi_\theta(\cdot\mid x_t))
 \right)
 \right].
 \]
-Here, $J_{\mathrm{SAC}}(\pi)$ is the objective of the stochastic policy $\pi$; $\mathbb{E}_{\pi}$ denotes the expectation over trajectories generated by that policy; $N$ is the number of decision steps; $\gamma_{\mathrm{RL}}$ is the discount factor; $r(x_t,a_t)$ is the reward at time $t$; $\alpha$ weights the entropy term; and $\mathcal{H}(\pi(\cdot\mid x_t))$ is the policy entropy.
+Here, $J_{\mathrm{SAC}}(\theta)$ is the objective of the stochastic policy $\pi_\theta$; $\mathbb{E}_{\pi_\theta}$ denotes the expectation over trajectories generated by that policy; $\gamma_{\mathrm{RL}}$ is the discount factor and is set to $1$ in all experiments; $r_t(x_t,a_t)$ is the reward at time $t$; $\alpha$ weights the entropy term; and $\mathcal{H}(\pi_\theta(\cdot\mid x_t))$ is the policy entropy.
 
 For a state $x$, the policy entropy is defined as
 \[
-\mathcal{H}\bigl(\pi(\cdot\mid x)\bigr)
-= -\mathbb{E}_{a\sim\pi(\cdot\mid x)}
-\left[\log \pi(a\mid x)\right].
+\mathcal{H}\bigl(\pi_\theta(\cdot\mid x)\bigr)
+= -\mathbb{E}_{a\sim\pi_\theta(\cdot\mid x)}
+\left[\log \pi_\theta(a\mid x)\right].
 \]
-Thus, entropy is an expectation over the policy's action distribution rather than a quantity associated with a single action. During SAC training, an action $a\sim\pi(\cdot\mid x)$ is sampled from the current policy. The quantity $-\log\pi(a\mid x)$ is a stochastic single-sample estimate of the entropy term: although one sample is generally not equal to the exact entropy, its expectation over actions drawn from the policy equals $\mathcal{H}(\pi(\cdot\mid x))$. Such stochastic estimates allow SAC to optimize the entropy-regularized objective using minibatch gradient updates \cite{haarnoja2018soft}.
+Thus, entropy is an expectation over the policy's action distribution rather than a quantity associated with a single action. During SAC training, an action $a\sim\pi_\theta(\cdot\mid x)$ is sampled from the current policy. The quantity $-\log\pi_\theta(a\mid x)$ is a stochastic single-sample estimate of the entropy term: although one sample is generally not equal to the exact entropy, its expectation over actions drawn from the policy equals $\mathcal{H}(\pi_\theta(\cdot\mid x))$. Such stochastic estimates allow SAC to optimize the entropy-regularized objective using minibatch gradient updates \cite{haarnoja2018soft}.
 
 The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
@@ -639,9 +646,9 @@ The reward definitions follow the respective operational objectives and include 
 \subsection{Reinforcement Learning Framework}
 \label{sec:rl_framework}
 
-The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium \cite{towers2024gymnasium}, while the continuous-control policies are trained using Stable-Baselines3 \cite{raffin2021stablebaselines3}. Each interaction is stored as a transition
+The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium \cite{towers2024gymnasium}, while the continuous-control policies are trained using Stable-Baselines3 \cite{raffin2021stablebaselines3}. Each interaction produces the transition sample
 \[
-\tau_t = \left(x_t,a_t,r_t,x_{t+1},d_t\right),
+\left(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t\right),
 \]
 where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC and TD3. 
 This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
@@ -656,13 +663,13 @@ For the battery system, the state supplied to the agent consists of the current 
 
 The reward has the same general form in both environments:
 \[
-r_t = -C_t - \sum_{\ell} \lambda_\ell v_{\ell,t} - \lambda_{\mathrm{T}} v_{\mathrm{T},t},
+r_t(x_t,a_t) = -C_t - \sum_{\ell} \lambda_\ell v_{\ell,t} - \lambda_{\mathrm{T}} v_{\mathrm{T},t},
 \]
 where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are constraint-violation terms, and $\lambda_\ell$ are their corresponding penalty weights. The terminal term $v_{\mathrm{T},t}$ is only active at the end of an episode, and $\lambda_{\mathrm{T}}$ is its penalty weight. In the battery case, it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the case-specific economic objective into a return-maximization problem without removing the need for physical feasibility.
 
 More specifically, the battery reward implemented in the environment is
 \[
-r_t = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
+r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
 -\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
@@ -679,8 +686,8 @@ As an additional feasibility measure, a progressive terminal-SOC reachability pe
 \]
 Whenever the current SOC falls below this reachability threshold, the shaped reward is
 \[
-r_t^{\mathrm{reach}}
-= r_t
+r_t^{\mathrm{reach}}(x_t,a_t)
+= r_t(x_t,a_t)
 - \lambda_{\mathrm{reach}}
 \max\!\left(
 \mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,
@@ -785,7 +792,7 @@ Each term is zero when its corresponding constraint is satisfied.
 For the one-hour time steps used here, the grid cost is
 $C_t=S_tP_t^{\mathrm S}/1000$. The implemented reward is
 \begin{align}
-r_t^{\mathrm{cookie}}={}&-C_t
+r_t^{\mathrm{cookie}}(x_t,a_t)={}&-C_t
 -\lambda_s\frac{v_{s,t}}{\Delta T_s}
 -\lambda_{\mathrm I}\frac{v_{\mathrm I,t}}{250-177}
 -\lambda_Q\frac{v_{Q,t}}{\dot Q_s^{\max}}
@@ -871,7 +878,7 @@ where $C_t$ is the grid-electricity cost at time step $t$. For the battery syste
 
 The cumulative reward is reported as a secondary metric:
 \[
-R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t.
+R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
 \]
 This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
 
