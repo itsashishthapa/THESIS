@@ -355,12 +355,12 @@ with the following meaning for $t=0,1,\ldots,N-1$:
     \item $g_N(x)$ is the terminal-reward function.
 \end{itemize}
 
-Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A non-stationary policy is a sequence $\pi=(\pi_t)_{t=0}^{N-1}$, where $\pi_t(a\mid x)$ denotes the conditional probability of selecting action $a$ in state $x$ at time $t$. Thus, $\pi_t$ is the decision rule used at time $t$, and the vertical bar means ``given the state $x$.'' For the deterministic policy used by TD3, this distribution reduces to a single action, written as $a_t=\pi_t(x_t)$. Following the finite-horizon convention in Section~2.2 of Bäuerle and Rieder \cite{baeuerle2011markov}, the total return from time $t$ is
+Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A non-stationary policy is a sequence $\pi=(\pi_t)_{t=0}^{N-1}$, where $\pi_t(\cdot\mid x)$ is the conditional action distribution in state $x$ at time $t$. Thus, $\pi_t$ defines the action-selection rule at time $t$, conditional on the current state $x$. For a deterministic policy, this distribution assigns all probability to one action; for TD3, that action is written as $a_t=\mu_\theta(x_t)$. Following the finite-horizon convention of Bäuerle and Rieder \cite{baeuerle2011markov}, the total return from time $t$ is
 \begin{samepage}
 \[
 \begin{aligned}
-G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}^{\,i-t}r_i(X_i,A_i)
-      +\gamma_{\mathrm{RL}}^{\,N-t}g_N(X_N),\\
+G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}r_i(X_i,A_i)
+      +\gamma_{\mathrm{RL}}g_N(X_N),\\
 \gamma_{\mathrm{RL}} & = 1 \quad \text{for the finite-horizon problems considered here}.
 \end{aligned}
 \]
@@ -368,46 +368,72 @@ With this setting, the expression is equivalent to the total-reward form used by
 \end{samepage}
 In the implemented environments, each terminal penalty is included in the final stage reward. Accordingly, $g_N\equiv0$ is used in the return above so that the terminal contribution is not counted twice.
 
+\paragraph{Bellman equations and RL solution approaches.}
+
 The learning objective is to find a policy that maximizes the expected return. The value function and action-value function of a policy $\pi$ are defined as
 \[
 v_t^\pi(x) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x\right],
 \qquad
 q_t^\pi(x,a) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x, A_t=a\right].
 \]
-The value function estimates the expected return from a state, whereas the action-value function estimates the expected return from a state-action pair. These estimates allow the agent to consider the future consequences of a decision, not only its immediate reward.
-
-For a finite-horizon problem, the optimal value functions satisfy
+The value function evaluates a state before an action is selected, whereas the action-value function evaluates a particular state--action pair. For a fixed policy, they satisfy the Bellman expectation equations
 \[
-q_t^\star(x,a)
-= r_t(x,a)
-+ \gamma_{\mathrm{RL}}\int_E v_{t+1}^\star(x')\,Q_t(\mathrm{d}x'\mid x,a),
-\qquad
-v_t^\star(x)=\sup_{a\in D_t(x)}q_t^\star(x,a),
+\begin{aligned}
+q_t^\pi(x,a)
+&=r_t(x,a)+\gamma_{\mathrm{RL}}
+  \int_E v_{t+1}^\pi(x')\,Q_t(\mathrm{d}x'\mid x,a),\\
+v_t^\pi(x)
+&=\int_{D_t(x)}q_t^\pi(x,a)\,\pi_t(\mathrm{d}a\mid x),
+\end{aligned}
+\qquad t=0,\ldots,N-1,
 \]
-with terminal condition $v_N^\star(x)=g_N(x)$. Rather than evaluating the transition kernel analytically, model-free RL learns an approximation of the action-value function from sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1})$. The policy is then improved to select actions with higher estimated long-term return. This illustrates the central idea of RL: actions are evaluated not only by their immediate reward, but also by their expected future consequences \cite{sutton2018reinforcement}.
+with terminal condition $v_N^\pi(x)=g_N(x)$. The first equation separates the value of an action into its immediate reward and its expected discounted future value. The second averages the action values according to the policy. For a deterministic policy, this average reduces to the value of the single selected action.
 
-Classical dynamic programming can solve MDPs through backward recursion. However, this approach becomes impractical when the state or action space grows, a difficulty known as the curse of dimensionality \cite{sutton2018reinforcement}. Realistic energy systems often have continuous states, continuous actions, and long horizons, so exact dynamic-programming solutions are often computationally infeasible.
+The Bellman optimality equations describe the best attainable value rather than the value under a fixed policy:
+\[
+\begin{aligned}
+q_t^\star(x,a)
+&=r_t(x,a)+\gamma_{\mathrm{RL}}
+  \int_E v_{t+1}^\star(x')\,Q_t(\mathrm{d}x'\mid x,a),\\
+v_t^\star(x)
+&=\sup_{a\in D_t(x)}q_t^\star(x,a),
+\end{aligned}
+\qquad t=0,\ldots,N-1,
+\]
+with terminal condition $v_N^\star(x)=g_N(x)$. Thus, the Bellman expectation equations evaluate a specified policy, while the Bellman optimality equations select the action with the greatest value. Both express the same recursive relationship: current value equals immediate reward plus the value of subsequent decisions \cite{baeuerle2011markov,sutton2018reinforcement}.
 
-RL addresses this limitation by learning approximate policies from interaction data. A trained policy can then compute an action directly from the current observation. In model-free RL, the learning algorithm does not require an explicit analytical transition model for planning, although training still requires interaction data. In engineering applications, this data is usually generated with a simulator or digital model, so the quality of the learned policy depends strongly on the quality of the training environment.
+When the transition kernel $Q_t$ is known and the state and action spaces are manageable, these recursions can be solved by dynamic programming. For continuous, high-dimensional problems, exact backward recursion is often impractical because of the curse of dimensionality. Model-free RL therefore replaces the transition integral by sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ and uses function approximators to propagate information from future values to current decisions. The critic targets used by TD3 and SAC below are sample-based versions of this Bellman recursion.
 
-To place the algorithms used in this thesis in context, it is helpful to briefly classify the main families of RL algorithms. RL algorithms can be classified along several complementary dimensions:
+The Bellman framework leads to three principal RL solution approaches:
 \begin{itemize}
-    \item Model-based and model-free methods: model-based methods learn or use a model of the environment dynamics for planning. Model-free methods learn directly from sampled transitions.
-    \item Value-based and policy-based methods: value-based methods learn value or action-value functions and choose actions from them. Policy-based methods directly optimize a parameterized policy.
-    \item Actor-critic methods: actor-critic methods combine the ideas described above. The actor represents the policy, and the critic estimates values or action-values used to improve that policy.
-    \item On-policy and off-policy methods: on-policy methods learn from data generated by the current policy. Off-policy methods can also reuse data generated by previous policies or exploratory behavior.
-    \item Tabular and deep RL methods: tabular methods store values explicitly for small state and action spaces. Deep RL uses neural networks as function approximators and is therefore more suitable for large or continuous spaces.
+    \item Value-based methods approximate a value or action-value function and derive actions by selecting those with the highest estimated value.
+    \item Policy-based methods parameterize the policy directly and adjust its parameters to increase the expected return.
+    \item Actor--critic methods combine both ideas: the actor represents the policy, while the critic approximates a value function and supplies the learning signal used to improve the actor.
 \end{itemize}
+These approaches can additionally be model-based or model-free, on-policy or off-policy, and tabular or based on function approximation. In this terminology, model-based RL means that an environment model is learned or used for planning; it should not be confused with the IPOPT-based model-based optimization baseline used for comparison in this thesis.
 
-The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. Twin Delayed Deep Deterministic Policy Gradient (TD3) and Soft Actor Critic (SAC) are therefore selected because they learn parameterized policies that output continuous actions directly.
-
-TD3 and SAC are model-free, off-policy actor-critic methods \cite{fujimoto2018addressing,haarnoja2018soft}. The actor maps the current state to continuous setpoint decisions, while the critic estimates their expected long-term effect on operating cost and future system states. TD3 and SAC are applied to learn continuous setpoint policies for both case studies.
+The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. TD3 and SAC are therefore selected because they are deep, model-free, off-policy actor--critic methods whose parameterized actors produce continuous actions directly \cite{fujimoto2018addressing,haarnoja2018soft}. Their replay buffers provide the sampled transitions, their critics approximate the Bellman action values, and their actors map the resulting value information into setpoint decisions.
 
 \FloatBarrier
 \subsubsection{TD3 and SAC}
 
 \paragraph{Twin Delayed Deep Deterministic Policy Gradient (TD3):}
-TD3 uses a deterministic actor, $\mu_\theta(x)$, that maps the current state directly to a continuous action. Two critics estimate the action value, and the smaller estimate is used when constructing the learning target to reduce overestimation bias. TD3 further stabilizes learning through delayed actor updates and target-policy smoothing, in which small noise is added to target actions during critic updates \cite{fujimoto2018addressing}.
+TD3 represents its deterministic policy by an actor $\mu_\theta:E\rightarrow A$, where $\theta$ denotes the actor parameters. The output $\mu_\theta(x)$ is the action selected in state $x$; it is not an action probability. In terms of the general policy notation $\pi_t(\cdot\mid x)$ introduced above, the deterministic TD3 policy assigns all probability to the single action $a=\mu_\theta(x)$. The state contains the position within the scheduling horizon, so the same actor network can be used at every time step without an explicit time subscript.
+
+TD3 learns two separate action-value approximations, $q_{\phi_1}$ and $q_{\phi_2}$, with critic-parameter vectors $\phi_1$ and $\phi_2$. For a transition $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ sampled from the replay buffer $\mathcal D$, their common learning target is
+\[
+y_t=r_t(x_t,a_t)+\gamma_{\mathrm{RL}}(1-d_t)
+\min_{j\in\{1,2\}}
+q_{\bar\phi_j}\!\left(x_{t+1},\mu_{\bar\theta}(x_{t+1})+\zeta\right),
+\]
+where $d_t=1$ for a terminal transition, bars denote target-network parameters, and $\zeta$ is clipped target-policy smoothing noise. Taking the smaller of the two target estimates reduces the propagation of overestimated action values. Both critics are fitted to this target according to
+\[
+L(\phi_j)=
+\mathbb{E}_{\mathcal D}
+\!\left[\left(q_{\phi_j}(x_t,a_t)-y_t\right)^2\right],
+\qquad j\in\{1,2\}.
+\]
+TD3 further stabilizes learning by updating the actor and target networks less frequently than the critics \cite{fujimoto2018addressing}.
 \[
 J_{\mathrm{TD3}}(\theta)
 =
@@ -416,10 +442,10 @@ J_{\mathrm{TD3}}(\theta)
 q_{\phi_1}\bigl(x,\mu_\theta(x)\bigr)
 \right].
 \]
-Here, $J_{\mathrm{TD3}}(\theta)$ is the actor objective; $\theta$ denotes the actor parameters; $\mathcal{D}$ is the replay buffer from which states $x$ are sampled; $\mu_\theta(x)$ is the deterministic action proposed by the actor; and $q_{\phi_1}$ is the first critic, parameterized by $\phi_1$, which estimates the action value. The TD3 actor is trained to maximize this objective, producing one deterministic action, $a=\mu_\theta(x)$, for each state.
+Here, $x\sim\mathcal D$ is shorthand for sampling the state component $x$ from a transition stored in the replay buffer. The calligraphic replay buffer $\mathcal D$ is distinct from the admissible-action set $D_t(x)$. The actor is trained to maximize $J_{\mathrm{TD3}}$ using the first critic $q_{\phi_1}$. The second critic is not redundant: it is used together with the first critic in the minimum that defines the critic target above. The subscript $1$ merely identifies which of the two critics supplies the actor gradient.
 
 \paragraph{Soft Actor-Critic (SAC):}
-SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}.
+SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. As with TD3, the position in the scheduling horizon is included in $x$, so a separate time index is not required on the neural-network policy. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}.
 \[
 J_{\mathrm{SAC}}(\theta)
 =
@@ -880,6 +906,7 @@ The cumulative reward is reported as a secondary metric:
 \[
 R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
 \]
+Because $\gamma_{\mathrm{RL}}=1$ and $g_N\equiv0$ in the implemented environments, this episode reward equals the realized return $G_0$.
 This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
 
 Constraint satisfaction is measured by aggregating the violation terms recorded during the rollout. For a set of constraint residuals or violation magnitudes $v_{\ell,t}$, the total violation is defined as
