@@ -271,7 +271,7 @@ The remainder of this thesis is structured as follows: Section~\ref{sec:theory_b
 \section{Theory and Background}
 \label{sec:theory_background}
 
-This section provides the theoretical basis for the setpoint optimization problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem is studied through two computational approaches: direct solution of a finite-horizon constrained nonlinear program for each input window and action selection by RL policies trained offline. The section first introduces the nonlinear-programming formulation and its solution with IPOPT. It then presents the fundamental concepts of RL and the MDP formulation \cite{sutton2018reinforcement}, followed by descriptions of the TD3 \cite{fujimoto2018addressing} and SAC \cite{haarnoja2018soft} algorithms for continuous control evaluated in this work.
+This section provides the theoretical basis for the setpoint optimization problem studied in this thesis. The central question is how operating setpoints in energy utility systems can be selected over time so that costs are reduced while physical and operational limits are respected. The same problem is studied through two computational approaches: direct solution of a finite-horizon constrained nonlinear program for each input window and action selection by RL policies trained offline. The section first introduces the model-based optimization formulation and its solution with IPOPT. It then presents the fundamental concepts of RL and the MDP formulation \cite{sutton2018reinforcement}, followed by descriptions of the TD3 \cite{fujimoto2018addressing} and SAC \cite{haarnoja2018soft} algorithms for continuous control evaluated in this work.
 
 Here, RL is not treated as a substitute for physical constraints. Instead, the setpoint optimization problem is formulated as an MDP, with feasibility enforced where possible through action bounds, state-dependent mappings, and system dynamics, and otherwise discouraged through reward penalties. This distinction is important when comparing RL with the optimization baseline, because a low-cost policy is only useful if its decisions remain feasible.
 
@@ -283,9 +283,9 @@ Setpoint determination is also inherently sequential. The best operating point a
 
 In practical operation, the controller also has to react to external signals such as electricity prices, renewable generation, production demand, and ambient conditions. Since these signals change over time, fixed rule-based strategies can become inefficient, and the operation can be formulated as a finite-horizon decision problem with time-varying boundary conditions \cite{meng2025online,pilling2025rl}. This motivates two solution approaches for the same setpoint determination task: solving a constrained finite-horizon problem directly and applying a policy learned through reinforcement learning.
 
-\subsection{Constrained Nonlinear Programming}
+\subsection{Model-Based Optimization}
 
-Constrained nonlinear programming provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating costs, energy consumption, or CO$_2$ emissions, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
+Model-based optimization provides a natural way to describe setpoint selection. In general, optimization means selecting the best decision from a set of feasible alternatives according to a defined objective. For energy systems, the objective is often to minimize operating costs, energy consumption, or CO$_2$ emissions, while the feasible set is determined by physical equations and operational limits \cite{walden2023nonlinear,kyriakidis2025energy}. A constrained optimization problem can be written as \cite{nocedal2006numerical}:
 \begin{equation}
 \min_{\xi \in \Omega} f(\xi) \quad \text{s.t.} \quad h(\xi) = 0,\; c(\xi) \le 0,
 \label{eq:general_constrained_optimization}
@@ -567,7 +567,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 \end{align}
 In this formulation, the final subscript $t$ denotes the discrete time step,
 where $t\in\{0,\ldots,N-1\}$ and $N$ is the number of steps in the
-steps in the scheduling horizon. The objective
+scheduling horizon. The objective
 $J$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
 $P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
 power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
@@ -577,7 +577,7 @@ $\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ is used in the thermal-storage
 balance because the heat rates are expressed in kW and the heat capacities in
 kJ/(kg\,K). The subscript beneath the
 minimum lists the five time-dependent quantities selected independently by the
-mathematical optimizer: the two bypass settings $\beta_{1,t}$ and $\beta_{2,t}$,
+optimization baseline: the two bypass settings $\beta_{1,t}$ and $\beta_{2,t}$,
 the compressor rotational-speed variable $R_t$, the mass flow
 $\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$.
 

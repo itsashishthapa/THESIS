@@ -67,36 +67,37 @@ $\gamma$ & Upper bound on the product of charging and discharging heat rates & k
 $F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
 $F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Surrogate models for high- and low-temperature heat-exchanger outlet temperatures & $^\circ$C \\
 $F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations & -- \\
-\multicolumn{3}{@{}l}{\textbf{Mathematical optimization}} \\*
-$x,x^\star$ & Decision vector and optimal decision vector & * \\
+\multicolumn{3}{@{}l}{\textbf{Model-based optimization}} \\*
+$\xi,\xi^\star$ & Decision vector and optimal decision vector & * \\
 $\Omega$ & Domain of the decision variables & * \\
-$n,p,q$ & Numbers of decision variables, equality constraints, and inequality constraints in the general optimization problem & -- \\
-$f(x)$ & Objective function & * \\
-$h(x),g(x)$ & Aggregate equality- and inequality-constraint vectors & * \\
-$g_j(x)$ & $j$th inequality-constraint function & * \\
+$n_\xi,n_h,n_c$ & Numbers of decision variables, equality constraints, and inequality constraints & -- \\
+$f(\xi)$ & Objective function & * \\
+$h(\xi),c(\xi)$ & Aggregate equality- and inequality-constraint vectors & * \\
+$c_j(\xi)$ & $j$th inequality-constraint function & * \\
 $s,s_j$ & Slack vector and its $j$th component & * \\
-$\mu$ & Logarithmic barrier parameter & * \\
+$\mu_{\mathrm b}$ & Logarithmic barrier parameter & * \\
 $y,z$ & Equality- and inequality-constraint multipliers & * \\
-$J_h,J_g$ & Jacobian matrices of the constraint functions & * \\
+$J_h,J_c$ & Jacobian matrices of the constraint functions & * \\
 $S=\operatorname{diag}(s)$ & Diagonal matrix of slack variables & * \\
 \multicolumn{3}{@{}l}{\textbf{Reinforcement learning and evaluation}} \\*
-$\mathcal{X},\mathcal{A}$ & State and action spaces & * \\
-$x_t,x'$ & Current state and next state & * \\
+$E,A$ & State and action spaces of the finite-horizon MDP & * \\
+$D_t(x)$ & Admissible actions in state $x$ at time step $t$ & * \\
+$Q_t(\cdot\mid x,a)$ & Transition kernel at time step $t$ & * \\
+$g_N(x)$ & Terminal-reward function & * \\
+$x,x_t,x'$ & Generic state, state at time step $t$, and next state & * \\
 $X_t,A_t$ & Random state and action at time step $t$ & * \\
 $a_t,a_t^{\mathrm{phys}}$ & Policy action and corresponding physical setpoints & * \\
 $\mathcal{M}$ & Map from policy actions to physical setpoints & * \\
-$p(x'\mid x,a)$ & Transition probability or probability density & * \\
-$\pi,\pi_\theta(a\mid x)$ & Policy and parameterized stochastic policy & * \\
+$\pi,\pi_t,\pi_\theta(a\mid x)$ & Policy, time-$t$ decision rule, and parameterized stochastic policy & * \\
 $\mu_\theta(x)$ & Deterministic TD3 actor & * \\
 $\theta,\phi_1$ & Actor parameters and first-critic parameters & * \\
 $\mathcal{D}$ & Replay buffer & -- \\
-$\tau_t$ & Stored transition tuple & * \\
 $d_t$ & Episode-end indicator & -- \\
-$r(x,a),r_t$ & Reward function and time-step reward & * \\
-$r_t^{\mathrm{cookie}}$ & Cookie-factory time-step reward & * \\
-$r_t^{\mathrm{reach}}$ & Reward including the terminal-SOC reachability penalty & * \\
-$G_t$ & Discounted return from time step $t$ & * \\
-$\gamma_{\mathrm{RL}}$ & Reward discount factor & -- \\
+$r_t(x,a),r_t(x_t,a_t)$ & Stage-reward function and its realized value & * \\
+$r_t^{\mathrm{cookie}}(x_t,a_t)$ & Cookie-factory stage reward & * \\
+$r_t^{\mathrm{reach}}(x_t,a_t)$ & Battery reward including the terminal-SOC reachability penalty & * \\
+$G_t$ & Finite-horizon return from time step $t$ & * \\
+$\gamma_{\mathrm{RL}}$ & Reward discount factor; set to $1$ in all experiments & -- \\
 $v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & * \\
 $v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & * \\
 $q_{\phi_1}$ & First parameterized critic & * \\
