@@ -511,13 +511,13 @@ Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step 
 &P_t^{\mathrm S} = P_{\max}\Big[
 \frac{1}{2}\left(1+\tanh\bigl(k(u_t-\delta)\bigr)\right)u_t
 \nonumber\\
-&\quad {}\times
+&\quad {}\cdot
 \frac{1}{2}\left(1+\tanh\bigl(k(0.995-\mathrm{SOC}_t)\bigr)\right)
 \nonumber\\
 &\quad
 + \frac{1}{2}\left(1-\tanh\bigl(k(u_t+\delta)\bigr)\right)u_t
 \nonumber\\
-&\quad {}\times
+&\quad {}\cdot
 \frac{1}{2}\left(1+\tanh\bigl(k(\mathrm{SOC}_t-0.005)\bigr)\right)
 \Big], \quad \forall t, \label{eq:bess_power_mapping} \\
 &P_{\text{actual},t} = \frac{P_t^{\mathrm S}}{2}
