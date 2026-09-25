@@ -359,14 +359,14 @@ Under the Markov property, the current state contains all information required t
 \begin{samepage}
 \[
 \begin{aligned}
-G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}r_i(X_i,A_i)
-      +\gamma_{\mathrm{RL}}g_N(X_N),\\
+G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}^{\,i-t}r_i(X_i,A_i)
+      +\gamma_{\mathrm{RL}}^{\,N-t}g_N(X_N),\\
 \gamma_{\mathrm{RL}} & = 1 \quad \text{for the finite-horizon problems considered here}.
 \end{aligned}
 \]
-With this setting, the expression is equivalent to the total-reward form used by Bäuerle and Rieder.
+Because $\gamma_{\mathrm{RL}}=1$ in all experiments, all discount powers equal unity, and the expression reduces to the undiscounted total-reward form used by Bäuerle and Rieder.
 \end{samepage}
-In the implemented environments, each terminal penalty is included in the final stage reward. Accordingly, $g_N\equiv0$ is used in the return above so that the terminal contribution is not counted twice.
+In the implemented environments, the terminal penalties are included in the final stage reward $r_{N-1}(X_{N-1},A_{N-1})$. No additional reward is issued after the terminal state $X_N$ is reached; therefore, the separate terminal-reward function is defined as $g_N(x)\equiv0$ for every terminal state $x$. This is a bookkeeping convention that prevents the terminal contribution from being counted twice; it does not mean that terminal requirements are omitted.
 
 \paragraph{Bellman equations and RL solution approaches.}
 
@@ -402,8 +402,19 @@ v_t^\star(x)
 \]
 with terminal condition $v_N^\star(x)=g_N(x)$. Thus, the Bellman expectation equations evaluate a specified policy, while the Bellman optimality equations select the action with the greatest value. Both express the same recursive relationship: current value equals immediate reward plus the value of subsequent decisions \cite{baeuerle2011markov,sutton2018reinforcement}.
 
-When the transition kernel $Q_t$ is known and the state and action spaces are manageable, these recursions can be solved by dynamic programming. For continuous, high-dimensional problems, exact backward recursion is often impractical because of the curse of dimensionality. Model-free RL therefore replaces the transition integral by sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ and uses function approximators to propagate information from future values to current decisions. The critic targets used by TD3 and SAC below are sample-based versions of this Bellman recursion.
+\paragraph{Dynamic programming.}
+When the transition kernel $Q_t$ and reward function $r_t$ are known, the Bellman equations provide the basis for dynamic programming. Policy evaluation applies the Bellman expectation equations backward from the terminal condition to compute $v_t^\pi$ and $q_t^\pi$ for a fixed policy. When the supremum in the Bellman optimality equation is attained, policy improvement replaces the current policy by one that selects an action from
+\[
+\operatorname*{arg\,max}_{a\in D_t(x)}q_t^\pi(x,a).
+\]
+Alternating policy evaluation and policy improvement gives policy iteration. Value iteration instead applies the Bellman optimality recursion directly, combining evaluation and improvement in the same update. For the finite-horizon setting, both procedures start from the common terminal condition $v_N^\pi(x)=v_N^\star(x)=g_N(x)$ and proceed backward to $t=0$ \cite{baeuerle2011markov,sutton2018reinforcement}.
 
+Dynamic programming therefore provides a direct solution when the MDP model is available and the Bellman integrals and action maximizations are tractable. However, it requires explicit knowledge of the transition dynamics and becomes difficult for large or continuous state and action spaces because values cannot generally be stored or updated exhaustively.
+
+\paragraph{From dynamic programming to reinforcement learning.}
+RL retains the Bellman principle but estimates value functions or policies from interaction data. In model-free RL, the transition probabilities in $Q_t$ are not required explicitly. Instead, sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ provide one-step observations of the reward and successor state, and function approximators generalize these observations to unvisited states and actions. The critic targets used by TD3 and SAC below are sample-based versions of the Bellman recursion. Although the interaction data in this thesis are produced by simulation, the algorithms use sampled transitions rather than the simulator equations when updating their policies.
+
+\paragraph{RL algorithm families and continuous control.}
 The Bellman framework leads to three principal RL solution approaches:
 \begin{itemize}
     \item Value-based methods approximate a value or action-value function and derive actions by selecting those with the highest estimated value.
@@ -412,7 +423,9 @@ The Bellman framework leads to three principal RL solution approaches:
 \end{itemize}
 These approaches can additionally be model-based or model-free, on-policy or off-policy, and tabular or based on function approximation. In this terminology, model-based RL means that an environment model is learned or used for planning; it should not be confused with the IPOPT-based model-based optimization baseline used for comparison in this thesis.
 
-The relevant setpoints in this thesis, including battery power, temperature levels, mass flow rates, and bypass positions, are continuous quantities. Discretizing them would either exclude useful operating points or create a very large action space. TD3 and SAC are therefore selected because they are deep, model-free, off-policy actor--critic methods whose parameterized actors produce continuous actions directly \cite{fujimoto2018addressing,haarnoja2018soft}. Their replay buffers provide the sampled transitions, their critics approximate the Bellman action values, and their actors map the resulting value information into setpoint decisions.
+Actor--critic methods are particularly suitable for the setpoint-optimization problems considered here because the actions are continuous. A purely value-based method would require maximizing an estimated action-value function over a continuous action space whenever a decision is needed. An actor instead produces a continuous action directly, while the critic evaluates its expected long-term consequence and provides the signal used to improve the actor. This division is well suited to the battery command and the coupled mass-flow and storage-mode setpoints of the cookie factory.
+
+TD3 and SAC are therefore selected as deep, model-free, off-policy actor--critic methods \cite{fujimoto2018addressing,haarnoja2018soft}. Their replay buffers provide the sampled transitions, their critics approximate the Bellman action values, and their parameterized actors produce continuous setpoint decisions.
 
 \FloatBarrier
 \subsubsection{TD3 and SAC}
