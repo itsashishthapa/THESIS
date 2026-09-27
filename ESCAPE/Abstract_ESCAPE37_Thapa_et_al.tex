@@ -1,0 +1,66 @@
+% !TeX program = xelatex
+% title: Times New Roman Bold 16 pt; authors/affiliation/keywords: Times New Roman 11 pt;
+% body: Aptos 11 pt; Abstract heading: Aptos Display Bold 14 pt.
+% bp units match PDF/Word points (1/72 inch).
+\RequirePackage{fix-cm}
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{fontspec}
+\usepackage{microtype}
+\usepackage{parskip}
+\setmainfont{Aptos}[
+  Path=fonts/, Extension=.ttf,
+  UprightFont=*, BoldFont=*-Bold,
+  ItalicFont=*-Italic, BoldItalicFont=*-Bold-Italic]
+\newfontfamily\timesfont{Times}[
+  Path=fonts/, Extension=.TTF,
+  UprightFont=*, BoldFont=Timesbd,
+  ItalicFont=Timesi, BoldItalicFont=Timesbi]
+\newfontfamily\abstractheadingfont{Aptos-Display-Bold.ttf}[Path=fonts/]
+\renewcommand{\normalsize}{\fontsize{11bp}{14.5bp}\selectfont}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6bp}
+\setlength{\emergencystretch}{1em}
+\pagestyle{empty}
+
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{center}
+    {\timesfont\fontsize{16bp}{20bp}\selectfont\@title\par}
+  \end{center}
+  \vspace{12bp}
+  {\timesfont\fontsize{11bp}{14bp}\selectfont\noindent\@author\par}
+  \vspace{14bp}
+}
+\makeatother
+\renewenvironment{abstract}{%
+  \par{\abstractheadingfont\fontsize{14bp}{17bp}\selectfont Abstract\par}
+  \vspace{2bp}\normalfont\normalsize
+}{\par}
+
+\title{\textbf{Reinforcement learning-based optimal setpoint determination in a renewable industrial energy utility system}}
+\author{Ashish Thapa\textsuperscript{\fontsize{7bp}{8bp}\selectfont 1}, Loukas Kyriakidis\textsuperscript{\fontsize{7bp}{8bp}\selectfont 1}\\[0.3em]
+\textsuperscript{\fontsize{7bp}{8bp}\selectfont 1}German Aerospace Center, Institute of Low-Carbon Industrial Processes, Cottbus, Germany}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Decarbonizing industrial heat supply requires coordinated operation of renewable generation, heat pumps, and energy storage under fluctuating electricity prices and demand. Nonlinear component behaviour and coupled operating constraints can make repeated optimization computationally demanding. This work proposes transferring a reinforcement learning framework for rapid, economically informed setpoint determination to the renewable utility system of the SINNOGENES project at the Sanddorn sea buckthorn processing plant in Herzberg, Germany.
+
+The proposed utility system replaces fossil gas heating with an industrial heat pump, solar thermal collectors, photovoltaic generation, batteries, and thermal storage. This replacement supports CO\textsubscript{2} reduction by avoiding on-site fossil gas combustion. Reinforcement learning can further support this objective by coordinating heat-pump operation with photovoltaic availability and storing surplus renewable electricity and heat for later demand. Such coordination can increase renewable energy use and reduce reliance on grid electricity, lowering indirect CO\textsubscript{2} emissions when the displaced electricity has a higher carbon intensity.
+
+The proposed methodology formulates the scheduling task as a finite-horizon Markov decision process with continuous actions. Observations combine storage states, operating conditions, electricity prices, and forecasts of renewable availability and process demand. Reinforcement learning policies are trained offline to coordinate heat-pump operation and electrical and thermal storage dispatch. Physical process equations are used to derive dependent setpoints, reducing the decisions that the policy must learn. State-dependent action mappings enforce directly representable operating limits, while reward penalties discourage remaining constraint violations and undesirable terminal storage states. The reward combines electricity procurement cost with these penalties to balance economic performance and operational requirements.
+
+The planned evaluation compares learned policies with constrained nonlinear optimization over matched daily scheduling horizons. Operating cost, individual constraint violations, and online computation time will be assessed separately under identical input profiles, with offline training effort reported independently. A subsequent rolling-horizon assessment will examine how updated forecasts and changing operating conditions affect policy performance.
+
+The intended contribution is a framework for translating continuous reinforcement-learning actions into coordinated physical setpoints for a renewable industrial utility. Using the SINNOGENES demonstrator as the target application, the study will assess the trade-off between rapid online decisions, economic performance, and constraint satisfaction, supporting the development of predictive energy management for industrial decarbonization.
+\end{abstract}
+
+\begingroup\timesfont\fontsize{11bp}{14bp}\selectfont
+\noindent\textbf{Keywords:} Reinforcement learning; optimal setpoints; industrial energy management; thermal and electrical storage; SINNOGENES.
+
+\par\endgroup
+
+\end{document}
