@@ -28,7 +28,7 @@
 % Start major elements on a new page without inserting blank recto pages.
 \newcommand{\startnewpage}{\clearpage}
 
- 
+
 %--------------------------------------------%
 %--------EDIT CONTENTS OF THIS BLOCK---------%
 %------------Title Page Content--------------%
@@ -135,7 +135,7 @@ Beispielzusammenfassung in Deutsch.
 \begin{center}
 	{\Huge \TITLE}
 \end{center}
-\begin{textblock*}{\paperwidth}(0cm,8cm) % {block width} (coords) 
+\begin{textblock*}{\paperwidth}(0cm,8cm) % {block width} (coords)
 	\begin{center}
 		{\Huge \textbf{\THESIS} \\ \textbf{\large \STUDYPROGRAMME}} \\[2em]
 		{\Large submitted by} \\[2em]
@@ -146,7 +146,7 @@ Beispielzusammenfassung in Deutsch.
 		{\Large Brandenburg University of Technology Cottbus-Senftenberg}
 	\end{center}
 \end{textblock*}
-\begin{textblock*}{\paperwidth}(2.45cm,21cm) % {block width} (coords) 
+\begin{textblock*}{\paperwidth}(2.45cm,21cm) % {block width} (coords)
 	\begin{tabular}{ll}
 		{\Large Reviewer:}        & {\Large \FIRSTREVIEWER}  \\[1em]
 		{\Large Reviewer:}        & {\Large \SECONDREVIEWER} \\[1em]
@@ -158,7 +158,7 @@ Beispielzusammenfassung in Deutsch.
 \startnewpage
 
 ~
-\begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords) 
+\begin{textblock*}{\textwidth}(2.45cm,5cm) % {block width} (coords)
 	\section*{\underline{Declaration of independence}}
 	\vspace{1cm}
 	I hereby declare that I have written this thesis independently, without unauthorised help and exclusively using the sources indicated. The ideas taken directly or indirectly from external sources (including electronic sources) are labelled as such without exception. The sources used verbatim and in terms of content have been cited in accordance with the recognised rules of scientific work. This work has not yet been submitted for any other review or published elsewhere.\par\vspace{0.5cm}
@@ -277,7 +277,7 @@ Here, RL is not treated as a substitute for physical constraints. Instead, the s
 
 \subsection{Setpoint Optimization in Energy Utility Systems}
 
-Energy utility systems are operated by choosing setpoints that determine how components such as storage units, heat pumps, valves, and bypasses are controlled. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the bypass variable $\beta_1$, or a mass flow rate. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and overall system reliability and lifetime \cite{tran2025safe}.
+Energy utility systems are operated by choosing setpoints that determine how components such as storage units, heat pumps, valves, and bypasses are controlled. A setpoint describes the desired value of a control variable. In the systems considered here, this may be the charging or discharging power of a battery, the bypass variable $\beta_{1,t}$, or a mass flow rate. These choices are not just technical details; they directly affect operating cost, energy efficiency, constraint satisfaction, and overall system reliability and lifetime \cite{tran2025safe}.
 
 Setpoint determination is also inherently sequential. The best operating point at one time step cannot be chosen independently of what happened before or what may be needed later. Storage systems make this especially clear. Charging a battery or a thermal energy storage system can increase future flexibility, but it may also increase the current electricity cost. Discharging can reduce current grid consumption or generate sale revenue, but it leaves less stored energy for later. Good setpoint decisions must therefore account for inter-temporal dependencies and physical operating limits \cite{walden2023nonlinear}. Each action affects both the immediate economic outcome and the feasible decisions available at later time steps; consequently, its quality must be evaluated over the full planning horizon rather than solely at the current time step \cite{takam2025stochastic}.
 
@@ -315,11 +315,11 @@ The logarithmic barrier prevents the iterates from reaching the constraint bound
 \begin{aligned}
 \nabla f(\xi)+J_h(\xi)^\top y+J_c(\xi)^\top z &= 0, \\
 h(\xi) &= 0, \qquad c(\xi)+s=0, \\
-S z &= \mu_{\mathrm b}\mathbf{1}, \qquad s>0,\; z>0,
+\mathsf{S} z &= \mu_{\mathrm b}\mathbf{1}, \qquad s>0,\; z>0,
 \end{aligned}
 \label{eq:ipopt_kkt}
 \end{equation}
-where $J_h$ and $J_c$ are the Jacobians of the equality and inequality constraints, respectively, and $S=\operatorname{diag}(s)$. As $\mu_{\mathrm b}$ is reduced towards zero, the perturbed complementarity condition $Sz=\mu_{\mathrm b}\mathbf{1}$ approaches the KKT complementarity condition of the original constrained problem \cite{wachter2006implementation}.
+where $J_h$ and $J_c$ are the Jacobians of the equality and inequality constraints, respectively, and $\mathsf{S}=\operatorname{diag}(s)$. As $\mu_{\mathrm b}$ is reduced towards zero, the perturbed complementarity condition $\mathsf{S}z=\mu_{\mathrm b}\mathbf{1}$ approaches the KKT complementarity condition of the original constrained problem \cite{wachter2006implementation}.
 
 Nocedal and Wright note that the performance of nonlinear optimization algorithms depends on formulation quality, particularly the constraint structure, variable scaling, and initial point \cite{nocedal2006numerical}.
 
@@ -355,7 +355,7 @@ with the following meaning for $t=0,1,\ldots,N-1$:
     \item $g_N(x)$ is the terminal-reward function.
 \end{itemize}
 
-Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A non-stationary policy is a sequence $\pi=(\pi_t)_{t=0}^{N-1}$, where $\pi_t(\cdot\mid x)$ is the conditional action distribution in state $x$ at time $t$. Thus, $\pi_t$ defines the action-selection rule at time $t$, conditional on the current state $x$. For a deterministic policy, this distribution assigns all probability to one action; for TD3, that action is written as $a_t=\mu_\theta(x_t)$. Following the finite-horizon convention of Bäuerle and Rieder \cite{baeuerle2011markov}, the total return from time $t$ is
+Under the Markov property, the current state contains all information required to predict the next state, given the selected action. A non-stationary policy is a sequence $\pi=(\pi_t)_{t=0}^{N-1}$, where $\pi_t(\cdot\mid x)$ is the conditional action distribution in state $x$ at time $t$. Thus, $\pi_t$ defines the action-selection rule at time $t$, conditional on the current state $x$. For a deterministic policy, this distribution assigns all probability to one action. Following the finite-horizon convention of Bäuerle and Rieder \cite{baeuerle2011markov}, the total return from time $t$ is
 \begin{samepage}
 \[
 \begin{aligned}
@@ -366,7 +366,7 @@ G_t & = \sum_{i=t}^{N-1}\gamma_{\mathrm{RL}}^{\,i-t}r_i(X_i,A_i)
 \]
 Because $\gamma_{\mathrm{RL}}=1$ in all experiments, all discount powers equal unity, and the expression reduces to the undiscounted total-reward form used by Bäuerle and Rieder.
 \end{samepage}
-In the implemented environments, the terminal penalties are included in the final stage reward $r_{N-1}(X_{N-1},A_{N-1})$. No additional reward is issued after the terminal state $X_N$ is reached; therefore, the separate terminal-reward function is defined as $g_N(x)\equiv0$ for every terminal state $x$. This is a bookkeeping convention that prevents the terminal contribution from being counted twice; it does not mean that terminal requirements are omitted.
+The terminal reward $g_N(X_N)$ is evaluated at the terminal state. In the implemented environments, $g_N\equiv0$ because terminal penalties are included in the stage reward returned with the final transition.
 
 \paragraph{Bellman equations and RL solution approaches.}
 
@@ -377,17 +377,19 @@ v_t^\pi(x) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x\right],
 q_t^\pi(x,a) = \mathbb{E}_{\pi}\!\left[G_t \mid X_t=x, A_t=a\right].
 \]
 The value function evaluates a state before an action is selected, whereas the action-value function evaluates a particular state--action pair. For a fixed policy, they satisfy the Bellman expectation equations
-\[
-\begin{aligned}
+\begin{align}
 q_t^\pi(x,a)
 &=r_t(x,a)+\gamma_{\mathrm{RL}}
-  \int_E v_{t+1}^\pi(x')\,Q_t(\mathrm{d}x'\mid x,a),\\
+  \int_E v_{t+1}^\pi(x')\,Q_t(\mathrm{d}x'\mid x,a),
+  \label{eq:bellman_action_value}\\
 v_t^\pi(x)
 &=\int_{D_t(x)}q_t^\pi(x,a)\,\pi_t(\mathrm{d}a\mid x),
-\end{aligned}
-\qquad t=0,\ldots,N-1,
-\]
-with terminal condition $v_N^\pi(x)=g_N(x)$. The first equation separates the value of an action into its immediate reward and its expected discounted future value. The second averages the action values according to the policy. For a deterministic policy, this average reduces to the value of the single selected action.
+  \qquad t=0,\ldots,N-1,
+  \label{eq:bellman_state_value}
+\end{align}
+Here, $x'$ is a dummy variable representing a possible next state. If densities exist, these measures may be written as $Q_t(\mathrm{d}x'\mid x,a)=p_t(x'\mid x,a)\,\mathrm{d}x'$ and $\pi_t(\mathrm{d}a\mid x)=\pi_t(a\mid x)\,\mathrm{d}a$; for discrete state or action spaces, the corresponding integrals become sums.
+
+With terminal condition $v_N^\pi(x)=g_N(x)$, Eq.~\eqref{eq:bellman_action_value} separates the value of an action into its immediate reward and its expected discounted future value. Equation~\eqref{eq:bellman_state_value} averages the action values according to the policy. For a deterministic policy, this average reduces to the value of the single selected action.
 
 The Bellman optimality equations describe the best attainable value rather than the value under a fixed policy:
 \[
@@ -402,30 +404,47 @@ v_t^\star(x)
 \]
 with terminal condition $v_N^\star(x)=g_N(x)$. Thus, the Bellman expectation equations evaluate a specified policy, while the Bellman optimality equations select the action with the greatest value. Both express the same recursive relationship: current value equals immediate reward plus the value of subsequent decisions \cite{baeuerle2011markov,sutton2018reinforcement}.
 
-\paragraph{Dynamic programming.}
-When the transition kernel $Q_t$ and reward function $r_t$ are known, the Bellman equations provide the basis for dynamic programming. Policy evaluation applies the Bellman expectation equations backward from the terminal condition to compute $v_t^\pi$ and $q_t^\pi$ for a fixed policy. When the supremum in the Bellman optimality equation is attained, policy improvement replaces the current policy by one that selects an action from
+\paragraph{Reinforcement learning and temporal-difference learning.}
+Model-free RL learns a decision rule from sampled transitions without requiring the transition kernel $Q_t$ in explicit form. A transition $(x_t,a_t,r_t,x_{t+1},d_t)$ contains the current state and action, the resulting reward and successor state, and a terminal indicator $d_t$. Here and in the learning updates below, $r_t$ is shorthand for the realized stage reward $r_t(x_t,a_t)$. Although the samples in this thesis are generated by simulation, the learning algorithms update their neural networks from these transition tuples rather than from the simulator equations. The implemented state includes the position within the scheduling horizon, so the neural-network policies and critics do not require a separate time subscript.
+
+Temporal-difference (TD) learning updates a value approximation using the observed reward and an estimate of the value at the next state. For an action-value approximation $q_\phi$ with parameter vector $\phi$, a generic one-step TD target is
 \[
-\operatorname*{arg\,max}_{a\in D_t(x)}q_t^\pi(x,a).
+y_t=r_t+\gamma_{\mathrm{RL}}(1-d_t)\widehat v^{\mathrm{tar}}(x_{t+1}),
 \]
-Alternating policy evaluation and policy improvement gives policy iteration. Value iteration instead applies the Bellman optimality recursion directly, combining evaluation and improvement in the same update. For the finite-horizon setting, both procedures start from the common terminal condition $v_N^\pi(x)=v_N^\star(x)=g_N(x)$ and proceed backward to $t=0$ \cite{baeuerle2011markov,sutton2018reinforcement}.
+and the corresponding TD error is
+\[
+\delta_t^{\mathrm{TD}}=y_t-q_\phi(x_t,a_t).
+\]
+The target combines the observed immediate reward with an estimate of the remaining return. The notation $\widehat v^{\mathrm{tar}}$ denotes this estimate at $x_{t+1}$. The factor $(1-d_t)$ removes the continuation value at a terminal transition. The superscript $\mathrm{tar}$ indicates that the continuation estimate is treated as fixed during the gradient step and is typically constructed using slowly updated target networks. The action-value approximation is trained by minimizing the mean squared TD error. This update builds directly on the Bellman relationship while learning from sampled transitions \cite{sutton2018reinforcement}.
 
-Dynamic programming therefore provides a direct solution when the MDP model is available and the Bellman integrals and action maximizations are tractable. However, it requires explicit knowledge of the transition dynamics and becomes difficult for large or continuous state and action spaces because values cannot generally be stored or updated exhaustively.
+\paragraph{Policy gradients and actor--critic learning.}
+A critic estimates the long-term quality of actions, but a continuous control problem also requires an efficient way to select an action. Directly maximizing $q_\phi(x,a)$ over every possible continuous action at every decision step can be costly. Policy-gradient methods instead represent the policy by an actor with parameters $\theta$ and adjust those parameters in the direction of higher expected return.
 
-\paragraph{From dynamic programming to reinforcement learning.}
-RL retains the Bellman principle but estimates value functions or policies from interaction data. In model-free RL, the transition probabilities in $Q_t$ are not required explicitly. Instead, sampled transitions $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ provide one-step observations of the reward and successor state, and function approximators generalize these observations to unvisited states and actions. The critic targets used by TD3 and SAC below are sample-based versions of the Bellman recursion. Although the interaction data in this thesis are produced by simulation, the algorithms use sampled transitions rather than the simulator equations when updating their policies.
+For a stochastic policy $\pi_\theta(a\mid x)$, the policy-gradient principle weights the score $\nabla_\theta\log\pi_\theta(a\mid x)$ by an estimate of how advantageous the sampled action was:
+\[
+\nabla_\theta J_{\mathrm{PG}}(\theta)
+\approx
+\mathbb{E}\!\left[
+\nabla_\theta\log\pi_\theta(a\mid x)\,\mathcal{A}_t^\pi(x,a)
+\right],
+\qquad
+\mathcal{A}_t^\pi(x,a)=q_t^\pi(x,a)-v_t^\pi(x).
+\]
+Here, $J_{\mathrm{PG}}(\theta)$ is the generic policy-gradient objective and $\mathcal{A}_t^\pi$ is the advantage function; $A$ remains the action space. The baseline $v_t^\pi(x)$ does not change the expected gradient but can reduce its variance. For a deterministic actor $a=\mu_\theta(x)$, the critic supplies the action derivative and the chain rule gives
+\[
+\nabla_\theta J_{\mathrm{PG}}(\theta)
+\approx
+\mathbb{E}\!\left[
+\left.\nabla_a q_\phi(x,a)\right|_{a=\mu_\theta(x)}
+\nabla_\theta\mu_\theta(x)
+\right].
+\]
+Actor--critic methods combine these two roles: the critic is updated from TD targets, and the actor is updated using the critic as its learning signal. The actor may represent either a deterministic action-selection rule or a stochastic policy. This structure supports learning policies for the continuous battery-power, mass-flow, and storage-mode setpoints considered in this thesis \cite{sutton2018reinforcement}.
 
-\paragraph{RL algorithm families and continuous control.}
-The Bellman framework leads to three principal RL solution approaches:
-\begin{itemize}
-    \item Value-based methods approximate a value or action-value function and derive actions by selecting those with the highest estimated value.
-    \item Policy-based methods parameterize the policy directly and adjust its parameters to increase the expected return.
-    \item Actor--critic methods combine both ideas: the actor represents the policy, while the critic approximates a value function and supplies the learning signal used to improve the actor.
-\end{itemize}
-These approaches can additionally be model-based or model-free, on-policy or off-policy, and tabular or based on function approximation. In this terminology, model-based RL means that an environment model is learned or used for planning; it should not be confused with the IPOPT-based model-based optimization baseline used for comparison in this thesis.
+\paragraph{On-policy and off-policy learning.}
+The on-policy/off-policy distinction concerns the relationship between the policy that generated the data and the policy being improved. Let $\pi_{\mathrm b}$ denote the behavior policy used to collect a transition and $\pi_\theta$ the current target policy being optimized. In on-policy learning, the updates use data generated by the current policy, so $\pi_{\mathrm b}=\pi_\theta$ apart from any exploration mechanism regarded as part of that policy. As the policy changes, older samples become less representative of the current policy.
 
-Actor--critic methods are particularly suitable for the setpoint-optimization problems considered here because the actions are continuous. A purely value-based method would require maximizing an estimated action-value function over a continuous action space whenever a decision is needed. An actor instead produces a continuous action directly, while the critic evaluates its expected long-term consequence and provides the signal used to improve the actor. This division is well suited to the battery command and the coupled mass-flow and storage-mode setpoints of the cookie factory.
-
-TD3 and SAC are therefore selected as deep, model-free, off-policy actor--critic methods \cite{fujimoto2018addressing,haarnoja2018soft}. Their replay buffers provide the sampled transitions, their critics approximate the Bellman action values, and their parameterized actors produce continuous setpoint decisions.
+In off-policy learning, the behavior and target policies may differ. This permits transitions generated by older policies, or by policies with additional exploration noise, to be stored in a replay buffer $\mathcal{D}$ and reused in many minibatch updates. The sampled action $a_t$ in a replay transition was produced by the behavior policy at data-collection time, while the action used in the bootstrapped target is generated from the current actor or a slowly updated target actor, depending on the algorithm. Reusing decorrelated experience improves data efficiency, although the distribution mismatch can make learning less stable and motivates devices such as target networks and conservative critic targets.
 
 \FloatBarrier
 \subsubsection{TD3 and SAC}
@@ -433,17 +452,17 @@ TD3 and SAC are therefore selected as deep, model-free, off-policy actor--critic
 \paragraph{Twin Delayed Deep Deterministic Policy Gradient (TD3):}
 TD3 represents its deterministic policy by an actor $\mu_\theta:E\rightarrow A$, where $\theta$ denotes the actor parameters. The output $\mu_\theta(x)$ is the action selected in state $x$; it is not an action probability. In terms of the general policy notation $\pi_t(\cdot\mid x)$ introduced above, the deterministic TD3 policy assigns all probability to the single action $a=\mu_\theta(x)$. The state contains the position within the scheduling horizon, so the same actor network can be used at every time step without an explicit time subscript.
 
-TD3 learns two separate action-value approximations, $q_{\phi_1}$ and $q_{\phi_2}$, with critic-parameter vectors $\phi_1$ and $\phi_2$. For a transition $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ sampled from the replay buffer $\mathcal D$, their common learning target is
+TD3 learns two separate action-value approximations, $q_{\phi_1}$ and $q_{\phi_2}$, with critic-parameter vectors $\phi_1$ and $\phi_2$. For a transition $(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t)$ sampled from the replay buffer $\mathcal{D}$, their common learning target is
 \[
-y_t=r_t(x_t,a_t)+\gamma_{\mathrm{RL}}(1-d_t)
+y_t^{\mathrm{TD3}}=r_t+\gamma_{\mathrm{RL}}(1-d_t)
 \min_{j\in\{1,2\}}
 q_{\bar\phi_j}\!\left(x_{t+1},\mu_{\bar\theta}(x_{t+1})+\zeta\right),
 \]
 where $d_t=1$ for a terminal transition, bars denote target-network parameters, and $\zeta$ is clipped target-policy smoothing noise. Taking the smaller of the two target estimates reduces the propagation of overestimated action values. Both critics are fitted to this target according to
 \[
 L(\phi_j)=
-\mathbb{E}_{\mathcal D}
-\!\left[\left(q_{\phi_j}(x_t,a_t)-y_t\right)^2\right],
+\mathbb{E}_{\mathcal{D}}
+\!\left[\left(q_{\phi_j}(x_t,a_t)-y_t^{\mathrm{TD3}}\right)^2\right],
 \qquad j\in\{1,2\}.
 \]
 TD3 further stabilizes learning by updating the actor and target networks less frequently than the critics \cite{fujimoto2018addressing}.
@@ -455,20 +474,33 @@ J_{\mathrm{TD3}}(\theta)
 q_{\phi_1}\bigl(x,\mu_\theta(x)\bigr)
 \right].
 \]
-Here, $x\sim\mathcal D$ is shorthand for sampling the state component $x$ from a transition stored in the replay buffer. The calligraphic replay buffer $\mathcal D$ is distinct from the admissible-action set $D_t(x)$. The actor is trained to maximize $J_{\mathrm{TD3}}$ using the first critic $q_{\phi_1}$. The second critic is not redundant: it is used together with the first critic in the minimum that defines the critic target above. The subscript $1$ merely identifies which of the two critics supplies the actor gradient.
+Here, $x\sim\mathcal{D}$ is shorthand for sampling the state component $x$ from a transition stored in the replay buffer. The calligraphic replay buffer $\mathcal{D}$ is distinct from the admissible-action set $D_t(x)$. The actor is trained to maximize $J_{\mathrm{TD3}}$ using the first critic $q_{\phi_1}$. The second critic is not redundant: it is used together with the first critic in the minimum that defines the critic target above. The subscript $1$ merely identifies which of the two critics supplies the actor gradient.
 
 \paragraph{Soft Actor-Critic (SAC):}
-SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. As with TD3, the position in the scheduling horizon is included in $x$, so a separate time index is not required on the neural-network policy. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}. At the trajectory level, SAC maximizes an entropy-regularized expected return. In the implemented off-policy algorithm, the actor update is estimated using states from the replay buffer and actions sampled from the current policy:
+SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. As with TD3, the position in the scheduling horizon is included in $x$, so a separate time index is not required on the neural-network policy. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}. For a replay transition, a next action $a_{t+1}^{\prime}\sim\pi_\theta(\cdot\mid x_{t+1})$ is sampled from the current policy. The entropy-adjusted critic target is
+\[
+y_t^{\mathrm{SAC}}=r_t+\gamma_{\mathrm{RL}}(1-d_t)\left[
+\min_{j\in\{1,2\}}q_{\bar\psi_j}(x_{t+1},a_{t+1}^{\prime})
+-\alpha\log\pi_\theta(a_{t+1}^{\prime}\mid x_{t+1})
+\right].
+\]
+The target critics $q_{\bar\psi_1}$ and $q_{\bar\psi_2}$ are slowly updated copies of the learned critics. Each critic minimizes
+\[
+L(\psi_j)=\mathbb{E}_{\mathcal{D}}\!\left[
+\left(q_{\psi_j}(x_t,a_t)-y_t^{\mathrm{SAC}}\right)^2
+\right],\qquad j\in\{1,2\}.
+\]
+The entropy term implements a soft TD target that values both predicted return and policy randomness. At the trajectory level, SAC maximizes an entropy-regularized expected return. In the implemented off-policy algorithm, the actor update is estimated using states from the replay buffer and actions sampled from the current policy:
 \[
 J_{\mathrm{SAC}}(\theta)
 =
-\mathbb{E}_{\substack{x\sim\mathcal D\\
+\mathbb{E}_{\substack{x\sim\mathcal{D}\\
 a\sim\pi_\theta(\cdot\mid x)}}\!\left[
 \min_{j\in\{1,2\}}q_{\psi_j}(x,a)
 -\alpha\log\pi_\theta(a\mid x)
 \right].
 \]
-Here, $x\sim\mathcal D$ denotes sampling the state component from a replay-buffer transition, whereas $a\sim\pi_\theta(\cdot\mid x)$ denotes sampling an action from the current policy for that state. The functions $q_{\psi_1}$ and $q_{\psi_2}$ are the two SAC critics, and their minimum reduces positive estimation bias. The coefficient $\alpha$ weights the entropy contribution. The actor is trained to maximize $J_{\mathrm{SAC}}$; equivalently, implementations written as minimization use the negative of this expression.
+Here, $x\sim\mathcal{D}$ denotes sampling the state component from a replay-buffer transition, whereas $a\sim\pi_\theta(\cdot\mid x)$ denotes sampling an action from the current policy for that state. The functions $q_{\psi_1}$ and $q_{\psi_2}$ are the two SAC critics, and their minimum reduces positive estimation bias. The coefficient $\alpha$ weights the entropy contribution. The actor is trained to maximize $J_{\mathrm{SAC}}$; equivalently, implementations written as minimization use the negative of this expression.
 
 For a state $x$, the policy entropy is defined as
 \[
@@ -477,6 +509,8 @@ For a state $x$, the policy entropy is defined as
 \left[\log \pi_\theta(a\mid x)\right].
 \]
 Thus, entropy is an expectation over the policy's action distribution rather than a quantity associated with a single action. During SAC training, an action $a\sim\pi_\theta(\cdot\mid x)$ is sampled from the current policy. The quantity $-\log\pi_\theta(a\mid x)$ is a stochastic single-sample estimate of the entropy term: although one sample is generally not equal to the exact entropy, its expectation over actions drawn from the policy equals $\mathcal{H}(\pi_\theta(\cdot\mid x))$. Such stochastic estimates allow SAC to optimize the entropy-regularized objective using minibatch gradient updates \cite{haarnoja2018soft}.
+
+Both TD3 and SAC are model-free, off-policy actor--critic algorithms. TD3 collects data using its deterministic actor plus exploration noise, but trains from replayed transitions and forms its next action with a target actor. SAC likewise trains its critics and actor from replay-buffer states while sampling target or actor-update actions from its current stochastic policy. Consequently, calling the methods off-policy does not mean that their actor updates ignore the current policy; it means that the stored states and actions used for learning need not have been generated by the policy currently being optimized. Their replay buffers provide the sampled transitions, their critics learn through TD errors, and their actors produce continuous setpoint decisions \cite{fujimoto2018addressing,haarnoja2018soft}.
 
 The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
@@ -503,9 +537,9 @@ A battery energy storage system provides flexible power by buying electricity wh
 
 The SOC dynamics are modeled as
 \[
-\mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\text{actual},t}\,\Delta t_{\mathrm h}}{E_{\max}},
+\mathrm{SOC}_{t+1} = \mathrm{SOC}_t + \frac{P_{\mathrm{actual},t}\,\Delta t_{\mathrm h}}{E_{\max}},
 \]
-Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\text{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t_{\mathrm h}$ is the time-step duration in hours. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
+Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\mathrm{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t_{\mathrm h}$ is the time-step duration in hours. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
 &P_t^{\mathrm S} = P_{\max}\Big[
@@ -520,7 +554,7 @@ Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step 
 &\quad {}\cdot
 \frac{1}{2}\left(1+\tanh\bigl(k(\mathrm{SOC}_t-0.005)\bigr)\right)
 \Big], \quad \forall t, \label{eq:bess_power_mapping} \\
-&P_{\text{actual},t} = \frac{P_t^{\mathrm S}}{2}
+&P_{\mathrm{actual},t} = \frac{P_t^{\mathrm S}}{2}
 \Biggl[
 \left(1+\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\eta
 \nonumber\\
@@ -550,11 +584,11 @@ The battery model has a one-dimensional action space at each time step because t
 
 The battery objective is to maximize profit. Let $P_t^+=\max(P_t^{\mathrm S},0)$ denote purchased power and $P_t^-=\max(-P_t^{\mathrm S},0)$ denote sold power. Minimizing the net grid-side cost is equivalent to maximizing profit, giving the general objective
 \[
-\min_{\{u_t\}_{t=0}^{N-1}} J
+\min_{\{u_t\}_{t=0}^{N-1}} J_{\mathrm{grid}}
 = \frac{1}{1000}\sum_{t=0}^{N-1}
 \left(S_t^{\mathrm{buy}}P_t^+-S_t^{\mathrm{sell}}P_t^-\right)\Delta t_{\mathrm h}.
 \]
-With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J=\sum_t S_tP_t^{\mathrm S}\Delta t_{\mathrm h}/1000$. The factor $1000$ converts kWh to MWh so that $J$ is expressed in euros. This equation represents the physical economic objective used to compare the methods. In the optimization baseline formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
+With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J_{\mathrm{grid}}=\sum_t S_tP_t^{\mathrm S}\Delta t_{\mathrm h}/1000$. The factor $1000$ converts kWh to MWh so that $J_{\mathrm{grid}}$ is expressed in euros. This equation represents the physical economic objective used to compare the methods. In the optimization baseline formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J_{\mathrm{grid}}$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \FloatBarrier
 \subsection{Cookie Production Factory}
@@ -572,8 +606,8 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figures/cookie_detailed_flow_chart_kyriakidis.png}
-    \caption{Detailed flow chart of the HTHP, TES, SG, and controllable bypasses in the electrified steam-generation system. Reproduced and cropped from Fig.~3 of Kyriakidis et al.~\cite{kyriakidis2024hybrid}; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
+    \includegraphics[width=\textwidth]{figures/cookie_detailed_flow_chart.pdf}
+    \caption{Detailed flow chart of the HTHP, TES, SG, and controllable bypasses in the electrified steam-generation system. Adapted from Fig.~3 of Kyriakidis et al.~\cite{kyriakidis2024hybrid} using the notation of this thesis; the system was originally introduced by Walden et al.~\cite{walden2023nonlinear}.}
     \label{fig:cookie_detailed_flow_chart}
 \end{figure}
 
@@ -581,7 +615,7 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
 &\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{I},t}\}_{t=0}^{N-1}}
-\quad J = \frac{1}{1000}\sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t_{\mathrm h},
+\quad J_{\mathrm{grid}} = \frac{1}{1000}\sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t_{\mathrm h},
 \label{eq:cookie_objective} \\
 &\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \label{eq:cookie_power_balance} \\
 &T_{\mathrm{II},t} = F_{\mathrm{HTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
@@ -604,7 +638,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 In this formulation, the final subscript $t$ denotes the discrete time step,
 where $t\in\{0,\ldots,N-1\}$ and $N$ is the number of steps in the
 scheduling horizon. The objective
-$J$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
+$J_{\mathrm{grid}}$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
 $P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
 power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
 $P_t^{\mathrm S}S_t\Delta t_{\mathrm h}/1000$ over the horizon. Here,
@@ -629,7 +663,7 @@ discharging, respectively, while $T_{2,t}$ and $T_{3,t}$ are the steam-generator
 inlet and outlet temperatures. The quantities $\dot{m}_{\mathrm{I},t}$ and
 $\dot{m}_{\mathrm{II},t}$ denote the HTHX inlet and outlet HTF mass-flow
 rates. The implemented closed-loop model uses the same per-HTHP flow variable
-for these two locations. The functions $F_{\mathrm{HTHP}}$,
+for these two locations, so $\dot{m}_{\mathrm{II},t}=\dot{m}_{\mathrm{I},t}$. The functions $F_{\mathrm{HTHP}}$,
 $F_{\mathrm{HTHX}}$, and $F_{\mathrm{LTHX}}$ are polynomial surrogate models
 for the electrical demand of one HTHP, the HTHX outlet temperature, and the
 LTHX outlet temperature, respectively.
@@ -669,7 +703,7 @@ The cookie-factory optimization model has a five-dimensional action space at eac
 \section{Methodology}
 \label{sec:methodology}
 
-The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In each time step, the agent observes the current system state together with current and forecast external conditions, such as electricity prices and available wind power, selects continuous control actions, and receives a reward based on economic performance and constraint satisfaction. Although the physical models and control variables differ between the two use cases, both are represented using the same agent-environment interaction structure. At each discrete time step, the environment maps the agent's action to physical setpoints, advances the system dynamics, and returns the resulting next state, reward, and termination signals. 
+The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In each time step, the agent observes the current system state together with current and forecast external conditions, such as electricity prices and available wind power, selects continuous control actions, and receives a reward based on economic performance and constraint satisfaction. Although the physical models and control variables differ between the two use cases, both are represented using the same agent-environment interaction structure. At each discrete time step, the environment maps the agent's action to physical setpoints, advances the system dynamics, and returns the resulting next state, reward, and termination signals.
 
 \subsection{Problem Formulation}
 
@@ -686,14 +720,14 @@ The reinforcement-learning framework used in this thesis follows the same genera
 \[
 \left(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t\right),
 \]
-where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC and TD3. 
+where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC and TD3.
 This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
 
 During training, the policy action is first processed by an environment-specific action map
 \[
 a_t^{\mathrm{phys}} = \mathcal{M}(x_t,a_t),
 \]
-where $\mathcal{M}$ maps the normalized policy output to physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
+where $\mathcal{M}$ maps the policy output to physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
 
 For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current spot electricity price $S_t$, the normalized position within the scheduling horizon, and the normalized 24-step price forecast $S_{0:N-1}$. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits.
 
@@ -706,7 +740,7 @@ where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are cons
 More specifically, the battery reward implemented in the environment is
 \[
 r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
--\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
+-\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
 where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
@@ -835,7 +869,7 @@ r_t^{\mathrm{cookie}}(x_t,a_t)={}&-C_t
 -\lambda_{F_4}\frac{v_{F_4,t}}{\Delta T_s}
 \nonumber\\
 &-\lambda_P\frac{v_{P,t}}{P_{\mathrm S}^{\max}}
--\mathbf{1}_{\{t=N-1\}}\lambda_{\mathrm{cyc}}
+-\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{cyc}}
  \frac{|T_{s,N}-T_{s,0}|}{\Delta T_s}.
 \label{eq:cookie_reward}
 \end{align}
@@ -916,20 +950,20 @@ The cumulative reward is reported as a secondary metric:
 \[
 R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
 \]
-Because $\gamma_{\mathrm{RL}}=1$ and $g_N\equiv0$ in the implemented environments, this episode reward equals the realized return $G_0$.
+Because $\gamma_{\mathrm{RL}}=1$ and the terminal penalty is included in the reward returned with the final transition, this cumulative episode reward contains the same economic and penalty contributions as the realized return $G_0$.
 This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
 
-Constraint satisfaction is measured by aggregating the violation terms recorded during the rollout. For a set of constraint residuals or violation magnitudes $v_{\ell,t}$, the total violation is defined as
+Constraint satisfaction is measured separately for each constraint category. For a nonnegative residual magnitude or violation $v_{\ell,t}$ in category $\ell$, the total violation over one rollout is defined as
 \[
-V_{\mathrm{tot}} = \sum_{t=0}^{N-1}\sum_{\ell} v_{\ell,t}.
+V_{\mathrm{tot},\ell} = \sum_{t=0}^{N-1} v_{\ell,t}.
 \]
-In addition, the number or frequency of time steps with nonzero violations is considered:
+Each $V_{\mathrm{tot},\ell}$ retains the unit of its category; raw violations with different units are not added together. In addition, the fraction of time steps with at least one violation is considered:
 \[
 f_{\mathrm{viol}} =
 \frac{1}{N}\sum_{t=0}^{N-1}
-\mathbb{I}\left(\sum_{\ell} v_{\ell,t} > \varepsilon\right),
+\mathbb{I}\left(\exists\,\ell:\;v_{\ell,t} > \varepsilon_{\mathrm{viol},\ell}\right),
 \]
-where $\varepsilon$ is a small numerical tolerance. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
+where $\varepsilon_{\mathrm{viol},\ell}$ is a small numerical tolerance expressed in the unit of category $\ell$. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
 
 The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, and terminal SOC.
 
@@ -991,14 +1025,14 @@ Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for th
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
-    \caption{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and the optimization baseline.}
+    \caption[Illustrative 24-hour battery dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and the optimization baseline.}
     \label{fig:battery_td3_dispatch}
 \end{figure}
 
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/battery_fixed_threshold_dispatch.png}
-    \caption{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15.00~EUR/MWh and discharges at prices of at least 25.00~EUR/MWh.}
+    \caption[Illustrative 24-hour fixed-threshold battery dispatch.]{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15.00~EUR/MWh and discharges at prices of at least 25.00~EUR/MWh.}
     \label{fig:battery_threshold_dispatch}
 \end{figure}
 
@@ -1056,7 +1090,7 @@ Figure~\ref{fig:cookie_td3_dispatch} illustrates the schedules produced for one 
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/cookie_factory_dispatch_plot_td3.png}
-    \caption{Illustrative 24-hour cookie-factory dispatch comparison between the TD3 policy and the optimization baseline. The upper panel shows the TD3 power balance and electricity price; the lower panel compares the TD3 grid-power profile and the profile from the optimization baseline. ``Math'' denotes the optimization baseline.}
+    \caption[Illustrative 24-hour cookie-factory dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour cookie-factory dispatch comparison between the TD3 policy and the optimization baseline. The upper panel shows wind power $W_t$, grid power $P_t^{\mathrm S}$, total HTHP demand $3F_{\mathrm{HTHP}}$, and electricity price $S_t$; the lower panel compares the grid-power profiles from TD3 and the optimization baseline.}
     \label{fig:cookie_td3_dispatch}
 \end{figure}
 

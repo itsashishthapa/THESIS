@@ -26,28 +26,28 @@ $P_t^{\mathrm S}$ & Grid-side electrical power; positive for purchase & kW \\
 $P_t^+,P_t^-$ & Purchased and sold power magnitudes, respectively & kW \\
 $W_t$ & Available wind power & kW \\
 $C_t$ & Grid-electricity cost at one time step & EUR \\
-$J, J_{\mathrm{grid}}$ & Total operating or net grid-electricity cost, with the appropriate energy-unit conversion & EUR \\
+$J_{\mathrm{grid}}$ & Total net grid-electricity cost over the scheduling horizon & EUR \\
 \multicolumn{3}{@{}l}{\textbf{Battery energy storage}} \\*
 $E_{\max}$ & Usable battery energy capacity & kWh \\
 $P_{\max}$ & Maximum charging and discharging power & kW \\
 $P_{\mathrm{actual},t}$ & Effective storage-side power after efficiency losses & kW \\
 $u_t$ & Normalized battery control command & -- \\
-$\mathrm{SOC}_t$ & Battery state of charge at the beginning of decision step $t$ & -- \\
+$\mathrm{SOC}_0,\mathrm{SOC}_t$ & Initial battery state of charge and state of charge at the beginning of decision step $t$ & -- \\
 $\mathrm{SOC}_N$ & Terminal state of charge after $N$ decisions & -- \\
 $\mathrm{SOC}_{\mathrm{term}}$ & Required minimum terminal state of charge & -- \\
 $\mathrm{SOC}^{\mathrm{reach}}_t$ & Minimum state of charge that preserves terminal-target reachability & -- \\
 $\eta$ & Charging and discharging efficiency & -- \\
 $k$ & Steepness parameter of the smooth action and SOC gates & -- \\
-$\delta$ & Normalized action deadband & -- \\
+$\delta$ & Half-width of the normalized battery-action deadband & -- \\
 $\epsilon$ & Power scale for the smooth efficiency transition & kW \\
 \multicolumn{3}{@{}l}{\textbf{Cookie production factory and thermal storage}} \\*
 $T_{\mathrm{I},t},T_{\mathrm{II},t}$ & HTHX inlet and outlet temperatures, respectively & $^\circ$C \\
 $T_{\mathrm{III},t},T_{\mathrm{IV},t}$ & LTHX inlet and outlet temperatures, respectively & $^\circ$C \\
 $T_{1,t},T_{4,t}$ & TES outlet temperatures during charging and discharging, respectively & $^\circ$C \\
 $T_{2,t},T_{3,t}$ & Steam-generator inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_{s,t}$ & TES temperature at the beginning of decision step $t$; $T_{s,N}$ is the terminal temperature & $^\circ$C \\
+$T_{s,0},T_{s,t},T_{s,N}$ & Initial, beginning-of-step, and terminal TES temperatures & $^\circ$C \\
 $\tilde{T}_0$ & Prescribed initial thermal-storage temperature & $^\circ$C \\
-$\dot{m}_{\mathrm{I},t},\dot{m}_{\mathrm{II},t}$ & HTHX inlet and outlet heat-transfer-fluid mass-flow rates & kg/s \\
+$\dot{m}_{\mathrm{I},t},\dot{m}_{\mathrm{II},t}$ & Per-HTHP HTHX inlet and outlet HTF mass-flow rates; equal in the implemented closed loop & kg/s \\
 $m_s$ & Mass of the thermal-storage medium & kg \\
 $c_{p,\mathrm f}, c_{p,\mathrm s}$ & Specific heat capacities of the heat-transfer fluid and storage medium & kJ/(kg\,K) \\
 $R_t$ & Compressor-speed-related control variable & -- \\
@@ -66,10 +66,10 @@ $\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & Thermal-storage charging and 
 $\gamma$ & Upper bound on the product of charging and discharging heat rates & kW$^2$ \\
 $F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
 $F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Surrogate models for high- and low-temperature heat-exchanger outlet temperatures & $^\circ$C \\
-$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations & -- \\
+$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations & n/a \\
 \multicolumn{3}{@{}l}{\textbf{Model-based optimization}} \\*
 $\xi,\xi^\star$ & Decision vector and optimal decision vector & * \\
-$\Omega$ & Domain of the decision variables & * \\
+$\Omega$ & Domain of the decision variables & n/a \\
 $n_\xi,n_h,n_c$ & Numbers of decision variables, equality constraints, and inequality constraints & -- \\
 $f(\xi)$ & Objective function & * \\
 $h(\xi),c(\xi)$ & Aggregate equality- and inequality-constraint vectors & * \\
@@ -78,47 +78,66 @@ $s,s_j$ & Slack vector and its $j$th component & * \\
 $\mu_{\mathrm b}$ & Logarithmic barrier parameter & * \\
 $y,z$ & Equality- and inequality-constraint multipliers & * \\
 $J_h,J_c$ & Jacobian matrices of the constraint functions & * \\
-$S=\operatorname{diag}(s)$ & Diagonal matrix of slack variables & * \\
+$\mathsf{S}=\operatorname{diag}(s)$ & Diagonal matrix of slack variables & * \\
 \multicolumn{3}{@{}l}{\textbf{Reinforcement learning and evaluation}} \\*
-$E,A$ & State and action spaces of the finite-horizon MDP & * \\
-$D_t(x)$ & Admissible actions in state $x$ at time step $t$ & * \\
-$Q_t(\cdot\mid x,a)$ & Transition kernel at time step $t$ & * \\
-$g_N(x)$ & Terminal-reward function & * \\
+$E,A$ & State and action spaces of the finite-horizon MDP & n/a \\
+$D_t(x)$ & Admissible actions in state $x$ at time step $t$ & n/a \\
+$Q_t(\cdot\mid x,a)$ & Transition probability kernel at time step $t$ & -- \\
+$p_t(x'\mid x,a)$ & Transition probability density, when it exists & * \\
+$g_N(x)$ & Separate terminal-reward function & ** \\
 $x,x_t,x'$ & Generic state, state at time step $t$, and next state & * \\
 $X_t,A_t$ & Random state and action at time step $t$ & * \\
-$a_t,a_t^{\mathrm{phys}}$ & Policy action and corresponding physical setpoints & * \\
-$\mathcal{M}$ & Map from policy actions to physical setpoints & * \\
-$\pi,\pi_t,\pi_\theta(a\mid x)$ & Policy, time-$t$ decision rule, and parameterized stochastic policy & * \\
-$\mu_\theta(x)$ & Deterministic TD3 actor & * \\
-$\theta,\phi_1$ & Actor parameters and first-critic parameters & * \\
-$\mathcal{D}$ & Replay buffer & -- \\
+$a,a_t,a_t^{\mathrm{phys}}$ & Generic action, policy action at time $t$, and corresponding physical setpoints & * \\
+$\mathcal{M}$ & Map from policy actions to physical setpoints & n/a \\
+$\pi,\pi_t(\cdot\mid x),\pi_\theta(a\mid x)$ & Policy, time-$t$ conditional action distribution, and parameterized stochastic policy & * \\
+$\pi_{\mathrm b}$ & Behavior policy used to collect transitions & n/a \\
+$\mu_\theta(x),\mu_{\bar\theta}(x)$ & Deterministic TD3 actor and target actor & * \\
+$\theta$ & Actor-parameter vector for TD3 or SAC & * \\
+$\phi$ & Generic critic-parameter vector & * \\
+$\phi_1,\phi_2$ & TD3 critic-parameter vectors & * \\
+$\psi_1,\psi_2$ & SAC critic-parameter vectors & * \\
+$\bar\theta,\bar\phi_1,\bar\phi_2$ & TD3 target-network parameter vectors & * \\
+$\bar\psi_1,\bar\psi_2$ & SAC target-critic parameter vectors & * \\
+$\mathcal{D}$ & Replay buffer; distinct from the admissible-action set $D_t(x)$ & n/a \\
 $d_t$ & Episode-end indicator & -- \\
-$r_t(x,a),r_t(x_t,a_t)$ & Stage-reward function and its realized value & * \\
-$r_t^{\mathrm{cookie}}(x_t,a_t)$ & Cookie-factory stage reward & * \\
-$r_t^{\mathrm{reach}}(x_t,a_t)$ & Battery reward including the terminal-SOC reachability penalty & * \\
-$G_t$ & Finite-horizon return from time step $t$ & * \\
+$r_t(x,a),r_t(x_t,a_t),r_t$ & Stage-reward function, realized value, and shorthand for the realized value & ** \\
+$r_t^{\mathrm{cookie}}(x_t,a_t)$ & Cookie-factory stage reward & ** \\
+$r_t^{\mathrm{reach}}(x_t,a_t)$ & Battery reward including the terminal-SOC reachability penalty & ** \\
+$G_t$ & Finite-horizon return from time step $t$ & ** \\
 $\gamma_{\mathrm{RL}}$ & Reward discount factor; set to $1$ in all experiments & -- \\
-$v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & * \\
-$v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & * \\
-$q_{\phi_1}$ & First parameterized critic & * \\
-$J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & TD3 actor and SAC policy objectives & * \\
+$v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & ** \\
+$v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & ** \\
+$\mathcal{A}_t^\pi(x,a)$ & Advantage function, $q_t^\pi(x,a)-v_t^\pi(x)$ & ** \\
+$q_\phi$ & Generic parameterized action-value critic & ** \\
+$q_{\psi_1},q_{\psi_2}$ & Two parameterized SAC critics & ** \\
+$q_{\bar\psi_1},q_{\bar\psi_2}$ & SAC target critics & ** \\
+$q_{\phi_1},q_{\phi_2}$ & Two parameterized TD3 critics & ** \\
+$q_{\bar\phi_1},q_{\bar\phi_2}$ & TD3 target critics & ** \\
+$\widehat v^{\mathrm{tar}}$ & Continuation-value estimate used in a TD target & ** \\
+$y_t$ & Generic one-step TD learning target & ** \\
+$y_t^{\mathrm{TD3}},y_t^{\mathrm{SAC}}$ & TD3 and SAC critic learning targets & ** \\
+$\delta_t^{\mathrm{TD}}$ & Temporal-difference error & ** \\
+$\zeta$ & TD3 target-policy smoothing noise & * \\
+$L(\phi_j),L(\psi_j)$ & Mean squared TD-error losses of TD3 and SAC critics & (reward units)$^2$ \\
+$J_{\mathrm{PG}},J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & Generic policy-gradient, TD3 actor, and SAC policy objectives & ** \\
 $\alpha$ & Weight of the SAC entropy term & ** \\
 $\mathcal{H}$ & Policy entropy & -- \\
 $\tau$ & Target-network soft-update coefficient & -- \\
 $[\,\cdot\,]_+$ & Positive-part operator & same as its argument \\
 $v_{\ell,t},v_{\mathrm{T},t}$ & Constraint-violation and terminal-violation terms & * \\
-$v_{s,t},v_{\mathrm I,t},v_{Q,t},v_{P,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, heat-flow, grid-power, and coupling violations & * \\
+$v_{s,t},v_{\mathrm I,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, and coupling violations & $^\circ$C \\
+$v_{Q,t},v_{P,t}$ & Cookie-factory heat-flow and grid-power violations & kW \\
 $\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & * \\
 $\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty weights & ** \\
 $\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty weights & ** \\
 $\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & ** \\
-$R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & * \\
-$V_{\mathrm{tot}}$ & Sum of recorded constraint-violation magnitudes & * \\
+$R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & ** \\
+$V_{\mathrm{tot},\ell}$ & Sum of recorded violation magnitudes for constraint category $\ell$ & * \\
 $f_{\mathrm{viol}}$ & Fraction of time steps with constraint violations & -- \\
-$\varepsilon$ & Numerical tolerance used in violation detection & * \\
-$\mathbb{E},\mathbb{E}_\pi$ & Expectation and expectation under policy $\pi$ & * \\
+$\varepsilon_{\mathrm{viol},\ell}$ & Numerical violation-detection tolerance for constraint category $\ell$ & * \\
+$\mathbb{E},\mathbb{E}_\pi,\mathbb{E}_{\mathcal D}$ & Expectation, expectation under policy $\pi$, and expectation over replay-buffer samples & n/a \\
 $\mathbf{1}$ & Vector of ones & -- \\
-$\mathbb{I},\mathbf{1}_{\{\cdot\}}$ & Indicator functions & -- \\
+$\mathbb{I},\mathbb{I}_{\{\cdot\}}$ & Indicator function and event-indicator notation & -- \\
 \end{longtable}
 \par\smallskip
 \noindent\hfill
