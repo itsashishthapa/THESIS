@@ -13,6 +13,14 @@
 \usepackage{amsmath}
 \usepackage{mathtools}
 \mathtoolsset{showonlyrefs}
+% Prefix displayed equation numbers; keep references in the text as (n).
+\newtagform{dotted}{.........\enspace(}{)}
+\AddToHook{env/equation/begin}{\usetagform{dotted}}
+\AddToHook{env/align/begin}{\usetagform{dotted}}
+\AddToHook{env/alignat/begin}{\usetagform{dotted}}
+\AddToHook{env/flalign/begin}{\usetagform{dotted}}
+\AddToHook{env/gather/begin}{\usetagform{dotted}}
+\AddToHook{env/multline/begin}{\usetagform{dotted}}
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{placeins}
@@ -542,27 +550,27 @@ The SOC dynamics are modeled as
 Here, $\mathrm{SOC}_t$ is the state of charge at the beginning of decision step $t$, $\mathrm{SOC}_0$ is the initial state, and $\mathrm{SOC}_N$ is the terminal state after $N$ decisions. Furthermore, $P_{\mathrm{actual},t}$ is the effective storage-side power after efficiency losses, $E_{\max}$ is the usable energy capacity, and $\Delta t_{\mathrm h}$ is the time-step duration in hours. The sign convention is $P_t^{\mathrm S}>0$ for charging and grid purchase, and $P_t^{\mathrm S}<0$ for discharging and electricity sale. The superscript $\mathrm S$ identifies power exchanged with the electricity supply grid. The mathematical formulation uses the following smooth power and terminal constraints:
 
 \begin{align}
-&P_t^{\mathrm S} = P_{\max}\Big[
+P_t^{\mathrm S} &= P_{\max}\Big[
 \frac{1}{2}\left(1+\tanh\bigl(k(u_t-\delta)\bigr)\right)u_t
 \nonumber\\
 &\quad {}\cdot
 \frac{1}{2}\left(1+\tanh\bigl(k(0.995-\mathrm{SOC}_t)\bigr)\right)
 \nonumber\\
-&\quad
-+ \frac{1}{2}\left(1-\tanh\bigl(k(u_t+\delta)\bigr)\right)u_t
+&\quad {}+ \frac{1}{2}\left(1-\tanh\bigl(k(u_t+\delta)\bigr)\right)u_t
 \nonumber\\
 &\quad {}\cdot
 \frac{1}{2}\left(1+\tanh\bigl(k(\mathrm{SOC}_t-0.005)\bigr)\right)
-\Big], \quad \forall t, \label{eq:bess_power_mapping} \\
-&P_{\mathrm{actual},t} = \frac{P_t^{\mathrm S}}{2}
+\Big], \quad \forall t,
+\label{eq:bess_power_mapping} \\[1ex]
+P_{\mathrm{actual},t} &= \frac{P_t^{\mathrm S}}{2}
 \Biggl[
 \left(1+\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\eta
 \nonumber\\
-&\qquad\quad
-+ \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
+&\quad {}+ \left(1-\tanh\left(\frac{P_t^{\mathrm S}}{\epsilon}\right)\right)\frac{1}{\eta}
 \Biggr],
-\quad \forall t, \label{eq:feasible_actual_power} \\
-&\mathrm{SOC}_N \geq \mathrm{SOC}_{\mathrm{term}},
+\quad \forall t,
+\label{eq:feasible_actual_power} \\[1ex]
+\mathrm{SOC}_N &\geq \mathrm{SOC}_{\mathrm{term}},
 \qquad \mathrm{SOC}_{\mathrm{term}}=0.5.
 \label{eq:terminal_soc_requirement}
 \end{align}
