@@ -67,7 +67,8 @@ $\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & Thermal-storage charging and 
 $\gamma$ & Upper bound on the product of charging and discharging heat rates & kW$^2$ \\
 $F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
 $F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Surrogate models for high- and low-temperature heat-exchanger outlet temperatures & $^\circ$C \\
-$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations & n/a \\
+$\kappa_{j,t}$ & Coefficient of $R^j$ in the HTHX outlet-temperature surrogate with the other inputs fixed at time $t$; $j=0,\ldots,3$ & $^\circ$C \\
+$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations in Eqs.~\eqref{eq:cookie_charging_coupling} and~\eqref{eq:cookie_discharging_mixing} & n/a \\
 \multicolumn{3}{@{}l}{\textbf{Model-based optimization}} \\*
 $\xi,\xi^\star$ & Decision vector and optimal decision vector & * \\
 $\Omega$ & Domain of the decision variables & n/a \\

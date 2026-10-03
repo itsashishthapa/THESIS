@@ -628,8 +628,8 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \label{eq:cookie_power_balance} \\
 &T_{\mathrm{II},t} = F_{\mathrm{HTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
 &T_{\mathrm{IV},t} = F_{\mathrm{LTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
-&T_{2,t} = \beta_{1,t} T_{\mathrm{II},t} + \left(1-\beta_{1,t}\right)T_{1,t}, \\
-&T_{\mathrm{I},t} = \beta_{2,t} T_{3,t} + \left(1-\beta_{2,t}\right)T_{4,t}, \\
+&T_{2,t} = \beta_{1,t} T_{\mathrm{II},t} + \left(1-\beta_{1,t}\right)T_{1,t}, \label{eq:cookie_charging_coupling} \\
+&T_{\mathrm{I},t} = \beta_{2,t} T_{3,t} + \left(1-\beta_{2,t}\right)T_{4,t}, \label{eq:cookie_discharging_mixing} \\
 &T_{2,t} = 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II},t}}, \\
 &T_{3,t} = 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I},t}}, \\
 &\dot{Q}_{s,\mathrm{ch},t} = 3\dot{m}_{\mathrm{II},t} c_{p,\mathrm{f}}\left(T_{\mathrm{II},t}-T_{1,t}\right)\left(1-\beta_{1,t}\right), \\
@@ -643,6 +643,11 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &T_{\mathrm{III},t} \in [60,100], \qquad R_t \in [0.8,1.53], \qquad \beta_{1,t},\beta_{2,t} \in [0,1].
 \label{eq:cookie_bounds}
 \end{align}
+The label $F_4$ denotes the charging-side coupling relation in
+Eq.~\eqref{eq:cookie_charging_coupling}, and $F_5$ denotes the
+discharging-side mixing relation in Eq.~\eqref{eq:cookie_discharging_mixing}.
+These are fixed relation labels; the subscript $t$ on each physical variable
+denotes time.
 In this formulation, the final subscript $t$ denotes the discrete time step,
 where $t\in\{0,\ldots,N-1\}$ and $N$ is the number of steps in the
 scheduling horizon. The objective
@@ -840,22 +845,43 @@ therefore satisfies $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous TES
 charging and discharging without requiring the policy to learn these two
 conditions from reward penalties.
 
-After obtaining $\beta_{1,t}$, $\beta_{2,t}$, and $\dot{m}_{\mathrm{I},t}$, the
-environment evaluates the steam-generator relations, the discharging-side TES
-effectiveness relation, and the $F_5$ mixing relation to determine $T_{2,t}$,
-$T_{3,t}$, $T_{4,t}$, and $T_{\mathrm{I},t}$. The compressor-speed variable $R_t$
-is then derived from the $F_4$ coupling relation rather than selected directly
-by the policy. Substitution of
-$T_{1,t}=T_{\mathrm{II},t}-\epsilon_{\mathrm{ch}}
-(T_{\mathrm{II},t}-T_{s,t})$ into $F_4$ gives the required HTHX outlet
-temperature in Eq.~\eqref{eq:cookie_required_TII}:
+The policy selects only $b_t$ and $\dot{m}_{\mathrm{I},t}$; the environment
+calculates $R_t$ from the resulting bypass settings and the current TES
+temperature $T_{s,t}$. First, using
+$\dot{m}_{\mathrm{II},t}=\dot{m}_{\mathrm{I},t}$, it evaluates
+\begin{align*}
+T_{2,t} &= 201.92+\frac{1819.32}{3\dot{m}_{\mathrm{I},t}},\\
+T_{3,t} &= 196.3-\frac{188.4}{3\dot{m}_{\mathrm{I},t}},\\
+T_{4,t} &= T_{3,t}-\epsilon_{\mathrm{dch}}(T_{3,t}-T_{s,t}),\\
+T_{\mathrm{I},t} &= \beta_{2,t}T_{3,t}+(1-\beta_{2,t})T_{4,t}.
+\end{align*}
+These steps determine the steam-generator temperatures and the HTHX inlet
+temperature without requiring $R_t$.
+
+Next, the charging-side coupling relation $F_4$ in
+Eq.~\eqref{eq:cookie_charging_coupling} requires
+$T_{2,t}=\beta_{1,t}T_{\mathrm{II},t}+(1-\beta_{1,t})T_{1,t}$.
+Substituting
+$T_{1,t}=(1-\epsilon_{\mathrm{ch}})T_{\mathrm{II},t}
++\epsilon_{\mathrm{ch}}T_{s,t}$ and collecting terms gives
+\[
+T_{2,t}=
+(1-\epsilon_{\mathrm{ch}}+\epsilon_{\mathrm{ch}}\beta_{1,t})
+T_{\mathrm{II},t}
++\epsilon_{\mathrm{ch}}(1-\beta_{1,t})T_{s,t}.
+\]
+Solving this linear relation for $T_{\mathrm{II},t}$ gives the required
+outlet temperature in Eq.~\eqref{eq:cookie_required_TII}:
 \begin{equation}
 T_{\mathrm{II,req},t}=
 \frac{T_{2,t}-\epsilon_{\mathrm{ch}}(1-\beta_{1,t})T_{s,t}}
 {1-\epsilon_{\mathrm{ch}}+\epsilon_{\mathrm{ch}}\beta_{1,t}}.
 \label{eq:cookie_required_TII}
 \end{equation}
-The environment consequently solves Eq.~\eqref{eq:cookie_R_derivation}:
+With the implemented $\epsilon_{\mathrm{ch}}=0.9$ and
+$\beta_{1,t}\in[0,1]$, the denominator is at least $0.1$, so this inversion
+is well defined. The environment then chooses $R_t$ so that the HTHX
+surrogate produces this required temperature:
 \begin{equation}
 F_{\mathrm{HTHX}}\!\left(
 T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t
@@ -863,13 +889,44 @@ T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t
 \qquad R_t\in[0.8,1.53].
 \label{eq:cookie_R_derivation}
 \end{equation}
-Because the HTHX surrogate is cubic in $R_t$, multiple real roots can occur.
-When several bounded roots exist, the root closest to the previously applied
-value $R_{t-1}$ is selected for $t\geq1$ to avoid unnecessary switching. At
-$t=0$, where no previous value exists, the interval midpoint $R_{\mathrm{ref}}=1.165$ is used as the reference. If no real
-root lies within the allowed interval, the bounded value that minimizes the
-absolute surrogate mismatch is applied. The remaining mismatch is measured by
-the $F_4$ residual
+For the fixed inputs $T_{\mathrm{I},t}$, $\dot{m}_{\mathrm{I},t}$, and
+$T_{\mathrm{III},t}$, collecting powers of $R$ in the HTHX surrogate gives
+\[
+F_{\mathrm{HTHX}}(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R)
+=\sum_{j=0}^{3}\kappa_{j,t}R^j,
+\]
+where $\kappa_{j,t}$ are the resulting coefficients at time $t$.
+Here, $R$ is a trial value at the fixed time step; $R_t$ denotes the value
+eventually applied.
+Equation~\eqref{eq:cookie_R_derivation} therefore becomes the scalar cubic
+\[
+\kappa_{3,t}R_t^3+\kappa_{2,t}R_t^2+\kappa_{1,t}R_t
++\kappa_{0,t}-T_{\mathrm{II,req},t}=0.
+\]
+The environment computes its roots numerically and retains real roots in
+$[0.8,1.53]$. When several such roots exist, it selects the root closest to
+the previously applied value $R_{t-1}$ for $t\geq1$. At $t=0$, the interval
+midpoint $R_{\mathrm{ref}}=1.165$ is used as the reference.
+The applied initial value $R_0$ is still obtained from the cubic equation.
+Selecting the nearest root minimizes $|R_t-R_{t-1}|$ only among the
+available bounded real roots. It is a local continuity heuristic and does
+not impose a bound on this change. If the previously selected branch no
+longer provides a bounded real root, $R_t$ may change abruptly. Switching
+between TES charging and discharging modes is determined by $b_t$ and is
+not prevented by this root-selection rule.
+
+If no real root satisfies the bounds, the environment evaluates the absolute
+surrogate mismatch at both interval endpoints and at all real stationary
+points within the interval. The stationary points satisfy
+\[
+3\kappa_{3,t}R^2+2\kappa_{2,t}R+\kappa_{1,t}=0.
+\]
+It applies the candidate with the smallest absolute mismatch, using distance
+to the reference value to break ties. This fallback preserves the bounds on
+$R_t$ while leaving a possible coupling violation. After selecting $R_t$,
+the environment recomputes $T_{\mathrm{II},t}$ and $T_{1,t}$ and measures
+the remaining mismatch with the residual of
+Eq.~\eqref{eq:cookie_charging_coupling}, labeled $F_4$:
 \[
 v_{F_4,t}=\left|
 T_{2,t}-\beta_{1,t}T_{\mathrm{II},t}
