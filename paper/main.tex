@@ -793,14 +793,14 @@ not separately optimized. The environment maps $b_t$ to the two physical
 bypass settings according to Eq.~\eqref{eq:cookie_beta_mapping}:
 \begin{equation}
 \left(\beta_{1,t},\beta_{2,t}\right)=
-\begin{cases}
+\left\{\begin{array}{@{}l@{\quad}l@{\quad}l@{}}
 \displaystyle\left(1,\frac{1+b_t}{1-\delta_\beta}\right),
-    & -1\leq b_t<-\delta_\beta \quad \text{(discharging)},\\[2mm]
+    & -1\leq b_t<-\delta_\beta & \text{(discharging)},\\[2mm]
 (1,1),
-    & |b_t|\leq\delta_\beta \quad \text{(idle)},\\[1mm]
+    & |b_t|\leq\delta_\beta & \text{(idle)},\\[1mm]
 \displaystyle\left(\frac{1-b_t}{1-\delta_\beta},1\right),
-    & \delta_\beta<b_t\leq1 \quad \text{(charging)}.
-\end{cases}
+    & \delta_\beta<b_t\leq1 & \text{(charging)}.
+\end{array}\right.
 \label{eq:cookie_beta_mapping}
 \end{equation}
 Consequently, the inactive path always has a bypass value of one. The mapping
