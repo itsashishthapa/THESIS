@@ -750,21 +750,31 @@ where $\operatorname{clip}(z,l,h)=\min(\max(z,l),h)$. These bounds prevent disch
 
 For the cookie factory, the environment clips $b_t$ and $\dot m_{\mathrm I,t}$ to their allowed intervals and maps $b_t$ to bypass values in $[0,1]$. The inactive storage path always has a bypass value of one, which guarantees $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous charging and discharging. The derived compressor-speed variable is also restricted to $R_t\in[0.8,1.53]$. TES and inlet-temperature bounds, heat-flow and grid-power bounds, any remaining $F_4$ coupling residual, and the cyclic terminal-temperature requirement are represented by the reward penalties defined below. These penalties guide learning but do not guarantee constraint satisfaction.
 
-For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current spot electricity price $S_t$, the normalized position within the scheduling horizon, and the normalized 24-step price forecast $S_{0:N-1}$. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits.
+For the battery system, the state supplied to the agent consists of the current state of charge, a normalized representation of the current spot electricity price $S_t$, the normalized position within the scheduling horizon, and normalized values of the full 24-step price sequence $(S_0,\ldots,S_{N-1})$. Normalization applies to the network observation; $S_t$ in the cost equations retains its physical unit of EUR/MWh. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits.
 
 The reward has the same general form in both environments:
 \[
-r_t(x_t,a_t) = -C_t - \sum_{\ell} \lambda_\ell v_{\ell,t} - \lambda_{\mathrm{T}} v_{\mathrm{T},t},
+r_t(x_t,a_t) = -C_t - \sum_{\ell} \lambda_\ell \widetilde v_{\ell,t} - \lambda_{\mathrm{T}} \widetilde v_{\mathrm{T},t},
 \]
-where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are constraint-violation terms, and $\lambda_\ell$ are their corresponding penalty weights. The terminal term $v_{\mathrm{T},t}$ is only active at the end of an episode, and $\lambda_{\mathrm{T}}$ is its penalty weight. In the battery case, it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the case-specific economic objective into a return-maximization problem without removing the need for physical feasibility.
+where $C_t$ is the grid-electricity cost at time step $t$, $\widetilde v_{\ell,t}$ are dimensionless violation terms entering the reward, and $\lambda_\ell$ are their corresponding penalty weights in reward units. The untilded notation $v_{\ell,t}$ denotes raw violation magnitudes used for physical constraint reporting. For dimensionless SOC violations, $\widetilde v_{\ell,t}=v_{\ell,t}$; cookie-factory violations are divided by the physical scales specified below. The terminal term $\widetilde v_{\mathrm{T},t}$ includes the final-step indicator and is zero before the end of an episode, and $\lambda_{\mathrm{T}}$ is its penalty weight. In the battery case, it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the case-specific economic objective into a return-maximization problem without removing the need for physical feasibility.
 
-More specifically, the battery reward implemented in the environment is
+More specifically, the battery reward with only a terminal-SOC penalty is
 \[
 r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
 -\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
 where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is enforced by the storage-side power limit described above and the subsequent SOC update.
+
+The correspondence with the general reward is explicit:
+\begin{align*}
+C_t &= \frac{S_tP_t^{\mathrm S}\Delta t_{\mathrm h}}{1000},
+& \sum_\ell\lambda_\ell \widetilde v_{\ell,t} &= 0,\\
+\lambda_{\mathrm T} &= \lambda_{\mathrm{SOC}},
+& \widetilde v_{\mathrm T,t} &= \mathbb{I}_{\{t=N-1\}}
+\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right).
+\end{align*}
+Thus, the economic term and the terminal penalty have the same structure in both expressions. The running violation sum is zero for this battery variant because intermediate SOC feasibility is enforced directly. The indicator is included in $\widetilde v_{\mathrm T,t}$, making the terminal term zero before the final decision step.
 
 As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
 \[
@@ -785,7 +795,16 @@ r_t^{\mathrm{reach}}(x_t,a_t)
 0
 \right),
 \]
-where $\lambda_{\mathrm{reach}}>0$ weights the reachability penalty. Unlike the terminal penalty described above, this penalty provides feedback before the final time step and encourages the policy to preserve sufficient energy for the terminal requirement. The resulting feasibility--cost trade-off is reported in Section~\ref{sec:results_discussion}.
+where $\lambda_{\mathrm{reach}}>0$ weights the reachability penalty. In the general reward, this additional term corresponds to $\widetilde v_{\mathrm{reach},t}=v_{\mathrm{reach},t}=\max(\mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,0)$ with weight $\lambda_{\mathrm{reach}}$. Unlike the terminal penalty described above, this penalty provides feedback before the final time step and encourages the policy to preserve sufficient energy for the terminal requirement. The resulting feasibility--cost trade-off is reported in Section~\ref{sec:results_discussion}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_reachability_reward.pdf}
+    \caption{Illustration of the battery reachability violation and shaped reward as functions of SOC at $t\in\{18,20,22\}$. The parameters are $N=24$, $P_{\max}=20\,\mathrm{kW}$, $E_{\max}=200\,\mathrm{kWh}$, $\eta=0.9$, $\Delta t_{\mathrm h}=1\,\mathrm h$, $\mathrm{SOC}_{\mathrm{term}}=0.5$, and $\lambda_{\mathrm{reach}}=10$. Panel (a) shows $v_{\mathrm{reach},t}$. Panel (b) uses the idle action $u_t=0$ at the shown nonterminal steps, for which the baseline reward is $r_t=0$ and hence $r_t^{\mathrm{reach}}=-\lambda_{\mathrm{reach}}v_{\mathrm{reach},t}$. Hollow circles mark the reachability thresholds.}
+    \label{fig:battery_reachability_reward}
+\end{figure}
+
+Figure~\ref{fig:battery_reachability_reward} shows that the violation is zero at or above the reachability threshold and increases linearly as SOC falls below it. The shaped reward correspondingly decreases with slope magnitude $\lambda_{\mathrm{reach}}$. As fewer charging steps remain, the threshold rises and the penalty affects a wider range of SOC values. For a nonzero baseline reward, the reachability term is the same downward adjustment to $r_t$.
 
 For the cookie factory, the observation contains the normalized TES
 temperature, current electricity price and wind availability, the previous

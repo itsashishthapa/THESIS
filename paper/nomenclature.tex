@@ -31,6 +31,7 @@ $J_{\mathrm{grid}}$ & Total net grid-electricity cost over the scheduling horizo
 $E_{\max}$ & Usable battery energy capacity & kWh \\
 $P_{\max}$ & Maximum charging and discharging power & kW \\
 $P_{\mathrm{actual},t}$ & Effective storage-side power after efficiency losses & kW \\
+$\widehat P_{\mathrm{actual},t}$ & Requested storage-side power before limiting it to the available energy & kW \\
 $u_t$ & Normalized battery control command & -- \\
 $\mathrm{SOC}_0,\mathrm{SOC}_t$ & Initial battery state of charge and state of charge at the beginning of decision step $t$ & -- \\
 $\mathrm{SOC}_N$ & Terminal state of charge after $N$ decisions & -- \\
@@ -88,6 +89,7 @@ $g_N(x)$ & Separate terminal-reward function & ** \\
 $x,x_t,x'$ & Generic state, state at time step $t$, and next state & * \\
 $X_t,A_t$ & Random state and action at time step $t$ & * \\
 $a,a_t,a_t^{\mathrm{phys}}$ & Generic action, policy action at time $t$, and corresponding physical setpoints & * \\
+$a_{t+1}^{\prime}$ & Next action sampled from the SAC policy for the critic target & * \\
 $\mathcal{M}$ & Map from policy actions to physical setpoints & n/a \\
 $\pi,\pi_t(\cdot\mid x),\pi_\theta(a\mid x)$ & Policy, time-$t$ conditional action distribution, and parameterized stochastic policy & * \\
 $\pi_{\mathrm b}$ & Behavior policy used to collect transitions & n/a \\
