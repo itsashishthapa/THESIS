@@ -735,7 +735,20 @@ During training, the policy action is first processed by an environment-specific
 \[
 a_t^{\mathrm{phys}} = \mathcal{M}(x_t,a_t),
 \]
-where $\mathcal{M}$ maps the policy output to physical setpoints and applies environment-specific feasibility handling. Hard constraints are enforced through action bounds, state-dependent mappings, or the system dynamics, while requirements that are not enforced directly are represented by penalty terms in the reward.
+where $\mathcal{M}$ maps the policy output to physical setpoints and applies environment-specific feasibility handling. The constraints enforced directly by this map differ between the two use cases.
+
+For the battery, the bounded action $u_t\in[-1,1]$ and the smooth power gates restrict the requested grid-side power. The SOC gates attenuate charging and discharging near the corresponding limits, but do not alone guarantee that the next SOC remains feasible. Therefore, after applying the efficiency mapping, the environment limits the requested storage-side power $\widehat P_{\mathrm{actual},t}$ to the energy available within one time step:
+\[
+P_{\mathrm{actual},t}
+=\operatorname{clip}\!\left(
+\widehat P_{\mathrm{actual},t},
+-\frac{\mathrm{SOC}_t E_{\max}}{\Delta t_{\mathrm h}},
+\frac{(1-\mathrm{SOC}_t)E_{\max}}{\Delta t_{\mathrm h}}
+\right),
+\]
+where $\operatorname{clip}(z,l,h)=\min(\max(z,l),h)$. These bounds prevent discharging more energy than is stored or charging beyond the remaining capacity, so the SOC update gives $0\leq\mathrm{SOC}_{t+1}\leq1$. If this limit changes the requested power, the corresponding grid-side power is recomputed through the inverse efficiency mapping before calculating the electricity cost. The terminal SOC requirement is handled by reward penalties.
+
+For the cookie factory, the environment clips $b_t$ and $\dot m_{\mathrm I,t}$ to their allowed intervals and maps $b_t$ to bypass values in $[0,1]$. The inactive storage path always has a bypass value of one, which guarantees $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous charging and discharging. The derived compressor-speed variable is also restricted to $R_t\in[0.8,1.53]$. TES and inlet-temperature bounds, heat-flow and grid-power bounds, any remaining $F_4$ coupling residual, and the cyclic terminal-temperature requirement are represented by the reward penalties defined below. These penalties guide learning but do not guarantee constraint satisfaction.
 
 For the battery system, the state supplied to the agent consists of the current state of charge, the normalized current spot electricity price $S_t$, the normalized position within the scheduling horizon, and the normalized 24-step price forecast $S_{0:N-1}$. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits.
 
@@ -751,7 +764,7 @@ r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
 -\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
-where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is handled directly by the battery dynamics and state-dependent power mapping rather than by a constraint-violation penalty.
+where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is enforced by the storage-side power limit described above and the subsequent SOC update.
 
 As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
 \[
