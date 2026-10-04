@@ -127,12 +127,14 @@ $\alpha$ & Weight of the SAC entropy term & ** \\
 $\mathcal{H}$ & Policy entropy & -- \\
 $\tau$ & Target-network soft-update coefficient & -- \\
 $[\,\cdot\,]_+$ & Positive-part operator & same as its argument \\
-$v_{\ell,t},v_{\mathrm{T},t}$ & Constraint-violation and terminal-violation terms & * \\
+$v_{\ell,t}$ & Constraint violation in category $\ell$ at time step $t$ & * \\
+$v_{\mathrm T,t}$ & Terminal violation, including the final-step indicator; zero before the episode ends & -- (battery); $^\circ$C (cookie factory) \\
+$v_{\mathrm{reach},t}$ & Battery terminal-SOC reachability violation & -- \\
 $v_{s,t},v_{\mathrm I,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, and coupling violations & $^\circ$C \\
 $v_{Q,t},v_{P,t}$ & Cookie-factory heat-flow and grid-power violations & kW \\
-$\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & * \\
-$\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty weights & ** \\
-$\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty weights & ** \\
+$\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & reward units per violation unit \\
+$\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty coefficients in Eq.~\eqref{eq:cookie_reward} & ** \\
+$\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty coefficients in Eq.~\eqref{eq:cookie_reward} & ** \\
 $\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & ** \\
 $R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & ** \\
 $V_{\mathrm{tot},\ell}$ & Sum of recorded violation magnitudes for constraint category $\ell$ & * \\

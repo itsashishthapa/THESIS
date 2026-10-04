@@ -273,7 +273,7 @@ This question is addressed through the following subquestions:
 
 For each case study, the setpoint optimization problem is first formulated as a Markov decision process (MDP). Deep neural networks are used to parameterize the RL policies that map system observations to continuous setpoint decisions. The resulting policies are evaluated through deterministic rollouts in reinforcement-learning environments, and the resulting schedules are compared with the optimization baseline. The comparison is based on total grid-electricity cost, constraint violations, and computation time. This separation is important because a policy with high cumulative reward is only useful if it remains feasible and economically meaningful under the original engineering objective.
 
-The remainder of this thesis is structured as follows: Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, and introduces the optimization baseline as the benchmark used to evaluate the RL policies. It also describes the deep RL methods considered in this work. Section~\ref{sec:use_case} introduces the two case studies: a battery energy storage system and a nonlinear cookie production factory. Section~\ref{sec:methodology} presents the methodological framework, covering the MDP formulation, environment design, policy-training procedure, optimization baselines, and evaluation metrics. Section~\ref{sec:results_discussion} reports and discusses the experimental results, with particular emphasis on the comparison between RL policies and the optimization baseline. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
+The remainder of this thesis is structured as follows: Section~\ref{sec:theory_background} establishes the theoretical foundations of setpoint optimization and reinforcement learning, introduces IPOPT as the optimization baseline, and describes the TD3 and SAC algorithms considered in this work. Section~\ref{sec:battery_case} presents the battery energy storage system, followed by its problem formulation, methodology, and numerical results. The implementation, training procedure, and evaluation metrics shared by both case studies are introduced within the battery methodology. Section~\ref{sec:cookie_case} then presents the cookie production factory in the same order: problem formulation, methodology, and numerical results. Each case study compares the learned policies with the optimization baseline in terms of economic performance, constraint satisfaction, and computation time. Finally, Section~\ref{sec:conclusion_future_work} summarizes the main findings, identifies the limitations of the study, and outlines directions for future work.
 
 \startnewpage
 \section{Theory and Background}
@@ -523,12 +523,13 @@ Both TD3 and SAC are model-free, off-policy actor--critic algorithms. TD3 collec
 The two algorithms therefore provide a comparison between deterministic and stochastic actor--critic policies for continuous setpoint optimization. Their performance is evaluated using operating cost, constraint satisfaction, and computation time.
 
 \startnewpage
-\section{Use Cases}
-\label{sec:use_case}
+\section{Battery Energy Storage System}
+\label{sec:battery_case}
 
-This section presents the two case studies used to evaluate reinforcement learning for setpoint determination at different levels of system complexity. The first subsection introduces the battery energy storage system as the simpler case, with one control command and state-of-charge dynamics. The second subsection presents the cookie production factory as the more complex case, with multiple controllable components, nonlinear process behavior, thermal energy storage, and coupled operational constraints.
+This case study considers a battery energy storage system as the simpler benchmark, with one control command and state-of-charge dynamics. The system model and economic objective are presented first, followed by the reinforcement-learning methodology and numerical results.
 
-\subsection{Battery Energy Storage System}
+\subsection{Problem Formulation}
+\label{sec:battery_problem}
 
 A battery energy storage system (BESS) is an electrochemical device that stores electrical energy for later use and provides grid services such as energy arbitrage, peak shaving, and short-term balancing. A typical BESS is characterized by its usable energy capacity, maximum charge/discharge power, round-trip efficiency, and state-of-charge (SOC) operating limits. Real-world operation must balance economic objectives (e.g., buying electricity at low prices and selling it at high prices) with engineering constraints (SOC bounds, power limits, efficiency losses).
 
@@ -596,10 +597,257 @@ The battery objective is to maximize profit. Let $P_t^+=\max(P_t^{\mathrm S},0)$
 = \frac{1}{1000}\sum_{t=0}^{N-1}
 \left(S_t^{\mathrm{buy}}P_t^+-S_t^{\mathrm{sell}}P_t^-\right)\Delta t_{\mathrm h}.
 \]
-With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J_{\mathrm{grid}}=\sum_t S_tP_t^{\mathrm S}\Delta t_{\mathrm h}/1000$. The factor $1000$ converts kWh to MWh so that $J_{\mathrm{grid}}$ is expressed in euros. This equation represents the physical economic objective used to compare the methods. In the optimization baseline formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J_{\mathrm{grid}}$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
+With $S_t^{\mathrm{buy}}=S_t$ and $S_t^{\mathrm{sell}}=S_t-\Delta_s$, the spread reduces the revenue received for exported electricity. The numerical choice $\Delta_s=0$ yields $S_t^{\mathrm{buy}}=S_t^{\mathrm{sell}}=S_t$ and recovers $J_{\mathrm{grid}}=\sum_t S_tP_t^{\mathrm S}\Delta t_{\mathrm h}/1000$. The factor $1000$ converts kWh to MWh so that $J_{\mathrm{grid}}$ is expressed in euros. This equation represents the physical economic objective used to compare the methods. In the optimization baseline formulation, the terminal SOC is imposed as the hard constraint in Eq.~\eqref{eq:terminal_soc_requirement}. In the RL formulation, the negative per-step economic contribution is supplemented by a terminal-SOC penalty and, in an additional experimental variant, a progressive terminal-reachability penalty. These penalties guide policy training but are not included in $J_{\mathrm{grid}}$ because they do not represent physical operating costs; their definitions are given in Section~\ref{sec:battery_methodology}. The battery purchases electricity from the grid when prices are low and sells it back to the grid when prices are high. The main challenges include respecting SOC and power limits, accounting for efficiency losses, handling uncertain future prices, and managing the fact that actions now affect future energy availability. These features make the BESS a suitable test case for reinforcement learning, where a policy must balance using energy now against saving it for likely higher-price periods while always obeying feasibility limits.
 
 \FloatBarrier
-\subsection{Cookie Production Factory}
+\subsection{Methodology}
+\label{sec:battery_methodology}
+
+This subsection develops the reinforcement-learning formulation for the battery and establishes the implementation, training setup, and evaluation procedure used for both case studies. The corresponding cookie-factory state, action mapping, and reward are specified in Section~\ref{sec:cookie_methodology}. At each time step, the environment maps the policy action to physical setpoints, advances the system dynamics, and returns the next state, reward, and termination signals. For the optimization baseline, IPOPT solves the finite-horizon battery problem described in Section~\ref{sec:battery_problem}, with the terminal SOC requirement imposed as a hard constraint.
+
+\subsubsection{Reinforcement Learning Formulation}
+\label{sec:rl_framework}
+
+For both use cases, the objective is to determine operating setpoints over a discrete time horizon that optimize the relevant economic objective while respecting all constraints. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $W_t$ the available wind power. At each time step, the system is described by a state vector $x_t$, the agent selects a continuous action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics. For the battery case, the only external input is the electricity price $S_t$.
+
+The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium \cite{towers2024gymnasium}, while the continuous-control policies are trained using Stable-Baselines3 \cite{raffin2021stablebaselines3}. Each interaction produces the transition sample
+\[
+\left(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t\right),
+\]
+where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC and TD3.
+This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
+
+For the battery system, the state supplied to the agent consists of the current state of charge, a normalized representation of the current spot electricity price $S_t$, the normalized position within the scheduling horizon, and normalized values of the full 24-step price sequence $(S_0,\ldots,S_{N-1})$. Normalization applies to the network observation; $S_t$ in the cost equations retains its physical unit of EUR/MWh. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. The battery environment converts $u_t$ into a requested grid-side power using smooth action and SOC gates, which attenuate charging near $\mathrm{SOC}_t=0.995$ and discharging near $\mathrm{SOC}_t=0.005$. A separate storage-side power limit, described below, ensures that the next SOC remains within $[0,1]$.
+
+During training, the policy action is first processed by an environment-specific action map
+\[
+a_t^{\mathrm{phys}} = \mathcal{M}(x_t,a_t),
+\]
+where $\mathcal{M}$ maps the policy output to physical setpoints and applies environment-specific feasibility handling. The constraints enforced directly by this map differ between the two use cases.
+
+For the battery, the bounded action $u_t\in[-1,1]$ and the smooth power gates restrict the requested grid-side power. The SOC gates attenuate charging and discharging near the corresponding limits, but do not alone guarantee that the next SOC remains feasible. Therefore, after applying the efficiency mapping, the environment limits the requested storage-side power $\widehat P_{\mathrm{actual},t}$ to the energy available within one time step:
+\[
+P_{\mathrm{actual},t}
+=\operatorname{clip}\!\left(
+\widehat P_{\mathrm{actual},t},
+-\frac{\mathrm{SOC}_t E_{\max}}{\Delta t_{\mathrm h}},
+\frac{(1-\mathrm{SOC}_t)E_{\max}}{\Delta t_{\mathrm h}}
+\right),
+\]
+where $\operatorname{clip}(z,l,h)=\min(\max(z,l),h)$. These bounds prevent discharging more energy than is stored or charging beyond the remaining capacity, so the SOC update gives $0\leq\mathrm{SOC}_{t+1}\leq1$. If this limit changes the requested power, the corresponding grid-side power is recomputed through the inverse efficiency mapping before calculating the electricity cost. The terminal SOC requirement is handled by reward penalties.
+
+The reward has the same general form in both environments:
+\[
+r_t(x_t,a_t) = -C_t - \sum_{\ell} \lambda_\ell v_{\ell,t} - \lambda_{\mathrm{T}} v_{\mathrm{T},t},
+\]
+where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are constraint violations, and $\lambda_\ell$ are their corresponding penalty weights. The terminal violation $v_{\mathrm{T},t}$ includes the final-step indicator and is zero before the end of an episode, and $\lambda_{\mathrm{T}}$ is its penalty weight. In the battery case, it represents an insufficient terminal SOC, while in the cookie factory it represents deviation from the cyclic terminal TES temperature. This reward design converts the case-specific economic objective into a return-maximization problem without removing the need for physical feasibility.
+
+More specifically, the battery reward with only a terminal-SOC penalty is
+\[
+r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
+-\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
+\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
+\]
+where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is enforced by the storage-side power limit described above and the subsequent SOC update.
+
+The correspondence with the general reward is explicit:
+\begin{align*}
+C_t &= \frac{S_tP_t^{\mathrm S}\Delta t_{\mathrm h}}{1000},
+& \sum_\ell\lambda_\ell v_{\ell,t} &= 0,\\
+\lambda_{\mathrm T} &= \lambda_{\mathrm{SOC}},
+& v_{\mathrm T,t} &= \mathbb{I}_{\{t=N-1\}}
+\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right).
+\end{align*}
+Thus, the economic term and the terminal penalty have the same structure in both expressions. The running violation sum is zero for this battery variant because intermediate SOC feasibility is enforced directly. The indicator is included in $v_{\mathrm T,t}$, making the terminal term zero before the final decision step.
+
+As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
+\[
+\mathrm{SOC}^{\mathrm{reach}}_t
+= \max\!\left(
+\mathrm{SOC}_{\mathrm{term}}
+- (N-t)\frac{\eta P_{\max}\Delta t_{\mathrm h}}{E_{\max}},
+0
+\right).
+\]
+Whenever the current SOC falls below this reachability threshold, the shaped reward is
+\[
+r_t^{\mathrm{reach}}(x_t,a_t)
+= r_t(x_t,a_t)
+- \lambda_{\mathrm{reach}}
+\max\!\left(
+\mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,
+0
+\right),
+\]
+where $\lambda_{\mathrm{reach}}>0$ weights the reachability penalty. In the general reward, this additional term corresponds to the violation $v_{\mathrm{reach},t}=\max(\mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,0)$ with weight $\lambda_{\mathrm{reach}}$. Unlike the terminal penalty described above, this penalty provides feedback before the final time step and encourages the policy to preserve sufficient energy for the terminal requirement. The resulting feasibility--cost trade-off is reported in Section~\ref{sec:battery_results}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_reachability_reward.pdf}
+    \caption{Illustration of the battery reachability violation and shaped reward as functions of SOC at $t\in\{18,20,22\}$. The parameters are $N=24$, $P_{\max}=20\,\mathrm{kW}$, $E_{\max}=200\,\mathrm{kWh}$, $\eta=0.9$, $\Delta t_{\mathrm h}=1\,\mathrm h$, $\mathrm{SOC}_{\mathrm{term}}=0.5$, and $\lambda_{\mathrm{reach}}=10$. Panel (a) shows $v_{\mathrm{reach},t}$. Panel (b) uses the idle action $u_t=0$ at the shown nonterminal steps, for which the baseline reward is $r_t=0$ and hence $r_t^{\mathrm{reach}}=-\lambda_{\mathrm{reach}}v_{\mathrm{reach},t}$. Hollow circles mark the reachability thresholds.}
+    \label{fig:battery_reachability_reward}
+\end{figure}
+
+Figure~\ref{fig:battery_reachability_reward} shows that the violation is zero at or above the reachability threshold and increases linearly as SOC falls below it. The shaped reward correspondingly decreases with slope magnitude $\lambda_{\mathrm{reach}}$. As fewer charging steps remain, the threshold rises and the penalty affects a wider range of SOC values. For a nonzero baseline reward, the reachability term is the same downward adjustment to $r_t$.
+
+\FloatBarrier
+\subsubsection{Training Setup}
+\label{sec:training_setup}
+
+All computations were performed in Python~3.14.1, with Gymnasium~1.2.2 used to implement the reinforcement-learning environments and Stable-Baselines3~2.7.0, based on PyTorch~2.9.1, used to train the RL policies. Experiments were conducted on an AMD Ryzen~7 7840HS CPU with Radeon~780M Graphics.
+
+Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
+
+For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window.
+
+The training environments are wrapped with monitoring and vectorized environment interfaces. Monitoring records episode rewards and lengths for later inspection, while the vectorized wrapper provides the interface expected by the Stable-Baselines3 implementation of SAC and TD3. Only one environment instance is used at a time in the current setup, so the vectorization is mainly an interface layer rather than a parallel simulation strategy.
+
+The environment-specific action mappings and reward definitions are given in
+Sections~\ref{sec:rl_framework} and~\ref{sec:cookie_rl_framework}, including the cookie-factory reward in
+Eq.~\eqref{eq:cookie_reward}. The cookie-factory penalties are particularly important because
+its coupled nonlinear feasibility requirements cannot all be represented by
+simple action bounds.
+
+Hyperparameter selection included 50 tuning trials. The preliminary battery learning-rate study used to select the linear schedule is reported in Section~\ref{sec:battery_results}. The final training settings, which are shared by the battery and cookie-factory case studies, are summarized in Table~\ref{tab:sac_training_setup}. The environments themselves still differ in their state variables, action spaces, dynamics, and constraint structures.
+
+\begin{table}[!tb]
+\centering
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.43\textwidth}>{\raggedright\arraybackslash}p{0.47\textwidth}}
+\hline
+
+Parameter & Setting for both case studies \\
+\hline
+Algorithm & SAC and TD3 \\
+Policy & MLP policy \\
+Network architecture & SAC: 3$\times$256 ReLU; TD3: 400, 300 ReLU \\
+Replay buffer size & 200000 \\
+Batch size & 256 \\
+Learning rate & Linear schedule from $3\cdot10^{-4}$ \\
+Discount factor $\gamma_{\mathrm{RL}}$ & 1 \\
+Target-network soft-update coefficient $\tau$ & 0.005 \\
+Episode length & 24 steps \\
+\hline
+\end{tabular}
+\caption{Final SAC and TD3 training configuration used for both the battery and cookie-factory environments. TD3 uses the Stable-Baselines3 default network architecture.}
+\label{tab:sac_training_setup}
+\end{table}
+
+Both SAC policies use three hidden layers of 256 neurons with ReLU activation functions for both actor and critic networks. TD3 uses the Stable-Baselines3 default architecture of two ReLU hidden layers with 400 and 300 neurons for both actor and critic networks. In all cases, trained models are saved after learning and later loaded for evaluation.
+
+\FloatBarrier
+\subsubsection{Evaluation Procedure}
+\label{sec:evaluation_metrics}
+
+The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. For SAC, the mean action of the stochastic policy is selected at each time step. TD3 directly outputs a deterministic action. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the optimization baseline in terms of cost, constraint satisfaction, and computation time.
+
+The primary economic metric is the total net grid-side cost over the evaluation horizon:
+\[
+J_{\mathrm{grid}} = \sum_{t=0}^{N-1} C_t,
+\]
+where $C_t$ is the grid-electricity cost at time step $t$. For the battery system, this cost may generally include the fixed buy--sell spread $\Delta_s$ defined in Section~\ref{sec:battery_problem}; the numerical experiments use $\Delta_s=0$. Minimizing $J_{\mathrm{grid}}$ is equivalent to maximizing profit. For the cookie factory, the cost is computed from the grid power required by the heat-pump system after accounting for available wind power and is minimized directly. Thus, a lower value of $J_{\mathrm{grid}}$ indicates higher profit for the battery and lower operating cost for the cookie factory.
+
+The cumulative reward is reported as a secondary metric:
+\[
+R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
+\]
+Because $\gamma_{\mathrm{RL}}=1$ and the terminal penalty is included in the reward returned with the final transition, this cumulative episode reward contains the same economic and penalty contributions as the realized return $G_0$.
+This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
+
+Constraint satisfaction is measured separately for each constraint category. For a nonnegative residual magnitude or violation $v_{\ell,t}$ in category $\ell$, the total violation over one rollout is defined as
+\[
+V_{\mathrm{tot},\ell} = \sum_{t=0}^{N-1} v_{\ell,t}.
+\]
+Each $V_{\mathrm{tot},\ell}$ retains the unit of its category; violations with different units are not added together. In addition, the fraction of time steps with at least one violation is considered:
+\[
+f_{\mathrm{viol}} =
+\frac{1}{N}\sum_{t=0}^{N-1}
+\mathbb{I}\left(\exists\,\ell:\;v_{\ell,t} > \varepsilon_{\mathrm{viol},\ell}\right),
+\]
+where $\varepsilon_{\mathrm{viol},\ell}$ is a small numerical tolerance expressed in the unit of category $\ell$. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
+
+The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, and terminal SOC.
+
+Finally, computation time is used to assess practical applicability. For the optimization baseline, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
+
+Offline training time is excluded from all online computation time comparisons.
+
+\FloatBarrier
+\subsection{Numerical Results}
+\label{sec:battery_results}
+
+
+A preliminary learning-rate study was conducted for SAC using the battery environment. A constant learning rate, a linear-decay schedule, and a power-law-decay schedule were each trained and evaluated over 32 independent runs using the same evaluation setup. The linear schedule achieved the highest mean cumulative reward, $8.9962 \pm 0.0286$, and the lowest mean objective value, $-9.00 \pm 0.03$~EUR. The corresponding mean rewards were $8.9891 \pm 0.0325$ for the constant schedule and $8.9809 \pm 0.0439$ for the power-law schedule.
+
+The differences between the schedules were small relative to the variation across runs, indicating that the battery environment was not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore selected for the subsequent SAC and TD3 training in both case studies and for the comparisons with the optimization baseline.
+
+\subsubsection{Comparison with the Optimization Baseline}
+
+The trained SAC and TD3 policies were compared with the optimization baseline over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
+\hline
+Metric & SAC policy & TD3 policy & Optimization baseline \\
+\hline
+Mean objective [EUR] & $-2.89 \pm 1.24$ & $-3.02 \pm 1.22$ & $-3.19 \pm 1.22$ \\
+Objective range [EUR] & $[-7.73,-0.35]$ & $[-7.78,-0.26]$ & $[-7.85,-0.44]$ \\
+Mean computation time [s] & $0.0126 \pm 0.0105$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
+Time range [s] & $[0.0102,0.3444]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
+Active offline training time [min] & $36$ & $23$ & Not applicable \\
+Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
+Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
+\hline
+\end{tabular}
+\caption{Comparison between the trained SAC and TD3 policies and the optimization baseline over 1000 random 24-hour windows. Lower (more negative) objective values correspond to higher profit.}
+\label{tab:battery_optimization_baseline_comparison}
+\end{table}
+
+The optimization baseline achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to the optimization baseline. Based on the result from the optimization baseline reported in Table~\ref{tab:battery_optimization_baseline_comparison}, the mean objective gap was $0.16$ EUR for TD3 and $0.29$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than the optimization baseline. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the return, whereas SAC balances return maximization with maintaining policy entropy. Further TD3 results are presented below.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/model_comparison_distances_td3.png}
+    \caption{Objective values from TD3 and the optimization baseline for ten randomly selected 24-hour comparison windows. The lower panel shows the corresponding gaps between TD3 and the optimization baseline.}
+    \label{fig:td3_objective_gaps}
+\end{figure}
+
+The small objective gaps shown in Figure~\ref{fig:td3_objective_gaps} indicate that the TD3 policy closely approaches the solution from the optimization baseline across the selected comparison windows.
+
+The SOC trajectories are also similar in this comparison. The TD3 policy reached a mean minimum SOC of 0.1947 and a mean maximum SOC of 0.8905, while the solution from the optimization baseline reached a mean minimum SOC of 0.1925 and a mean maximum SOC of 0.8793. This indicates that both methods used a comparable portion of the available storage flexibility.
+
+Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for the best TD3 policy and the solution from the optimization baseline. The upper panel compares battery-power profiles and electricity price, while the lower panel compares the corresponding SOC trajectories. Figure~\ref{fig:battery_threshold_dispatch} separately illustrates the fixed-threshold strategy. This controller charges when the electricity price is at most 15.00~EUR/MWh and discharges when it is at least 25.00~EUR/MWh.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
+    \caption[Illustrative 24-hour battery dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and the optimization baseline.}
+    \label{fig:battery_td3_dispatch}
+\end{figure}
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=\textwidth]{figures/battery_fixed_threshold_dispatch.png}
+    \caption[Illustrative 24-hour fixed-threshold battery dispatch.]{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15.00~EUR/MWh and discharges at prices of at least 25.00~EUR/MWh.}
+    \label{fig:battery_threshold_dispatch}
+\end{figure}
+
+The fixed-threshold strategy achieved an objective value of $-1.07$~EUR, corresponding to a profit of 1.07~EUR, and returned the SOC to 0.50 at the end of the illustrated horizon. The TD3 policy achieved a profit of 1.84~EUR in the same window. Based on these displayed values, TD3 produced approximately 72.0\% more profit than the fixed-threshold strategy.
+
+In a separate feasibility evaluation, the TD3 policy without the progressive reachability penalty violated the terminal-SOC constraint in 4\% of the evaluation windows. Adding the progressive penalty reduced the violation rate to zero but increased the mean objective gap between TD3 and the optimization baseline to $0.24 \pm 0.15$ EUR, illustrating the trade-off between strict terminal-constraint satisfaction and economic performance. Upon further investigation, the mean terminal-SOC shortfall without the progressive penalty was only 0.000252. Given its higher profit, this small shortfall was considered tolerable, and the TD3 policy without the progressive reachability penalty was selected as the final model.
+
+The main advantage of the TD3 policy was computation time. The trained TD3 model required, on average, 0.0082~s to generate a 24-hour rollout, while the optimization baseline required 0.5605~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $68.13\times$. TD3 required 23 minutes of offline training, which is not included in the online computation time. These results therefore illustrate the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and closely approaches the result from the optimization baseline, while direct optimization still provides the best objective value.
+
+\startnewpage
+\section{Cookie Production Factory}
+\label{sec:cookie_case}
+
+The second case study considers the cookie production factory as the more complex benchmark, combining multiple controllable components, nonlinear process behavior, thermal energy storage, and coupled operational constraints. As in the battery case, the problem formulation is followed by the methodology and numerical results.
+
+\subsection{Problem Formulation}
+\label{sec:cookie_problem}
 
 The second use case represents a nonlinear cookie production factory with an electrified steam-generation utility system. The production process requires a constant supply of process heat in the form of superheated steam, while the utility system must decide how to operate the energy conversion components under fluctuating wind generation $W_t$ and electricity prices $S_t$. The operational objective is to satisfy the steam demand while minimizing grid electricity cost over a finite scheduling horizon. The system model is based on the industrial power-to-heat system introduced by Walden et al.~\cite{walden2023nonlinear} and later used as a renewable steam-generation benchmark by Kyriakidis et al.~\cite{kyriakidis2024hybrid}.
 
@@ -712,104 +960,14 @@ are also collected in the nomenclature.
 
 The cookie-factory optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_{1,t}$ and $\beta_{2,t}$, the compressor-speed-related variable $R_t$, the mass flow rate $\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed storage-mode command and the mass flow rate $\dot{m}_{\mathrm{I},t}$. The environment maps the storage-mode command to $\beta_{1,t}$ and $\beta_{2,t}$ and derives $R_t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines nonlinear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the optimization baseline.
 
-\startnewpage
-\section{Methodology}
-\label{sec:methodology}
+\FloatBarrier
+\subsection{Methodology}
+\label{sec:cookie_methodology}
 
-The previous section introduced the two energy utility systems considered in this thesis and described their operational objectives and constraints. This section explains how these system-specific optimization problems are reformulated as reinforcement-learning problems. In each time step, the agent observes the current system state together with current and forecast external conditions, such as electricity prices and available wind power, selects continuous control actions, and receives a reward based on economic performance and constraint satisfaction. Although the physical models and control variables differ between the two use cases, both are represented using the same agent-environment interaction structure. At each discrete time step, the environment maps the agent's action to physical setpoints, advances the system dynamics, and returns the resulting next state, reward, and termination signals.
+The cookie-factory optimization problem is reformulated as a finite-horizon MDP using the same agent--environment interaction structure introduced in Section~\ref{sec:rl_framework}. Its observation, reduced action space, constraint handling, and reward are defined below. For the optimization baseline, IPOPT solves the finite-horizon problem in Section~\ref{sec:cookie_problem}, including the process constraints and cyclic terminal-storage requirement.
 
-\subsection{Problem Formulation}
-
-For both use cases, the objective is to determine operating setpoints over a discrete time horizon that optimize the relevant economic objective while respecting all constraints. Let $t \in \{0,\ldots,N-1\}$ denote the discrete time index, $S_t$ the spot electricity price, $P_t^{\mathrm S}$ the grid power, and $W_t$ the available wind power. At each time step, the system is described by a state vector $x_t$, the agent selects a continuous action vector $a_t$, and the system evolves to the next state $x_{t+1}$ according to the underlying system dynamics. For the battery case, the only external input is the electricity price $S_t$. For the cookie-factory case, the external inputs are the electricity price $S_t$ and the available wind power $W_t$.
-
-The following subsections specify the state variables, action spaces, transition dynamics, and reward functions for each system.
-
-The reward definitions follow the respective operational objectives and include penalty terms for constraint violations where required. In both cases, feasible and economically favorable operation corresponds to a high cumulative reward. The following subsections describe how this general formulation is implemented in the reinforcement-learning framework, training setup, and evaluation procedure.
-
-\subsection{Reinforcement Learning Framework}
-\label{sec:rl_framework}
-
-The reinforcement-learning framework used in this thesis follows the same general structure for both use cases. The environments are implemented using Gymnasium \cite{towers2024gymnasium}, while the continuous-control policies are trained using Stable-Baselines3 \cite{raffin2021stablebaselines3}. Each interaction produces the transition sample
-\[
-\left(x_t,a_t,r_t(x_t,a_t),x_{t+1},d_t\right),
-\]
-where $d_t$ indicates whether the episode has ended. In the present environments, reaching the end of the fixed scheduling horizon is represented by the \texttt{terminated} signal. The transitions are stored in a replay buffer and sampled repeatedly during training, enabling the off-policy learning used by SAC and TD3.
-This implementation follows the general agent--environment interaction illustrated in Figure~\ref{fig:rl_interaction_loop}, extended by forecast-augmented states, environment-specific action mappings, and constraint handling.
-
-During training, the policy action is first processed by an environment-specific action map
-\[
-a_t^{\mathrm{phys}} = \mathcal{M}(x_t,a_t),
-\]
-where $\mathcal{M}$ maps the policy output to physical setpoints and applies environment-specific feasibility handling. The constraints enforced directly by this map differ between the two use cases.
-
-For the battery, the bounded action $u_t\in[-1,1]$ and the smooth power gates restrict the requested grid-side power. The SOC gates attenuate charging and discharging near the corresponding limits, but do not alone guarantee that the next SOC remains feasible. Therefore, after applying the efficiency mapping, the environment limits the requested storage-side power $\widehat P_{\mathrm{actual},t}$ to the energy available within one time step:
-\[
-P_{\mathrm{actual},t}
-=\operatorname{clip}\!\left(
-\widehat P_{\mathrm{actual},t},
--\frac{\mathrm{SOC}_t E_{\max}}{\Delta t_{\mathrm h}},
-\frac{(1-\mathrm{SOC}_t)E_{\max}}{\Delta t_{\mathrm h}}
-\right),
-\]
-where $\operatorname{clip}(z,l,h)=\min(\max(z,l),h)$. These bounds prevent discharging more energy than is stored or charging beyond the remaining capacity, so the SOC update gives $0\leq\mathrm{SOC}_{t+1}\leq1$. If this limit changes the requested power, the corresponding grid-side power is recomputed through the inverse efficiency mapping before calculating the electricity cost. The terminal SOC requirement is handled by reward penalties.
-
-For the cookie factory, the environment clips $b_t$ and $\dot m_{\mathrm I,t}$ to their allowed intervals and maps $b_t$ to bypass values in $[0,1]$. The inactive storage path always has a bypass value of one, which guarantees $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous charging and discharging. The derived compressor-speed variable is also restricted to $R_t\in[0.8,1.53]$. TES and inlet-temperature bounds, heat-flow and grid-power bounds, any remaining $F_4$ coupling residual, and the cyclic terminal-temperature requirement are represented by the reward penalties defined below. These penalties guide learning but do not guarantee constraint satisfaction.
-
-For the battery system, the state supplied to the agent consists of the current state of charge, a normalized representation of the current spot electricity price $S_t$, the normalized position within the scheduling horizon, and normalized values of the full 24-step price sequence $(S_0,\ldots,S_{N-1})$. Normalization applies to the network observation; $S_t$ in the cost equations retains its physical unit of EUR/MWh. As future work, a rolling-horizon implementation could update the forecast at every decision step. Here, the complete forecast is kept fixed to enable a direct comparison with the optimization baseline over the same single scheduling horizon. The continuous scalar action $u_t\in[-1,1]$ represents the battery charging or discharging command: positive values correspond to charging and negative values to discharging. A smooth, state-dependent action map converts this normalized command into grid-side battery power while progressively restricting charging and discharging near the upper and lower SOC limits.
-
-The reward has the same general form in both environments:
-\[
-r_t(x_t,a_t) = -C_t - \sum_{\ell} \lambda_\ell \widetilde v_{\ell,t} - \lambda_{\mathrm{T}} \widetilde v_{\mathrm{T},t},
-\]
-where $C_t$ is the grid-electricity cost at time step $t$, $\widetilde v_{\ell,t}$ are dimensionless violation terms entering the reward, and $\lambda_\ell$ are their corresponding penalty weights in reward units. The untilded notation $v_{\ell,t}$ denotes raw violation magnitudes used for physical constraint reporting. For dimensionless SOC violations, $\widetilde v_{\ell,t}=v_{\ell,t}$; cookie-factory violations are divided by the physical scales specified below. The terminal term $\widetilde v_{\mathrm{T},t}$ includes the final-step indicator and is zero before the end of an episode, and $\lambda_{\mathrm{T}}$ is its penalty weight. In the battery case, it penalizes an insufficient terminal SOC, while in the cookie factory it penalizes deviation from the cyclic terminal TES temperature. This reward design converts the case-specific economic objective into a return-maximization problem without removing the need for physical feasibility.
-
-More specifically, the battery reward with only a terminal-SOC penalty is
-\[
-r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
--\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
-\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
-\]
-where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is enforced by the storage-side power limit described above and the subsequent SOC update.
-
-The correspondence with the general reward is explicit:
-\begin{align*}
-C_t &= \frac{S_tP_t^{\mathrm S}\Delta t_{\mathrm h}}{1000},
-& \sum_\ell\lambda_\ell \widetilde v_{\ell,t} &= 0,\\
-\lambda_{\mathrm T} &= \lambda_{\mathrm{SOC}},
-& \widetilde v_{\mathrm T,t} &= \mathbb{I}_{\{t=N-1\}}
-\max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right).
-\end{align*}
-Thus, the economic term and the terminal penalty have the same structure in both expressions. The running violation sum is zero for this battery variant because intermediate SOC feasibility is enforced directly. The indicator is included in $\widetilde v_{\mathrm T,t}$, making the terminal term zero before the final decision step.
-
-As an additional feasibility measure, a progressive terminal-SOC reachability penalty was investigated. At each time step, the environment calculates the minimum SOC required to retain a feasible path to the terminal-SOC target under the maximum possible future charging rate:
-\[
-\mathrm{SOC}^{\mathrm{reach}}_t
-= \max\!\left(
-\mathrm{SOC}_{\mathrm{term}}
-- (N-t)\frac{\eta P_{\max}\Delta t_{\mathrm h}}{E_{\max}},
-0
-\right).
-\]
-Whenever the current SOC falls below this reachability threshold, the shaped reward is
-\[
-r_t^{\mathrm{reach}}(x_t,a_t)
-= r_t(x_t,a_t)
-- \lambda_{\mathrm{reach}}
-\max\!\left(
-\mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,
-0
-\right),
-\]
-where $\lambda_{\mathrm{reach}}>0$ weights the reachability penalty. In the general reward, this additional term corresponds to $\widetilde v_{\mathrm{reach},t}=v_{\mathrm{reach},t}=\max(\mathrm{SOC}^{\mathrm{reach}}_t-\mathrm{SOC}_t,0)$ with weight $\lambda_{\mathrm{reach}}$. Unlike the terminal penalty described above, this penalty provides feedback before the final time step and encourages the policy to preserve sufficient energy for the terminal requirement. The resulting feasibility--cost trade-off is reported in Section~\ref{sec:results_discussion}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{figures/battery_reachability_reward.pdf}
-    \caption{Illustration of the battery reachability violation and shaped reward as functions of SOC at $t\in\{18,20,22\}$. The parameters are $N=24$, $P_{\max}=20\,\mathrm{kW}$, $E_{\max}=200\,\mathrm{kWh}$, $\eta=0.9$, $\Delta t_{\mathrm h}=1\,\mathrm h$, $\mathrm{SOC}_{\mathrm{term}}=0.5$, and $\lambda_{\mathrm{reach}}=10$. Panel (a) shows $v_{\mathrm{reach},t}$. Panel (b) uses the idle action $u_t=0$ at the shown nonterminal steps, for which the baseline reward is $r_t=0$ and hence $r_t^{\mathrm{reach}}=-\lambda_{\mathrm{reach}}v_{\mathrm{reach},t}$. Hollow circles mark the reachability thresholds.}
-    \label{fig:battery_reachability_reward}
-\end{figure}
-
-Figure~\ref{fig:battery_reachability_reward} shows that the violation is zero at or above the reachability threshold and increases linearly as SOC falls below it. The shaped reward correspondingly decreases with slope magnitude $\lambda_{\mathrm{reach}}$. As fewer charging steps remain, the threshold rises and the penalty affects a wider range of SOC values. For a nonzero baseline reward, the reachability term is the same downward adjustment to $r_t$.
+\subsubsection{Reinforcement Learning Formulation}
+\label{sec:cookie_rl_framework}
 
 For the cookie factory, the observation contains the normalized TES
 temperature, current electricity price and wind availability, the previous
@@ -934,11 +1092,13 @@ T_{2,t}-\beta_{1,t}T_{\mathrm{II},t}
 \right|.
 \]
 
+For the cookie factory, the environment clips $b_t$ and $\dot m_{\mathrm I,t}$ to their allowed intervals and maps $b_t$ to bypass values in $[0,1]$. The inactive storage path always has a bypass value of one, which guarantees $\beta_{1,t}+\beta_{2,t}\geq1$ and prevents simultaneous charging and discharging. The derived compressor-speed variable is also restricted to $R_t\in[0.8,1.53]$. TES and inlet-temperature bounds, heat-flow and grid-power bounds, any remaining $F_4$ coupling residual, and the cyclic terminal-temperature requirement are represented by the reward penalties defined below. These penalties guide learning but do not guarantee constraint satisfaction.
+
 \begin{samepage}
 The cookie-factory reward contains the economic cost and the constraints that
 are not guaranteed by the action mapping. Define the positive-part operator by
 $[\,\cdot\,]_+=\max(\,\cdot\,,0)$,
-$\Delta T_s=T_s^{\max}-T_s^{\min}$, and the violation magnitudes
+$\Delta T_s=T_s^{\max}-T_s^{\min}$, and the violations
 \begin{align*}
 v_{s,t}={}&[T_s^{\min}-T_{s,t+1}]_+
           +[T_{s,t+1}-T_s^{\max}]_+,\\
@@ -960,16 +1120,19 @@ For the one-hour time steps used here, the grid cost is
 $C_t=S_tP_t^{\mathrm S}/1000$. The implemented reward is
 \begin{align}
 r_t^{\mathrm{cookie}}(x_t,a_t)={}&-C_t
--\lambda_s\frac{v_{s,t}}{\Delta T_s}
--\lambda_{\mathrm I}\frac{v_{\mathrm I,t}}{250-177}
--\lambda_Q\frac{v_{Q,t}}{\dot Q_s^{\max}}
--\lambda_{F_4}\frac{v_{F_4,t}}{\Delta T_s}
+-\frac{\lambda_s}{\Delta T_s}v_{s,t}
+-\frac{\lambda_{\mathrm I}}{250-177}v_{\mathrm I,t}
+-\frac{\lambda_Q}{\dot Q_s^{\max}}v_{Q,t}
+-\frac{\lambda_{F_4}}{\Delta T_s}v_{F_4,t}
 \nonumber\\
-&-\lambda_P\frac{v_{P,t}}{P_{\mathrm S}^{\max}}
--\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{cyc}}
- \frac{|T_{s,N}-T_{s,0}|}{\Delta T_s}.
+&-\frac{\lambda_P}{P_{\mathrm S}^{\max}}v_{P,t}
+-\frac{\lambda_{\mathrm{cyc}}}{\Delta T_s}v_{\mathrm T,t}.
 \label{eq:cookie_reward}
 \end{align}
+Here, $v_{\mathrm T,t}=\mathbb{I}_{\{t=N-1\}}|T_{s,N}-T_{s,0}|$ is the
+terminal violation. The coefficients multiplying the violations in
+Eq.~\eqref{eq:cookie_reward} are the corresponding penalty weights in the
+general reward.
 The values used in training are $T_s^{\min}=183\,{}^\circ\mathrm C$,
 $T_s^{\max}=324\,{}^\circ\mathrm C$,
 $\dot Q_s^{\max}=5000\,\mathrm{kW}$,
@@ -977,170 +1140,26 @@ $P_{\mathrm S}^{\max}=5000\,\mathrm{kW}$,
 $\lambda_s=20$, $\lambda_{\mathrm I}=10$, $\lambda_Q=5000$,
 $\lambda_{F_4}=500$, $\lambda_P=3000$, and
 $\lambda_{\mathrm{cyc}}=3000$. These coefficients were selected empirically
-during training. Because each violation is normalized
-before weighting, the coefficient magnitudes express relative priorities rather
-than compensating for different physical units. The comparatively large
+during training. The comparatively large
 $\lambda_Q$ and $\lambda_P$ strongly discourage heat-flow and grid-power
 violations. The terminal coefficient $\lambda_{\mathrm{cyc}}$ is also large
 because its penalty is applied only once, at the end of the episode. The smaller $\lambda_s$ and
 $\lambda_{\mathrm I}$ reflect that the storage-state and inlet-temperature
 bounds were largely satisfied during preliminary runs. These values are fixed
 engineering choices rather than proven optimal coefficients. Thus, the physical
-operating cost remains identifiable within the reward, while the normalized
+operating cost remains identifiable within the reward, while the
 penalties provide training feedback for state, inlet-temperature, heat-flow,
 $F_4$-coupling, grid-power, and terminal-cyclic violations.
 
-After training, both policies are evaluated deterministically to compare schedules. For SAC, the mean action of the stochastic policy is selected at each time step. TD3 directly outputs a deterministic action. This produces one reproducible setpoint trajectory for a given price and wind profile and allows direct comparison with the optimization baseline in terms of cost, constraint satisfaction, and computation time.
+\subsubsection{Training and Evaluation Setup}
 
-\subsection{Training Setup}
+The cookie-factory policies use the training procedure in Section~\ref{sec:training_setup} and the shared SAC and TD3 settings in Table~\ref{tab:sac_training_setup}. Each episode spans 24 hourly steps, with matched electricity-price and wind-power windows sampled during training. The linear learning-rate schedule selected in the battery study is also used here.
 
-
-Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
-
-For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window.
-
-The training environments are wrapped with monitoring and vectorized environment interfaces. Monitoring records episode rewards and lengths for later inspection, while the vectorized wrapper provides the interface expected by the Stable-Baselines3 implementation of SAC and TD3. Only one environment instance is used at a time in the current setup, so the vectorization is mainly an interface layer rather than a parallel simulation strategy.
-
-The environment-specific action mappings and reward definitions are given in
-Section~\ref{sec:rl_framework}, including the cookie-factory reward in
-Eq.~\eqref{eq:cookie_reward}. The cookie-factory penalties are particularly important because
-its coupled nonlinear feasibility requirements cannot all be represented by
-simple action bounds.
-
-Hyperparameter selection included 50 tuning trials. The final training settings, which are shared by the battery and cookie-factory case studies, are summarized in Table~\ref{tab:sac_training_setup}. The environments themselves still differ in their state variables, action spaces, dynamics, and constraint structures.
-
-\begin{table}[!tb]
-\centering
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.43\textwidth}>{\raggedright\arraybackslash}p{0.47\textwidth}}
-\hline
-
-Parameter & Setting for both case studies \\
-\hline
-Algorithm & SAC and TD3 \\
-Policy & MLP policy \\
-Network architecture & SAC: 3$\times$256 ReLU; TD3: 400, 300 ReLU \\
-Replay buffer size & 200000 \\
-Batch size & 256 \\
-Learning rate & Linear schedule from $3\cdot10^{-4}$ \\
-Discount factor $\gamma_{\mathrm{RL}}$ & 1 \\
-Target-network soft-update coefficient $\tau$ & 0.005 \\
-Episode length & 24 steps \\
-\hline
-\end{tabular}
-\caption{Final SAC and TD3 training configuration used for both the battery and cookie-factory environments. TD3 uses the Stable-Baselines3 default network architecture.}
-\label{tab:sac_training_setup}
-\end{table}
-
-Both SAC policies use three hidden layers of 256 neurons with ReLU activation functions for both actor and critic networks. TD3 uses the Stable-Baselines3 default architecture of two ReLU hidden layers with 400 and 300 neurons for both actor and critic networks. In all cases, trained models are saved after learning and later loaded for evaluation.
-
-\subsection{Evaluation Metrics}
-
-The trained RL policies are evaluated through deterministic rollouts on fixed 24-hour evaluation windows. This makes the resulting setpoint trajectory reproducible and allows a direct comparison with the optimization baseline on the same grid-price and wind-availability profiles.
-
-The primary economic metric is the total net grid-side cost over the evaluation horizon:
-\[
-J_{\mathrm{grid}} = \sum_{t=0}^{N-1} C_t,
-\]
-where $C_t$ is the grid-electricity cost at time step $t$. For the battery system, this cost may generally include the fixed buy--sell spread $\Delta_s$ defined above; the numerical experiments use $\Delta_s=0$. Minimizing $J_{\mathrm{grid}}$ is equivalent to maximizing profit. For the cookie factory, the cost is computed from the grid power required by the heat-pump system after accounting for available wind power and is minimized directly. Thus, a lower value of $J_{\mathrm{grid}}$ indicates higher profit for the battery and lower operating cost for the cookie factory.
-
-The cumulative reward is reported as a secondary metric:
-\[
-R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
-\]
-Because $\gamma_{\mathrm{RL}}=1$ and the terminal penalty is included in the reward returned with the final transition, this cumulative episode reward contains the same economic and penalty contributions as the realized return $G_0$.
-This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
-
-Constraint satisfaction is measured separately for each constraint category. For a nonnegative residual magnitude or violation $v_{\ell,t}$ in category $\ell$, the total violation over one rollout is defined as
-\[
-V_{\mathrm{tot},\ell} = \sum_{t=0}^{N-1} v_{\ell,t}.
-\]
-Each $V_{\mathrm{tot},\ell}$ retains the unit of its category; raw violations with different units are not added together. In addition, the fraction of time steps with at least one violation is considered:
-\[
-f_{\mathrm{viol}} =
-\frac{1}{N}\sum_{t=0}^{N-1}
-\mathbb{I}\left(\exists\,\ell:\;v_{\ell,t} > \varepsilon_{\mathrm{viol},\ell}\right),
-\]
-where $\varepsilon_{\mathrm{viol},\ell}$ is a small numerical tolerance expressed in the unit of category $\ell$. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
-
-The evaluation also records trajectory-level operating indicators. For the BESS, these include the SOC trajectory, commanded and effective battery power, and terminal SOC.
-
-Finally, computation time is used to assess practical applicability. For the optimization baseline, the relevant value is the solver time required to compute a complete schedule for the evaluation horizon. For RL, the one-time training effort is reported separately from the online evaluation time. This distinction is important because RL can require substantial training effort, but a trained policy can usually produce setpoints much faster than solving a nonlinear optimization problem from scratch for every horizon.
-
-\startnewpage
-\suppressfloats[t]
-\section{Results and Discussion}
-\label{sec:results_discussion}
-
-
-The previous section described the RL formulation, training setup, and evaluation procedure for both use cases. This section presents and discusses the resulting policy performance relative to the optimization baseline. All computations were performed in Python~3.14.1, with Gymnasium~1.2.2 used to implement the reinforcement-learning environments and Stable-Baselines3~2.7.0, based on PyTorch~2.9.1, used to train the RL policies. Experiments were conducted on an AMD Ryzen~7 7840HS CPU with Radeon~780M Graphics. Offline training time is excluded from all online computation time comparisons reported here.
-
-A preliminary learning-rate study was conducted for SAC using the battery environment. A constant learning rate, a linear-decay schedule, and a power-law-decay schedule were each trained and evaluated over 32 independent runs using the same evaluation setup. The linear schedule achieved the highest mean cumulative reward, $8.9962 \pm 0.0286$, and the lowest mean objective value, $-9.00 \pm 0.03$~EUR. The corresponding mean rewards were $8.9891 \pm 0.0325$ for the constant schedule and $8.9809 \pm 0.0439$ for the power-law schedule.
-
-The differences between the schedules were small relative to the variation across runs, indicating that the battery environment was not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore selected for the subsequent SAC and TD3 training in both case studies and for the comparisons with the optimization baseline.
-
-
-\subsection{Battery Energy Storage System}
-
-The trained SAC and TD3 policies were compared with the optimization baseline over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
-
-\begin{table}[H]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
-\hline
-Metric & SAC policy & TD3 policy & Optimization baseline \\
-\hline
-Mean objective [EUR] & $-2.89 \pm 1.24$ & $-3.02 \pm 1.22$ & $-3.19 \pm 1.22$ \\
-Objective range [EUR] & $[-7.73,-0.35]$ & $[-7.78,-0.26]$ & $[-7.85,-0.44]$ \\
-Mean computation time [s] & $0.0126 \pm 0.0105$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
-Time range [s] & $[0.0102,0.3444]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
-Active offline training time [min] & $36$ & $23$ & Not applicable \\
-Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
-Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
-\hline
-\end{tabular}
-\caption{Comparison between the trained SAC and TD3 policies and the optimization baseline over 1000 random 24-hour windows. Lower (more negative) objective values correspond to higher profit.}
-\label{tab:battery_optimization_baseline_comparison}
-\end{table}
-
-The optimization baseline achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to the optimization baseline. Based on the result from the optimization baseline reported in Table~\ref{tab:battery_optimization_baseline_comparison}, the mean objective gap was $0.16$ EUR for TD3 and $0.29$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than the optimization baseline. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the return, whereas SAC balances return maximization with maintaining policy entropy. Further TD3 results are presented below.
-
-\begin{figure}[!tb]
-    \centering
-    \includegraphics[width=0.95\textwidth]{figures/model_comparison_distances_td3.png}
-    \caption{Objective values from TD3 and the optimization baseline for ten randomly selected 24-hour comparison windows. The lower panel shows the corresponding gaps between TD3 and the optimization baseline.}
-    \label{fig:td3_objective_gaps}
-\end{figure}
-
-The small objective gaps shown in Figure~\ref{fig:td3_objective_gaps} indicate that the TD3 policy closely approaches the solution from the optimization baseline across the selected comparison windows.
-
-The SOC trajectories are also similar in this comparison. The TD3 policy reached a mean minimum SOC of 0.1947 and a mean maximum SOC of 0.8905, while the solution from the optimization baseline reached a mean minimum SOC of 0.1925 and a mean maximum SOC of 0.8793. This indicates that both methods used a comparable portion of the available storage flexibility.
-
-Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for the best TD3 policy and the solution from the optimization baseline. The upper panel compares battery-power profiles and electricity price, while the lower panel compares the corresponding SOC trajectories. Figure~\ref{fig:battery_threshold_dispatch} separately illustrates the fixed-threshold strategy. This controller charges when the electricity price is at most 15.00~EUR/MWh and discharges when it is at least 25.00~EUR/MWh.
-
-\begin{figure}[!tb]
-    \centering
-    \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
-    \caption[Illustrative 24-hour battery dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and the optimization baseline.}
-    \label{fig:battery_td3_dispatch}
-\end{figure}
-
-\begin{figure}[!tb]
-    \centering
-    \includegraphics[width=\textwidth]{figures/battery_fixed_threshold_dispatch.png}
-    \caption[Illustrative 24-hour fixed-threshold battery dispatch.]{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15.00~EUR/MWh and discharges at prices of at least 25.00~EUR/MWh.}
-    \label{fig:battery_threshold_dispatch}
-\end{figure}
-
-The fixed-threshold strategy achieved an objective value of $-1.07$~EUR, corresponding to a profit of 1.07~EUR, and returned the SOC to 0.50 at the end of the illustrated horizon. The TD3 policy achieved a profit of 1.84~EUR in the same window. Based on these displayed values, TD3 produced approximately 72.0\% more profit than the fixed-threshold strategy.
-
-In a separate feasibility evaluation, the TD3 policy without the progressive reachability penalty violated the terminal-SOC constraint in 4\% of the evaluation windows. Adding the progressive penalty reduced the violation rate to zero but increased the mean objective gap between TD3 and the optimization baseline to $0.24 \pm 0.15$ EUR, illustrating the trade-off between strict terminal-constraint satisfaction and economic performance. Upon further investigation, the mean terminal-SOC shortfall without the progressive penalty was only 0.000252. Given its higher profit, this small shortfall was considered tolerable, and the TD3 policy without the progressive reachability penalty was selected as the final model.
-
-The main advantage of the TD3 policy was computation time. The trained TD3 model required, on average, 0.0082~s to generate a 24-hour rollout, while the optimization baseline required 0.5605~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $68.13\times$. TD3 required 23 minutes of offline training, which is not included in the online computation time. These results therefore illustrate the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and closely approaches the result from the optimization baseline, while direct optimization still provides the best objective value.
+The policies are evaluated using the procedure and metrics in Section~\ref{sec:evaluation_metrics}. SAC uses the mean policy action and TD3 uses its deterministic action, with the same electricity-price and wind-power data supplied to the policies and the optimization baseline. The physical grid-electricity objective in Eq.~\eqref{eq:cookie_objective} is reported separately from reward penalties. Constraint violations are reported by category in their original units, including the $F_4$ coupling residual, heat-flow and grid-power bounds, and terminal cyclic-storage deviation. Offline training effort and online schedule-generation time are reported separately.
 
 \FloatBarrier
-\subsection{Cookie Production Factory}
+\subsection{Numerical Results}
+\label{sec:cookie_results}
 
 SAC, TD3, and the optimization baseline were evaluated using the same 200 randomly selected 24-hour windows, with identical electricity-price and wind-power data provided to each method. Table \ref{tab:cookie_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and constraint violations for all 200 comparisons.
 
