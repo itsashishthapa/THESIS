@@ -27,8 +27,10 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{setspace}
 \usepackage{amssymb}
+\usepackage{bbm}
 \usepackage{xcolor}
 \usepackage{array}
+\usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{indentfirst}
 \setlength{\parindent}{1.5em}
@@ -645,7 +647,7 @@ where $C_t$ is the grid-electricity cost at time step $t$, $v_{\ell,t}$ are cons
 More specifically, the battery reward with only a terminal-SOC penalty is
 \[
 r_t(x_t,a_t) = -\frac{S_t P_t^{\mathrm S}\Delta t_{\mathrm h}}{1000}
--\mathbb{I}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
+-\mathbbm{1}_{\{t=N-1\}}\lambda_{\mathrm{SOC}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right),
 \]
 where $S_t$ is the spot electricity price in EUR/MWh, $P_t^{\mathrm S}$ is the grid-side battery power in kW, and $\Delta t_{\mathrm h}$ is the step duration in hours. This implemented expression is the $\Delta_s=0$ special case of the general buy--sell formulation above. Division by $1000$ converts kWh to MWh so that the energy charge is expressed in euros. The terminal term is applied only at the end of an episode and penalizes a final SOC below the prescribed minimum. Intermediate SOC feasibility is enforced by the storage-side power limit described above and the subsequent SOC update.
@@ -655,7 +657,7 @@ The correspondence with the general reward is explicit:
 C_t &= \frac{S_tP_t^{\mathrm S}\Delta t_{\mathrm h}}{1000},
 & \sum_\ell\lambda_\ell v_{\ell,t} &= 0,\\
 \lambda_{\mathrm T} &= \lambda_{\mathrm{SOC}},
-& v_{\mathrm T,t} &= \mathbb{I}_{\{t=N-1\}}
+& v_{\mathrm T,t} &= \mathbbm{1}_{\{t=N-1\}}
 \max\!\left(\mathrm{SOC}_{\mathrm{term}}-\mathrm{SOC}_N,0\right).
 \end{align*}
 Thus, the economic term and the terminal penalty have the same structure in both expressions. The running violation sum is zero for this battery variant because intermediate SOC feasibility is enforced directly. The indicator is included in $v_{\mathrm T,t}$, making the terminal term zero before the final decision step.
@@ -766,7 +768,7 @@ Each $V_{\mathrm{tot},\ell}$ retains the unit of its category; violations with d
 \[
 f_{\mathrm{viol}} =
 \frac{1}{N}\sum_{t=0}^{N-1}
-\mathbb{I}\left(\exists\,\ell:\;v_{\ell,t} > \varepsilon_{\mathrm{viol},\ell}\right),
+\mathbbm{1}_{\{\exists\,\ell:\;v_{\ell,t} > \varepsilon_{\mathrm{viol},\ell}\}},
 \]
 where $\varepsilon_{\mathrm{viol},\ell}$ is a small numerical tolerance expressed in the unit of category $\ell$. For the battery system, the relevant checks include SOC bounds, power limits, and the terminal SOC requirement. For the cookie factory, the violation categories include bypass feasibility, complementarity of charging and discharging, TES temperature bounds, grid-power bounds, coupling residuals, and the terminal cyclic TES condition.
 
@@ -791,20 +793,21 @@ The trained SAC and TD3 policies were compared with the optimization baseline ov
 
 \begin{table}[H]
 \centering
-\scriptsize
+\normalsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
-\hline
-Metric & SAC policy & TD3 policy & Optimization baseline \\
-\hline
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}m{0.35\textwidth}*{3}{>{\centering\arraybackslash}m{\dimexpr(0.65\textwidth-6\tabcolsep)/3\relax}}@{}}
+\toprule
+\textbf{Metric} & \textbf{SAC policy} & \textbf{TD3 policy} & \shortstack{\textbf{Optimization}\\\textbf{baseline}} \\
+\midrule
 Mean objective [EUR] & $-2.89 \pm 1.24$ & $-3.02 \pm 1.22$ & $-3.19 \pm 1.22$ \\
 Objective range [EUR] & $[-7.73,-0.35]$ & $[-7.78,-0.26]$ & $[-7.85,-0.44]$ \\
 Mean computation time [s] & $0.0126 \pm 0.0105$ & $0.0082 \pm 0.0067$ & $0.5605 \pm 0.6295$ \\
 Time range [s] & $[0.0102,0.3444]$ & $[0.0070,0.2150]$ & $[0.1164,9.2371]$ \\
-Active offline training time [min] & $36$ & $23$ & Not applicable \\
+\shortstack[l]{Active offline training\\time [min]} & $36$ & $23$ & Not applicable \\
 Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.1595$ \\
 Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
-\hline
+\bottomrule
 \end{tabular}
 \caption{Comparison between the trained SAC and TD3 policies and the optimization baseline over 1000 random 24-hour windows. Lower (more negative) objective values correspond to higher profit.}
 \label{tab:battery_optimization_baseline_comparison}
@@ -1134,7 +1137,7 @@ r_t^{\mathrm{cookie}}(x_t,a_t)={}&-C_t
 -\frac{\lambda_{\mathrm{cyc}}}{\Delta T_s}v_{\mathrm T,t}.
 \label{eq:cookie_reward}
 \end{align}
-Here, $v_{\mathrm T,t}=\mathbb{I}_{\{t=N-1\}}|T_{s,N}-T_{s,0}|$ is the
+Here, $v_{\mathrm T,t}=\mathbbm{1}_{\{t=N-1\}}|T_{s,N}-T_{s,0}|$ is the
 terminal violation. The coefficients multiplying the violations in
 Eq.~\eqref{eq:cookie_reward} are the corresponding penalty weights in the
 general reward.
@@ -1170,24 +1173,27 @@ SAC, TD3, and the optimization baseline were evaluated using the same 200 random
 
 \begin{table}[H]
 \centering
-\scriptsize
+\normalsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}>{\raggedright\arraybackslash}p{0.22\textwidth}}
-\hline
-Metric & SAC policy & TD3 policy & Optimization baseline \\
-\hline
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}m{0.30\textwidth}*{3}{>{\centering\arraybackslash}m{\dimexpr(0.70\textwidth-6\tabcolsep)/3\relax}}@{}}
+\toprule
+\textbf{Metric} & \textbf{SAC policy} & \textbf{TD3 policy} & \shortstack{\textbf{Optimization}\\\textbf{baseline}} \\
+\midrule
 Mean objective [EUR] & $2092.58 \pm 667.56$ & $2081.35 \pm 685.52$ & $2012.24 \pm 709.83$ \\
 Objective range [EUR] & $[-186.86,3578.93]$ & $[-482.44,3590.87]$ & $[-888.04,3486.53]$ \\
-Mean computation time [s] & $0.0217 \pm 0.0282$ & $0.0180 \pm 0.0154$ & $11.5901 \pm 4.5103$ \\
+\addlinespace[3pt]
+\shortstack[l]{Mean computation\\time [s]} & $0.0217 \pm 0.0282$ & $0.0180 \pm 0.0154$ & $11.5901 \pm 4.5103$ \\
 Time range [s] & $[0.0132,0.4026]$ & $[0.0099,0.2182]$ & $[4.6821,30.4373]$ \\
-Active offline training time [h] & $2.81$ & $1.24$ & Not applicable \\
-Mean $F_4$ residual per window [$^\circ$C] & $0.4555$ & $0.5300$ & $0$ \\
-Mean heat-flow-bound violation per window [kW] & $0.5989$ & $3.5719$ & $0$ \\
-Mean grid-power violation per window [kW] & $98.3749$ & $68.5787$ & $0$ \\
-Mean terminal cyclic deviation per window [$^\circ$C] & $1.8380$ & $2.1386$ & $0$ \\
-\hline
+\shortstack[l]{Active offline training\\time [h]} & $2.81$ & $1.24$ & Not applicable \\
+\addlinespace[3pt]
+Mean $F_4$ residual [$^\circ$C] & $0.4555$ & $0.5300$ & $0$ \\
+\shortstack[l]{Mean heat-flow-bound\\violation [kW]} & $0.5989$ & $3.5719$ & $0$ \\
+\shortstack[l]{Mean grid-power\\violation [kW]} & $98.3749$ & $68.5787$ & $0$ \\
+\shortstack[l]{Mean terminal cyclic\\deviation [$^\circ$C]} & $1.8380$ & $2.1386$ & $0$ \\
+\bottomrule
 \end{tabular}
-\caption{Comparison of the trained SAC and TD3 policies with the optimization baseline over 200 matched 24-hour cookie-factory windows. Lower objective, computation time, and constraint values are better. Constraint quantities are reported separately because they have different physical units.}
+\caption{Comparison of the trained SAC and TD3 policies with the optimization baseline over 200 matched 24-hour cookie-factory windows. Lower objective, computation time, and constraint values are better. Constraint quantities are means per window and are reported separately because they have different physical units.}
 \label{tab:cookie_optimization_baseline_comparison}
 \end{table}
 
