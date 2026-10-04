@@ -748,8 +748,13 @@ where $C_t$ is the grid-electricity cost at time step $t$. For the battery syste
 
 The cumulative reward is reported as a secondary metric:
 \[
-R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t).
+R_{\mathrm{ep}} = \sum_{t=0}^{N-1} r_t(x_t,a_t)
+= -J_{\mathrm{grid}}
+- \sum_{t=0}^{N-1}\left(\sum_{\ell}\lambda_\ell v_{\ell,t}
++ \lambda_{\mathrm T}v_{\mathrm T,t}\right).
 \]
+When all penalty terms are zero, the cumulative episode reward equals the negative total grid-electricity cost, $R_{\mathrm{ep}}=-J_{\mathrm{grid}}$. Otherwise, it also reflects penalties for constraint violations.
+
 Because $\gamma_{\mathrm{RL}}=1$ and the terminal penalty is included in the reward returned with the final transition, this cumulative episode reward contains the same economic and penalty contributions as the realized return $G_0$.
 This value is useful for analyzing the RL objective because it combines the economic term with penalty terms. However, it is not used as the only comparison criterion, since the reward may include artificial penalty weights that are not part of the physical economic objective. Therefore, the economic objective and constraint satisfaction are evaluated separately.
 
