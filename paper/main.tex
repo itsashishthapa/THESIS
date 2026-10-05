@@ -815,14 +815,11 @@ Offline training time is excluded from all online computation time comparisons.
 \subsection{Numerical Results}
 \label{sec:battery_results}
 
+The preliminary SAC study tested whether learning-rate decay materially affected battery-policy performance. A constant learning rate, a linear-decay schedule, and a power-law-decay schedule were each trained and evaluated over 32 independent runs using the same preliminary evaluation setup. Values reported with $\pm$ are mean $\pm$ standard deviation (SD). The linear schedule achieved the highest mean cumulative reward, $8.9962 \pm 0.0286$, and the lowest mean objective, $-9.00 \pm 0.03$~EUR. Mean rewards were $8.9891 \pm 0.0325$ for the constant schedule and $8.9809 \pm 0.0439$ for the power-law schedule.
 
-A preliminary learning-rate study was conducted for SAC using the battery environment. A constant learning rate, a linear-decay schedule, and a power-law-decay schedule were each trained and evaluated over 32 independent runs using the same evaluation setup. The linear schedule achieved the highest mean cumulative reward, $8.9962 \pm 0.0286$, and the lowest mean objective value, $-9.00 \pm 0.03$~EUR. The corresponding mean rewards were $8.9891 \pm 0.0325$ for the constant schedule and $8.9809 \pm 0.0439$ for the power-law schedule.
+Decay reduces the size of parameter updates later in training, which can help refine a policy after its initial exploration. Here, however, the differences in mean reward were small relative to the variation across runs. The study supports using the linear schedule as a practical training choice, rather than establishing a decisive advantage. It was adopted for SAC and TD3 in both case studies.
 
-The differences between the schedules were small relative to the variation across runs, indicating that the battery environment was not highly sensitive to the exact learning-rate decay shape in this experiment. The linear schedule was therefore selected for the subsequent SAC and TD3 training in both case studies and for the comparisons with the optimization baseline.
-
-\subsubsection{Comparison with the Optimization Baseline}
-
-The trained SAC and TD3 policies were compared with the optimization baseline over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and SOC ranges.
+The trained SAC and TD3 policies were compared with the optimization baseline over 1000 randomly sampled 24-hour price windows. Table~\ref{tab:battery_optimization_baseline_comparison} summarizes economics, computation time, and storage use.
 
 \begin{table}[H]
 \centering
@@ -842,11 +839,11 @@ Mean maximum SOC & $0.8661 \pm 0.1620$ & $0.8905 \pm 0.1458$ & $0.8793 \pm 0.159
 Mean minimum SOC & $0.2129 \pm 0.1887$ & $0.1947 \pm 0.1776$ & $0.1925 \pm 0.1796$ \\
 \bottomrule
 \end{tabular}
-\caption{Comparison between the trained SAC and TD3 policies and the optimization baseline over 1000 random 24-hour windows. Lower (more negative) objective values correspond to higher profit.}
+\caption{Comparison between the trained SAC and TD3 policies and the optimization baseline over 1000 random 24-hour windows. Values with $\pm$ are mean $\pm$ standard deviation (SD). Lower (more negative) objective values correspond to higher profit.}
 \label{tab:battery_optimization_baseline_comparison}
 \end{table}
 
-The optimization baseline achieved the lowest mean objective value and therefore the highest mean profit. It was the best-performing method overall. Among SAC and TD3, TD3 performed better. It achieved a lower mean objective value and higher mean profit, and was closer to the optimization baseline. Based on the result from the optimization baseline reported in Table~\ref{tab:battery_optimization_baseline_comparison}, the mean objective gap was $0.16$ EUR for TD3 and $0.29$ EUR for SAC. Since the objective is minimized, both positive gaps indicate that the RL policies achieved lower profit than the optimization baseline. TD3 performed better in this relatively simple and deterministic environment. This could be explained by TD3 directly maximizing the return, whereas SAC balances return maximization with maintaining policy entropy. Further TD3 results are presented below.
+For window $i$, the signed objective difference is $g_i=J_{\mathrm{grid},i}^{\mathrm{RL}}-J_{\mathrm{grid},i}^{\mathrm{base}}$. A positive difference means less battery profit. The optimization baseline achieved the highest mean profit, followed by TD3 and SAC. The reported mean differences were 0.16~EUR for TD3 and 0.29~EUR for SAC, calculated before rounding the table entries. TD3 is therefore preferred among these evaluated policies when economic performance is the criterion.
 
 \begin{figure}[!tb]
     \centering
@@ -855,18 +852,22 @@ The optimization baseline achieved the lowest mean objective value and therefore
     \label{fig:td3_objective_gaps}
 \end{figure}
 
-The small objective gaps shown in Figure~\ref{fig:td3_objective_gaps} indicate that the TD3 policy closely approaches the solution from the optimization baseline across the selected comparison windows.
+Figure~\ref{fig:td3_objective_gaps} shows that TD3 approached the baseline objective in the ten displayed windows. Across the full comparison, TD3 and the baseline also had similar mean minimum SOC values (0.1947 and 0.1925) and mean maximum SOC values (0.8905 and 0.8793). This suggests comparable use of storage flexibility, although SOC extrema do not establish identical timing or terminal feasibility.
 
-The SOC trajectories are also similar in this comparison. The TD3 policy reached a mean minimum SOC of 0.1947 and a mean maximum SOC of 0.8905, while the solution from the optimization baseline reached a mean minimum SOC of 0.1925 and a mean maximum SOC of 0.8793. This indicates that both methods used a comparable portion of the available storage flexibility.
+A separate TD3 evaluation tested whether adding progressive reachability feedback improved the terminal-SOC requirement. Without this penalty, 4\% of evaluation windows violated the terminal constraint; with it, no terminal violations were observed, while the mean objective difference from the baseline increased to $0.24 \pm 0.15$~EUR.
 
-Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for the best TD3 policy and the solution from the optimization baseline. The upper panel compares battery-power profiles and electricity price, while the lower panel compares the corresponding SOC trajectories. Figure~\ref{fig:battery_threshold_dispatch} separately illustrates the fixed-threshold strategy. This controller charges when the electricity price is at most 15.00~EUR/MWh and discharges when it is at least 25.00~EUR/MWh.
+The progressive term penalizes SOC below a time-dependent recovery envelope. It therefore discourages discharging that would leave insufficient nominal charging time to restore the target, which can sacrifice profitable sales or bring charging forward. This mechanism explains the observed feasibility--cost trade-off. The reported mean terminal-SOC shortfall without the progressive penalty was 0.000252, equivalent to 0.0504~kWh for the 200~kWh battery. This small reported magnitude motivated selection of the policy without the progressive term for its higher profit.
+
+Figure~\ref{fig:battery_td3_dispatch} illustrates how TD3 uses the forecast to coordinate charging, discharging, and stored energy. Both schedules charge during the low-price interval around hours 12--16 and discharge during the higher-price interval around hours 19--21. TD3 nevertheless differs in intermediate actions and in final-hour restoration. The illustrated objectives are $-1.84$~EUR for TD3 and $-2.03$~EUR for the baseline, a difference of 0.19~EUR. Similar broad operating patterns can therefore coexist with a remaining economic difference.
 
 \begin{figure}[!tb]
     \centering
     \includegraphics[width=\textwidth]{figures/battery_model_dispatch_plot_td3.png}
-    \caption[Illustrative 24-hour battery dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour battery dispatch comparison between the best TD3 policy and the optimization baseline.}
+    \caption[Illustrative 24-hour battery dispatch comparison between TD3 and the optimization baseline.]{Illustrative 24-hour battery dispatch comparison between the evaluated TD3 policy and the optimization baseline.}
     \label{fig:battery_td3_dispatch}
 \end{figure}
+
+Figure~\ref{fig:battery_threshold_dispatch} provides a simple reference on the same window. The controller charges at or below 15.00~EUR/MWh and discharges at or above 25.00~EUR/MWh. It achieved a profit of 1.07~EUR and returned SOC to 0.50, compared with TD3's 1.84~EUR profit. From these displayed values, TD3 earned approximately 72.0\% more. Fixed price thresholds cannot adapt their decisions to the complete ordering of future prices as the forecast-conditioned policy can.
 
 \begin{figure}[!tb]
     \centering
@@ -874,10 +875,6 @@ Figure~\ref{fig:battery_td3_dispatch} shows a 24-hour dispatch trajectory for th
     \caption[Illustrative 24-hour fixed-threshold battery dispatch.]{Illustrative 24-hour fixed-threshold battery dispatch. The strategy charges at prices of at most 15.00~EUR/MWh and discharges at prices of at least 25.00~EUR/MWh.}
     \label{fig:battery_threshold_dispatch}
 \end{figure}
-
-The fixed-threshold strategy achieved an objective value of $-1.07$~EUR, corresponding to a profit of 1.07~EUR, and returned the SOC to 0.50 at the end of the illustrated horizon. The TD3 policy achieved a profit of 1.84~EUR in the same window. Based on these displayed values, TD3 produced approximately 72.0\% more profit than the fixed-threshold strategy.
-
-In a separate feasibility evaluation, the TD3 policy without the progressive reachability penalty violated the terminal-SOC constraint in 4\% of the evaluation windows. Adding the progressive penalty reduced the violation rate to zero but increased the mean objective gap between TD3 and the optimization baseline to $0.24 \pm 0.15$ EUR, illustrating the trade-off between strict terminal-constraint satisfaction and economic performance. Upon further investigation, the mean terminal-SOC shortfall without the progressive penalty was only 0.000252. Given its higher profit, this small shortfall was considered tolerable, and the TD3 policy without the progressive reachability penalty was selected as the final model.
 
 The main advantage of the TD3 policy was computation time. The trained TD3 model required, on average, 0.0082~s to generate a 24-hour rollout, while the optimization baseline required 0.5605~s on average to solve the corresponding optimization problem. This corresponds to an average speedup of approximately $68.13\times$. TD3 required 23 minutes of offline training, which is not included in the online computation time. These results therefore illustrate the central trade-off observed in the battery case: RL provides very fast online setpoint generation after training and closely approaches the result from the optimization baseline, while direct optimization still provides the best objective value.
 
@@ -1235,7 +1232,9 @@ The policies are evaluated using the procedure and metrics in Section~\ref{sec:e
 \subsection{Numerical Results}
 \label{sec:cookie_results}
 
-SAC, TD3, and the optimization baseline were evaluated using the same 200 randomly selected 24-hour windows, with identical electricity-price and wind-power data provided to each method. Table \ref{tab:cookie_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and constraint violations for all 200 comparisons.
+SAC, TD3, and the optimization baseline were evaluated on the same 200 randomly selected 24-hour windows, with identical electricity-price and wind-power sequences supplied to every method. The forecasts remain fixed within a rollout, so the experiment tests control under common prescribed information. SAC uses its mean policy action and TD3 its deterministic action.
+
+This comparison tests whether a trained reduced-action policy can approach the economics and feasibility of the full scheduling formulation. It also includes differences in control parameterization and constraint handling, so the outcome cannot be attributed solely to the learning algorithm. IPOPT provides a numerical nonlinear-programming baseline. Table \ref{tab:cookie_optimization_baseline_comparison} summarizes the resulting objective values, computation times, and constraint violations for all 200 comparisons. Values with $\pm$ are mean $\pm$ SD across windows.
 
 \begin{table}[H]
 \centering
@@ -1259,17 +1258,13 @@ Mean $F_4$ residual [$^\circ$C] & $0.4555$ & $0.5300$ & $0$ \\
 \shortstack[l]{Mean terminal cyclic\\deviation [$^\circ$C]} & $1.8380$ & $2.1386$ & $0$ \\
 \bottomrule
 \end{tabular}
-\caption{Comparison of the trained SAC and TD3 policies with the optimization baseline over 200 matched 24-hour cookie-factory windows. Lower objective, computation time, and constraint values are better. Constraint quantities are means per window and are reported separately because they have different physical units.}
+\caption{Comparison of the trained SAC and TD3 policies with the optimization baseline over 200 matched 24-hour cookie-factory windows. Values with $\pm$ are mean $\pm$ standard deviation (SD). Lower objective, computation time, and constraint values are better. Operating-constraint quantities are mean per-window sums; terminal deviation is the mean absolute endpoint error. Categories are reported separately because they have different physical units.}
 \label{tab:cookie_optimization_baseline_comparison}
 \end{table}
 
-SAC achieved a mean cost of $2092.58 \pm 667.56$~EUR, compared with $2012.24 \pm 709.83$~EUR for the optimization baseline. Based on the value from the optimization baseline reported in Table~\ref{tab:cookie_optimization_baseline_comparison}, its mean cost gap was 80.33~EUR and its mean absolute relative gap was 6.31\%. SAC required 0.0217~s per schedule, whereas the optimization baseline required 11.5901~s, corresponding to an online speedup of approximately $533.81\times$. For SAC, the mean values per window were 0.4555 for the $F_4$ coupling residual, 0.5989 for heat-flow-bound violations, 98.3749 for grid-power violations, and 1.8380 for the terminal cyclic-storage deviation. The corresponding values from the optimization baseline were all 0.
+Mean costs were 2012.24~EUR for the baseline, 2092.58~EUR for SAC, and 2081.35~EUR for TD3. The reported signed mean differences were 80.33~EUR and 69.11~EUR, respectively. Mean absolute relative differences were 6.31\% for SAC and 5.66\% for TD3. The reported ranges include negative objectives, which are possible when electricity prices are negative even with nonnegative grid consumption.
 
-TD3 achieved a mean cost of $2081.35 \pm 685.52$~EUR. Based on the value from the optimization baseline reported in Table~\ref{tab:cookie_optimization_baseline_comparison}, its mean cost gap was 69.11~EUR and its mean absolute relative gap was 5.66\%. TD3 required 0.0180~s per schedule, corresponding to an online speedup of approximately $645.06\times$. For TD3, the mean values per window were 0.5300 for the $F_4$ coupling residual, 3.5719 for heat-flow-bound violations, 68.5787 for grid-power violations, and 2.1386 for the terminal cyclic-storage deviation. Inlet-temperature and state-bound violations were zero on average for both RL policies.
-
-TD3 achieved the smaller economic gap of the two RL policies. However, neither policy matched the feasibility of the optimization baseline. TD3 produced the smaller grid-power violation, whereas SAC produced smaller $F_4$  residuals, heat-flow-bound violations, and terminal cyclic deviations. Since these constraint quantities have different physical units, they are reported separately rather than combined into a single feasibility score. Despite the remaining violations, both trained policies generated complete schedules substantially faster than the optimization baseline.
-
-Figure~\ref{fig:cookie_objective_comparison} shows the objective values from TD3 and the optimization baseline and their absolute differences for ten comparisons. The optimization baseline values are those reported in Table~\ref{tab:cookie_optimization_baseline_comparison}. Since the TD3 schedules contain constraint violations, the lower-panel quantities are descriptive objective gaps and should not be interpreted as optimality gaps between equally feasible solutions.
+TD3 achieved the smaller mean economic difference. A mechanism consistent with the dispatch example below is that the learned policy shifts electricity use less effectively between low- and high-price periods. However, a cost comparison must also account for constraint violations and terminal inventory: a schedule that buys inadmissible grid power or leaves storage depleted is not economically equivalent to a feasible cyclic schedule. The reported differences are therefore descriptive objective differences, rather than optimality gaps between equally feasible solutions.
 
 \begin{figure}[!tb]
     \centering
@@ -1278,7 +1273,9 @@ Figure~\ref{fig:cookie_objective_comparison} shows the objective values from TD3
     \label{fig:cookie_objective_comparison}
 \end{figure}
 
-Figure~\ref{fig:cookie_td3_dispatch} illustrates the schedules produced for one 24-hour window. In this example, TD3 obtained a cost of 1244.27~EUR, while the optimization baseline obtained 1130.70~EUR, corresponding to a gap of 113.57~EUR, or approximately 10.0\% relative to the result from the optimization baseline. The upper panel shows the TD3 power balance, including the available wind power, grid power, HTHP power demand, and time-varying electricity price. The lower panel directly compares the grid-power schedules. The optimization baseline concentrates grid consumption more strongly in lower-price periods and reduces it around the highest-price hours, whereas TD3 follows a smoother profile and continues purchasing more grid electricity during some higher-price periods.
+Figure~\ref{fig:cookie_objective_comparison} displays the first ten comparisons, while the table summarizes all 200 windows. The summaries do not give the proportion of windows favoring each policy or the tail of the paired differences, so the lower TD3 mean supports an average ranking within this evaluation rather than consistent superiority in every window.
+
+Figure~\ref{fig:cookie_td3_dispatch} gives a concrete example: TD3 cost 1244.27~EUR, compared with 1130.70~EUR for the baseline, a difference of 113.57~EUR (approximately 10.0\%). The baseline purchased more electricity in the early low-price hours and reduced grid purchases more strongly around the price peak. TD3 followed a smoother profile and continued purchasing during some of those expensive hours. Around hours 12--15, its plotted grid power also became negative, violating the nonnegative grid-power bound when wind availability exceeded modeled HTHP demand. Thus, the figure illustrates both imperfect load shifting and a feasibility failure.
 
 \begin{figure}[!tb]
     \centering
@@ -1287,7 +1284,14 @@ Figure~\ref{fig:cookie_td3_dispatch} illustrates the schedules produced for one 
     \label{fig:cookie_td3_dispatch}
 \end{figure}
 
-These results show that the optimization baseline retains an advantage in both operating cost and feasibility. Nevertheless, both trained policies achieve operating costs close to the optimization baseline while generating setpoints rapidly.
+The final comparison reports mean per-window sums of constraint residuals, rather than mean residuals conditional on failure. SAC had smaller mean $F_4$ residuals (0.4555 versus 0.5300~$^\circ$C), heat-flow-bound violations (0.5989 versus 3.5719~kW), and terminal cyclic deviations (1.8380 versus 2.1386~$^\circ$C). TD3 had the smaller mean grid-power violation (68.5787 versus 98.3749~kW). Inlet-temperature and state-bound violations were zero on average for both policies, and the baseline's reported constraint values were zero. The categories retain their respective units and cannot be combined into a physical total violation.
+
+This mixed ranking shows why TD3's economic advantage does not imply better feasibility overall. Finite penalties permit an economic gain to compete with a constraint penalty, while bounded actions alone do not enforce the nonlinear coupling, grid balance, or terminal equality. Terminal return is especially demanding because it depends on the accumulated storage trajectory.
+
+The action map explains why some constraints are easier to satisfy than others. Selecting one signed storage command keeps the inactive bypass at one and prevents simultaneous charging and discharging. In contrast, calculating compressor speed requires a bounded real root of the $F_4$ cubic. When the selected state, bypass, and mass flow admit no such root, the residual-minimizing fallback keeps $R_t$ within bounds but cannot remove the coupling mismatch.
+
+
+SAC and TD3 generated complete schedules in 0.0217~s and 0.0180~s on average, compared with 11.5901~s for the baseline. The reported ratios of mean runtimes were approximately $533\times$ and $645\times$. The RL timer includes reset, policy prediction, environment transitions with root solving, and stepwise residual checks; model loading and offline training are excluded. Active training required 2.81 hours for SAC and 1.24 hours for TD3. The online savings are most useful for repeated solves, scenario evaluations, or limited computation budgets.
 
 \startnewpage
 \section{Conclusion and Future Work}
