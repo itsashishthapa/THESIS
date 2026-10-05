@@ -1,7 +1,11 @@
 \section*{Nomenclature}
 \addcontentsline{toc}{section}{Nomenclature}
 
-Symbols are grouped by context. A dash denotes a dimensionless quantity.
+The main model and evaluation symbols are listed below. A dash denotes a
+dimensionless quantity; ``n/a'' denotes a policy with no single physical
+unit. Temperature differences are listed in K and have the same numerical
+values in ${}^\circ\mathrm C$. $U_r$ denotes EUR for raw rewards and
+returns, or a dimensionless unit for normalized training rewards.
 
 \begingroup
 \footnotesize
@@ -16,139 +20,83 @@ Symbols are grouped by context. A dash denotes a dimensionless quantity.
 \hline
 \endfoot
 \multicolumn{3}{@{}l}{\textbf{Time, energy, and economic quantities}} \\*
-$t,i,j,\ell$ & Time, summation, and component indices; the applicable meaning and range are stated with each equation & -- \\
-$N$ & Number of decision steps in the scheduling horizon & -- \\
-$\Delta t_{\mathrm h},\Delta t_{\mathrm s}$ & Duration of one time step in hours and seconds, respectively; $\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ & h; s \\
+$t$ & Discrete decision-step index & -- \\
+$N$ & Number of decisions in the scheduling horizon & -- \\
+$\Delta t_{\mathrm h},\Delta t_{\mathrm s}$ & Time-step duration in hours and seconds & h; s \\
 $S_t$ & Spot electricity price & EUR/MWh \\
 $S_t^{\mathrm{buy}},S_t^{\mathrm{sell}}$ & Electricity purchase and sale prices & EUR/MWh \\
-$\Delta_s$ & Fixed difference between the purchase and sale prices & EUR/MWh \\
+$\Delta_s$ & Fixed buy--sell price spread & EUR/MWh \\
 $P_t^{\mathrm S}$ & Grid-side electrical power; positive for purchase & kW \\
-$P_t^+,P_t^-$ & Purchased and sold power magnitudes, respectively & kW \\
+$P_t^+,P_t^-$ & Purchased and sold power magnitudes & kW \\
 $W_t$ & Available wind power & kW \\
-$C_t$ & Grid-electricity cost at one time step & EUR \\
-$J_{\mathrm{grid}}$ & Total net grid-electricity cost over the scheduling horizon & EUR \\
+$C_t$ & Grid-electricity cost at step $t$ & EUR \\
+$J_{\mathrm{grid}}$ & Total net grid-electricity cost over the horizon & EUR \\
 \multicolumn{3}{@{}l}{\textbf{Battery energy storage}} \\*
 $E_{\max}$ & Usable battery energy capacity & kWh \\
-$P_{\max}$ & Maximum charging and discharging power & kW \\
-$P_{\mathrm{actual},t}$ & Effective storage-side power after efficiency losses & kW \\
-$\widehat P_{\mathrm{actual},t}$ & Requested storage-side power before limiting it to the available energy & kW \\
+$P_{\max}$ & Battery power scale in the smooth grid-side action map & kW \\
+$P_{\mathrm{actual},t}$, $\widehat P_{\mathrm{actual},t}$ & Applied and requested storage-side power, respectively & kW \\
 $u_t$ & Normalized battery control command & -- \\
-$\mathrm{SOC}_0,\mathrm{SOC}_t$ & Initial battery state of charge and state of charge at the beginning of decision step $t$ & -- \\
-$\mathrm{SOC}_N$ & Terminal state of charge after $N$ decisions & -- \\
-$\mathrm{SOC}_{\mathrm{term}}$ & Required minimum terminal state of charge & -- \\
-$\mathrm{SOC}^{\mathrm{reach}}_t$ & Minimum state of charge that preserves terminal-target reachability & -- \\
-$\eta$ & Charging and discharging efficiency & -- \\
-$k$ & Steepness parameter of the smooth action and SOC gates & -- \\
-$\delta$ & Half-width of the normalized battery-action deadband & -- \\
-$\epsilon$ & Power scale for the smooth efficiency transition & kW \\
+$\mathrm{SOC}$ & Battery state of charge; indices and qualifiers distinguish time, terminal target, and reachability threshold & -- \\
+$\eta$ & Per-direction battery efficiency & -- \\
+$k$ & Steepness of the smooth action and SOC gates & -- \\
+$\delta$ & Half-width of the normalized action deadband & -- \\
+$\epsilon$ & Power scale of the smooth efficiency transition & kW \\
 \multicolumn{3}{@{}l}{\textbf{Cookie production factory and thermal storage}} \\*
-$T_{\mathrm{I},t},T_{\mathrm{II},t}$ & HTHX inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_{\mathrm{III},t},T_{\mathrm{IV},t}$ & LTHX inlet and outlet temperatures, respectively & $^\circ$C \\
-$T_{1,t},T_{4,t}$ & TES outlet temperatures during charging and discharging, respectively & $^\circ$C \\
-$T_{2,t},T_{3,t}$ & Steam-generator inlet and outlet temperatures, respectively & $^\circ$C \\
+$T_{\mathrm{I},t},T_{\mathrm{II},t}$ & HTHX inlet and outlet temperatures & $^\circ$C \\
+$T_{\mathrm{III},t},T_{\mathrm{IV},t}$ & LTHX inlet and outlet temperatures & $^\circ$C \\
+$T_{1,t},T_{4,t}$ & TES outlets during charging and discharging & $^\circ$C \\
+$T_{2,t},T_{3,t}$ & Steam-generator inlet and outlet temperatures & $^\circ$C \\
 $T_{s,0},T_{s,t},T_{s,N}$ & Initial, beginning-of-step, and terminal TES temperatures & $^\circ$C \\
-$\tilde{T}_0$ & Prescribed initial thermal-storage temperature & $^\circ$C \\
-$\dot{m}_{\mathrm{I},t},\dot{m}_{\mathrm{II},t}$ & Per-HTHP HTHX inlet and outlet HTF mass-flow rates; equal in the implemented closed loop & kg/s \\
+$\tilde T_0$ & Prescribed initial TES temperature, equal to $T_{s,0}$ & $^\circ$C \\
+$\dot{m}_{\mathrm{I},t},\dot{m}_{\mathrm{II},t}$ & Per-HTHP HTHX inlet and outlet HTF mass-flow rates & kg/s \\
 $m_s$ & Mass of the thermal-storage medium & kg \\
-$c_{p,\mathrm f}, c_{p,\mathrm s}$ & Specific heat capacities of the heat-transfer fluid and storage medium & kJ/(kg\,K) \\
-$R_t$ & Compressor-speed-related control variable & -- \\
-$R_{\mathrm{ref}}$ & Reference value used to select the initial compressor-speed root & -- \\
-$\beta_{1,t},\beta_{2,t}$ & TES charging-side and discharging-side bypass coefficients & -- \\
-$b_t$ & Signed cookie-factory bypass command mapped to $\beta_{1,t},\beta_{2,t}$ & -- \\
-$\delta_\beta$ & Half-width of the idle band in the signed bypass command & -- \\
-$\dot{Q}_{s,\mathrm{ch},t}$ & Thermal-storage charging heat rate & kW \\
-$\dot{Q}_{s,\mathrm{dch},t}$ & Thermal-storage discharging heat rate & kW \\
-$\dot Q_s^{\max}$ & Maximum permitted TES charging or discharging heat rate & kW \\
-$P_{\mathrm S}^{\max}$ & Maximum permitted cookie-factory grid power & kW \\
+$c_{p,\mathrm f},c_{p,\mathrm s}$ & Specific heat capacities of HTF and storage medium & kJ/(kg\,K) \\
+$R_t$ & Dimensionless compressor-speed-related control & -- \\
+$\beta_{1,t},\beta_{2,t}$ & Charging-side and discharging-side bypass coefficients & -- \\
+$b_t$ & Signed bypass command & -- \\
+$\delta_\beta$ & Half-width of the bypass-command idle band & -- \\
+$\dot{Q}_{s,\mathrm{ch},t}$ & TES charging heat rate & kW \\
+$\dot{Q}_{s,\mathrm{dch},t}$ & TES discharging heat rate & kW \\
+$\dot Q_s^{\max}$ & Maximum TES charging or discharging heat rate & kW \\
+$P_{\mathrm S}^{\max}$ & Maximum cookie-factory grid power & kW \\
 $T_s^{\min},T_s^{\max}$ & Lower and upper TES temperature limits & $^\circ$C \\
-$\Delta T_s$ & TES temperature span, $T_s^{\max}-T_s^{\min}$ & $^\circ$C \\
-$T_{\mathrm{II,req},t}$ & HTHX outlet temperature required to satisfy the $F_4$ coupling relation & $^\circ$C \\
-$\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & Thermal-storage charging and discharging effectiveness & -- \\
-$\gamma$ & Upper bound on the product of charging and discharging heat rates & kW$^2$ \\
-$F_{\mathrm{HTHP}}$ & Surrogate model for electrical power demand of one HTHP unit & kW \\
-$F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Surrogate models for high- and low-temperature heat-exchanger outlet temperatures & $^\circ$C \\
-$\kappa_{j,t}$ & Coefficient of $R^j$ in the HTHX outlet-temperature surrogate with the other inputs fixed at time $t$; $j=0,\ldots,3$ & $^\circ$C \\
-$F_4,F_5$ & Labels for the charging-side coupling and discharging-side mixing relations in Eqs.~\eqref{eq:cookie_charging_coupling} and~\eqref{eq:cookie_discharging_mixing} & n/a \\
-\multicolumn{3}{@{}l}{\textbf{Model-based optimization}} \\*
-$\xi,\xi^\star$ & Decision vector and optimal decision vector & * \\
-$\Omega$ & Domain of the decision variables & n/a \\
-$n_\xi,n_h,n_c$ & Numbers of decision variables, equality constraints, and inequality constraints & -- \\
-$f(\xi)$ & Objective function & * \\
-$h(\xi),c(\xi)$ & Aggregate equality- and inequality-constraint vectors & * \\
-$c_j(\xi)$ & $j$th inequality-constraint function & * \\
-$s,s_j$ & Slack vector and its $j$th component & * \\
-$\mu_{\mathrm b}$ & Logarithmic barrier parameter & * \\
-$y,z$ & Equality- and inequality-constraint multipliers & * \\
-$J_h,J_c$ & Jacobian matrices of the constraint functions & * \\
-$\mathsf{S}=\operatorname{diag}(s)$ & Diagonal matrix of slack variables & * \\
+$\Delta T_s$ & TES temperature span, $T_s^{\max}-T_s^{\min}$ & K \\
+$\epsilon_{\mathrm{ch}},\epsilon_{\mathrm{dch}}$ & TES charging and discharging effectiveness & -- \\
+$\gamma$ & Upper bound on the charging--discharging heat-rate product & kW$^2$ \\
+$F_{\mathrm{HTHP}}$ & Electrical-demand surrogate for one HTHP & kW \\
+$F_{\mathrm{HTHX}},F_{\mathrm{LTHX}}$ & Heat-exchanger outlet-temperature surrogates & $^\circ$C \\
 \multicolumn{3}{@{}l}{\textbf{Reinforcement learning and evaluation}} \\*
-$E,A$ & State and action spaces of the finite-horizon MDP & n/a \\
-$D_t(x)$ & Admissible actions in state $x$ at time step $t$ & n/a \\
-$Q_t(\cdot\mid x,a)$ & Transition probability kernel at time step $t$ & -- \\
-$p_t(x'\mid x,a)$ & Transition probability density, when it exists & * \\
-$g_N(x)$ & Separate terminal-reward function & ** \\
-$x,x_t,x'$ & Generic state, state at time step $t$, and next state & * \\
-$X_t,A_t$ & Random state and action at time step $t$ & * \\
-$a,a_t,a_t^{\mathrm{phys}}$ & Generic action, policy action at time $t$, and corresponding physical setpoints & * \\
-$a_{t+1}^{\prime}$ & Next action sampled from the SAC policy for the critic target & * \\
-$\tilde a_{t+1}$ & TD3 target action after smoothing and clipping in normalized coordinates & -- \\
-$\mathcal{M}$ & Map from policy actions to physical setpoints & n/a \\
-$\pi,\pi_t(\cdot\mid x),\pi_\theta(a\mid x)$ & Policy, time-$t$ conditional action distribution, and parameterized stochastic policy & * \\
-$\pi_{\mathrm b}$ & Behavior policy used to collect transitions & n/a \\
-$\mu_\theta(x),\mu_{\bar\theta}(x)$ & Deterministic TD3 actor and target actor & * \\
-$\theta$ & Actor-parameter vector for TD3 or SAC & * \\
-$\phi$ & Generic critic-parameter vector & * \\
-$\phi_1,\phi_2$ & TD3 critic-parameter vectors & * \\
-$\psi_1,\psi_2$ & SAC critic-parameter vectors & * \\
-$\bar\theta,\bar\phi_1,\bar\phi_2$ & TD3 target-network parameter vectors & * \\
-$\bar\psi_1,\bar\psi_2$ & SAC target-critic parameter vectors & * \\
-$\mathcal{D}$ & Replay buffer; distinct from the admissible-action set $D_t(x)$ & n/a \\
-$d_t$ & Episode-end indicator & -- \\
-$r_t(x,a),r_t(x_t,a_t),r_t$ & Stage-reward function, realized value, and shorthand for the realized value & ** \\
-$r_t^{\mathrm{cookie}}(x_t,a_t)$ & Cookie-factory stage reward & ** \\
-$r_t^{\mathrm{reach}}(x_t,a_t)$ & Battery reward including the terminal-SOC reachability penalty & ** \\
-$G_t$ & Finite-horizon return from time step $t$ & ** \\
-$\gamma_{\mathrm{RL}}$ & Reward discount factor; set to $1$ in all experiments & -- \\
-$v_t^\pi,q_t^\pi$ & State-value and action-value functions under policy $\pi$ & ** \\
-$v_t^\star,q_t^\star$ & Optimal state-value and action-value functions & ** \\
-$\mathcal{A}_t^\pi(x,a)$ & Advantage function, $q_t^\pi(x,a)-v_t^\pi(x)$ & ** \\
-$q_\phi$ & Generic parameterized action-value critic & ** \\
-$q_{\psi_1},q_{\psi_2}$ & Two parameterized SAC critics & ** \\
-$q_{\bar\psi_1},q_{\bar\psi_2}$ & SAC target critics & ** \\
-$q_{\phi_1},q_{\phi_2}$ & Two parameterized TD3 critics & ** \\
-$q_{\bar\phi_1},q_{\bar\phi_2}$ & TD3 target critics & ** \\
-$\widehat v^{\mathrm{tar}}$ & Continuation-value estimate used in a TD target & ** \\
-$y_t$ & Generic one-step TD learning target & ** \\
-$y_t^{\mathrm{TD3}},y_t^{\mathrm{SAC}}$ & TD3 and SAC critic learning targets & ** \\
-$\delta_t^{\mathrm{TD}}$ & Temporal-difference error & ** \\
-$\zeta$ & Clipped TD3 target-policy smoothing noise in normalized coordinates & -- \\
-$L(\phi_j),L(\psi_j)$ & Mean squared TD-error losses of TD3 and SAC critics & (reward units)$^2$ \\
-$J_{\mathrm{PG}},J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & Generic policy-gradient, TD3 actor, and SAC policy objectives & ** \\
-$\alpha$ & Weight of the SAC entropy term & ** \\
-$\mathcal{H}$ & Policy entropy & -- \\
-$\tau$ & Target-network soft-update coefficient & -- \\
-$[\,\cdot\,]_+$ & Positive-part operator & same as its argument \\
-$v_{\ell,t}$ & Constraint violation in category $\ell$ at time step $t$ & * \\
-$v_{\mathrm T,t}$ & Terminal violation, including the final-step indicator; zero before the episode ends & -- (battery); $^\circ$C (cookie factory) \\
-$v_{\mathrm{reach},t}$ & Battery terminal-SOC reachability violation & -- \\
-$v_{s,t},v_{\mathrm I,t},v_{F_4,t}$ & Cookie-factory TES-temperature, inlet-temperature, and coupling violations & $^\circ$C \\
-$v_{Q,t},v_{P,t}$ & Cookie-factory heat-flow and grid-power violations & kW \\
-$\lambda_\ell,\lambda_{\mathrm T}$ & Constraint and terminal penalty weights & reward units per violation unit \\
-$\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Cookie-factory TES-temperature, inlet-temperature, and heat-flow penalty coefficients in Eq.~\eqref{eq:cookie_reward} & ** \\
-$\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Cookie-factory grid-power, coupling, and cyclic-terminal penalty coefficients in Eq.~\eqref{eq:cookie_reward} & ** \\
-$\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Terminal-SOC and reachability penalty weights & ** \\
-$R_{\mathrm{ep}}$ & Cumulative undiscounted episode reward & ** \\
-$V_{\mathrm{tot},\ell}$ & Sum of recorded violation magnitudes for constraint category $\ell$ & * \\
+$x_t$ & State vector; implemented network observations are dimensionless & componentwise \\
+$a_t$ & Action vector; normalized in learning updates, in environment coordinates otherwise & componentwise \\
+$\pi$ & Policy for selecting actions & n/a \\
+$r_t$ & Stage reward & $U_r$ \\
+$r_t^{\mathrm{cookie}},r_t^{\mathrm{reach}}$ & Raw cookie-factory and reachability-shaped battery rewards & EUR \\
+$G_t$ & Return from step $t$ & $U_r$ \\
+$v_t^\pi,q_t^\pi$ & State-value and action-value functions & $U_r$ \\
+$\gamma_{\mathrm{RL}}$ & Reward discount factor & -- \\
+$\alpha$ & SAC entropy weight & $U_r$ \\
+$v_{\ell,t}$ & Constraint violation in category $\ell$ & category unit \\
+$v_{\mathrm T,t}$ & Terminal SOC or cyclic TES-temperature violation & -- (battery); K (cookie) \\
+$v_{\mathrm{reach},t}$ & Terminal-SOC reachability violation & -- \\
+$v_{s,t},v_{\mathrm I,t},v_{F_4,t}$ & TES-temperature, inlet-temperature, and coupling violations & K \\
+$v_{Q,t},v_{P,t}$ & Heat-flow and grid-power violations & kW \\
+$\lambda_\ell$ & General penalty weight per native violation unit & EUR/$[v_{\ell,t}]$ \\
+$\lambda_{\mathrm T}$ & General terminal penalty weight & EUR (battery); EUR/K (cookie) \\
+$\lambda_s,\lambda_{\mathrm I},\lambda_Q$ & Coefficients for normalized temperature and heat-flow violations & EUR \\
+$\lambda_P,\lambda_{F_4},\lambda_{\mathrm{cyc}}$ & Coefficients for normalized grid-power, coupling, and terminal violations & EUR \\
+$\lambda_{\mathrm{SOC}},\lambda_{\mathrm{reach}}$ & Battery terminal-SOC and reachability penalty weights & EUR \\
+$R_{\mathrm{ep}}$ & Cumulative undiscounted raw episode reward & EUR \\
+$V_{\mathrm{tot},\ell}$ & Sum of violation magnitudes in category $\ell$ & $[v_{\ell,t}]$ \\
 $f_{\mathrm{viol}}$ & Fraction of time steps with constraint violations & -- \\
-$\varepsilon_{\mathrm{viol},\ell}$ & Numerical violation-detection tolerance for constraint category $\ell$ & * \\
-$\mathbb{E},\mathbb{E}_\pi,\mathbb{E}_{\mathcal D}$ & Expectation, expectation under policy $\pi$, and expectation over replay-buffer samples & n/a \\
-$\mathbf{1}$ & Vector of ones & -- \\
-$\mathbbm{1},\mathbbm{1}_{\{\cdot\}}$ & Indicator function and event-indicator notation & -- \\
+$\varepsilon_{\mathrm{viol},\ell}$ & Violation-detection tolerance in category $\ell$ & $[v_{\ell,t}]$ \\
 \end{longtable}
-\par\smallskip
-\noindent\hfill
-\begin{tabular}{@{}l@{\,}l@{}}
-*  & varies \\
-** & reward units
-\end{tabular}
+\noindent $[v_{\ell,t}]$ denotes the unit of the corresponding violation:
+dimensionless for SOC and bypass violations, K for temperature differences,
+kW for power and heat rates, and kW$^2$ for a charging--discharging product
+residual. Generic vectors have units per component. Learning actions are
+dimensionless; the battery environment receives $u_t$, while the cookie
+environment receives $(b_t,\dot m_{\mathrm I,t})$ with units (--, kg/s).
+Mathematical operators,
+optimization auxiliaries, and algorithm-specific network notation are
+defined where they appear in the text.
 \endgroup
