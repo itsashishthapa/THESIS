@@ -876,6 +876,60 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 \end{figure}
 
 
+Let $N$ be the number of decision steps in the scheduling horizon, with
+$t\in\{0,\ldots,N-1\}$ for controls and stream quantities and
+$t\in\{0,\ldots,N\}$ for the TES state. The objective $J_{\mathrm{grid}}$
+is the total grid-electricity cost in EUR. The spot electricity price $S_t$
+is in EUR/MWh, the purchased grid power $P_t^{\mathrm S}$ and available wind
+power $W_t$ are in kW, and $\Delta t_{\mathrm h}$ is the step duration in
+hours. The factor $1/1000$ converts kWh to MWh in the objective. The duration
+$\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ in seconds is used in the
+thermal-storage balance. The five independently selected quantities are the
+bypass settings $\beta_{1,t}$ and $\beta_{2,t}$, the dimensionless
+compressor-speed-related variable $R_t$, the mass flow
+$\dot{m}_{\mathrm{I},t}$ in kg/s, and the HTHP inlet temperature
+$T_{\mathrm{I},t}$ in ${}^\circ\mathrm C$.
+
+In compound subscripts such as those in $T_{\mathrm{I},t}$ and $T_{1,t}$, the
+Roman labels $\mathrm I$--$\mathrm{IV}$ and Arabic labels $1$--$4$ identify
+physical locations in the HTF circuit shown in Fig.~\ref{fig:cookie_detailed_flow_chart}, whereas the final subscript $t$ is the time index. All temperatures are in ${}^\circ\mathrm C$.
+$T_{\mathrm{I},t}$ and $T_{\mathrm{II},t}$ are respectively the inlet and outlet
+temperatures of the high-temperature heat exchanger (HTHX), whereas
+$T_{\mathrm{III},t}$ and $T_{\mathrm{IV},t}$ are the inlet and outlet
+temperatures of the low-temperature heat exchanger (LTHX). The temperatures
+$T_{1,t}$ and $T_{4,t}$ are the TES outlet temperatures during charging and
+discharging, respectively, while $T_{2,t}$ and $T_{3,t}$ are the steam-generator
+inlet and outlet temperatures. Thus, $T_{\mathrm{I},t}$ is the HTHX inlet
+temperature at step $t$, while $T_{1,t}$ is the TES charging outlet
+temperature at the same step. The quantities $\dot{m}_{\mathrm{I},t}$ and
+$\dot{m}_{\mathrm{II},t}$ denote the HTHX inlet and outlet HTF mass-flow
+rates. The implemented closed-loop model uses the same per-HTHP flow variable
+for these two locations, so $\dot{m}_{\mathrm{II},t}=\dot{m}_{\mathrm{I},t}$. The functions $F_{\mathrm{HTHP}}$,
+$F_{\mathrm{HTHX}}$, and $F_{\mathrm{LTHX}}$ are polynomial surrogate models
+for the electrical demand of one HTHP, the HTHX outlet temperature, and the
+LTHX outlet temperature, respectively.
+
+The bypass settings $\beta_{1,t},\beta_{2,t}\in[0,1]$ determine the TES operating
+mode. A value of one fully bypasses the associated storage path: charging uses
+$\beta_{1,t}<1$ and $\beta_{2,t}=1$, discharging uses $\beta_{2,t}<1$ and
+$\beta_{1,t}=1$, and $\beta_{1,t}=\beta_{2,t}=1$ represents idle operation.
+$\dot{Q}_{s,\mathrm{ch},t}$ and $\dot{Q}_{s,\mathrm{dch},t}$ are the TES charging
+and discharging heat-flow rates in kW. The parameter
+$c_{p,\mathrm f}$ is the specific heat capacity of the HTF in kJ/(kg\,K), while
+$\epsilon_{\mathrm{ch}}$ and $\epsilon_{\mathrm{dch}}$ are the charging and
+discharging effectiveness factors, both dimensionless. The small relaxation
+parameter $\gamma$, in $\mathrm{kW}^2$, bounds the product of the charging
+and discharging heat rates. Choosing it close to zero makes the two flows
+approximately mutually exclusive.
+
+Finally, $T_{s,t}$ is the TES temperature at the beginning of decision step $t$,
+and $T_{s,t+1}$ is the updated temperature after applying the decision at that
+step. The parameters $m_s$ and $c_{p,\mathrm s}$ denote the storage-medium mass
+in kg and specific heat capacity in kJ/(kg\,K), respectively. The prescribed
+initial temperature is
+$\tilde T_0$, so $T_{s,0}=\tilde T_0$, and $T_{s,N}=T_{s,0}$ imposes cyclic terminal
+operation.
+
 \begin{samepage}
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
@@ -929,57 +983,7 @@ Eq.~\eqref{eq:cookie_charging_coupling}, and $F_5$ denotes the
 discharging-side mixing relation in Eq.~\eqref{eq:cookie_discharging_mixing}.
 These are fixed relation labels; the subscript $t$ on each physical variable
 denotes time.
-In this formulation, the final subscript $t$ denotes the discrete time step,
-where $t\in\{0,\ldots,N-1\}$ and $N$ is the number of steps in the
-scheduling horizon. The objective
-$J_{\mathrm{grid}}$ is the total grid-electricity cost, $S_t$ is the spot electricity price,
-$P_t^{\mathrm S}$ is the purchased grid power, and $W_t$ is the available wind
-power. Thus, Eq.~\eqref{eq:cookie_objective} sums the cost
-$P_t^{\mathrm S}S_t\Delta t_{\mathrm h}/1000$ over the horizon. Here,
-$\Delta t_{\mathrm h}$ is the step duration in hours, while
-$\Delta t_{\mathrm s}=3600\Delta t_{\mathrm h}$ is used in the thermal-storage
-balance because the heat rates are expressed in kW and the heat capacities in
-kJ/(kg\,K). The subscript beneath the
-minimum lists the five time-dependent quantities selected independently by the
-optimization baseline: the two bypass settings $\beta_{1,t}$ and $\beta_{2,t}$,
-the compressor rotational-speed variable $R_t$, the mass flow
-$\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$.
-
-In compound subscripts such as those in $T_{\mathrm{I},t}$ and $T_{1,t}$, the
-Roman labels $\mathrm I$--$\mathrm{IV}$ and Arabic labels $1$--$4$ identify
-physical locations in the HTF circuit shown in Fig.~\ref{fig:cookie_detailed_flow_chart}, whereas the final subscript $t$ is the time index.
-$T_{\mathrm{I},t}$ and $T_{\mathrm{II},t}$ are respectively the inlet and outlet
-temperatures of the high-temperature heat exchanger (HTHX), whereas
-$T_{\mathrm{III},t}$ and $T_{\mathrm{IV},t}$ are the inlet and outlet
-temperatures of the low-temperature heat exchanger (LTHX). The temperatures
-$T_{1,t}$ and $T_{4,t}$ are the TES outlet temperatures during charging and
-discharging, respectively, while $T_{2,t}$ and $T_{3,t}$ are the steam-generator
-inlet and outlet temperatures. The quantities $\dot{m}_{\mathrm{I},t}$ and
-$\dot{m}_{\mathrm{II},t}$ denote the HTHX inlet and outlet HTF mass-flow
-rates. The implemented closed-loop model uses the same per-HTHP flow variable
-for these two locations, so $\dot{m}_{\mathrm{II},t}=\dot{m}_{\mathrm{I},t}$. The functions $F_{\mathrm{HTHP}}$,
-$F_{\mathrm{HTHX}}$, and $F_{\mathrm{LTHX}}$ are polynomial surrogate models
-for the electrical demand of one HTHP, the HTHX outlet temperature, and the
-LTHX outlet temperature, respectively.
-
-The bypass settings $\beta_{1,t},\beta_{2,t}\in[0,1]$ determine the TES operating
-mode. A value of one fully bypasses the associated storage path: charging uses
-$\beta_{1,t}<1$ and $\beta_{2,t}=1$, discharging uses $\beta_{2,t}<1$ and
-$\beta_{1,t}=1$, and $\beta_{1,t}=\beta_{2,t}=1$ represents idle operation.
-$\dot{Q}_{s,\mathrm{ch},t}$ and $\dot{Q}_{s,\mathrm{dch},t}$ are the TES charging
-and discharging heat-flow rates. The parameter
-$c_{p,\mathrm f}$ is the specific heat capacity of the HTF, while
-$\epsilon_{\mathrm{ch}}$ and $\epsilon_{\mathrm{dch}}$ are the charging and
-discharging effectiveness factors. The small relaxation parameter $\gamma$
-in $\dot{Q}_{s,\mathrm{ch},t}\dot{Q}_{s,\mathrm{dch},t}\leq\gamma$ prevents
-simultaneous charging and discharging when it is chosen close to zero.
-
-Finally, $T_{s,t}$ is the TES temperature at the beginning of decision step $t$,
-and $T_{s,t+1}$ is the updated temperature after applying the decision at that
-step. The parameters $m_s$ and $c_{p,\mathrm s}$ denote the storage-medium mass
-and specific heat capacity, respectively. The prescribed initial temperature is
-$\tilde T_0$, so $T_{s,0}=\tilde T_0$, and $T_{s,N}=T_{s,0}$ imposes cyclic terminal
-operation. The final bound relations specify the admissible operating ranges
+The final bound relations specify the admissible operating ranges
 and fixed input of the experimental model. The power balance in
 Eq.~\eqref{eq:cookie_power_balance} and the remaining relations through
 Eq.~\eqref{eq:cookie_bounds} collectively describe the surrogate components,
@@ -989,9 +993,8 @@ are also collected in the nomenclature.
 
 % The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
-% In the reinforcement-learning environment, the agent observes the normalized TES temperature, current spot electricity price $S_t$, available wind power $W_t$, the previous operating mode, and the corresponding look-ahead windows $S_{t+1:t+H}$ and $W_{t+1:t+H}$. The action is a continuous vector containing $\beta_1$, $\beta_2$, $R$, $\dot{m}_{\mathrm{I}}$, and $T_{\mathrm{I}}$. The reward is based on the negative grid-electricity cost, with additional penalties for violating operational requirements such as TES temperature bounds, invalid mode behavior, coupling residuals, and deviation from the cyclic terminal storage condition.
 
-The cookie-factory optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_{1,t}$ and $\beta_{2,t}$, the compressor-speed-related variable $R_t$, the mass flow rate $\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed storage-mode command and the mass flow rate $\dot{m}_{\mathrm{I},t}$. The environment maps the storage-mode command to $\beta_{1,t}$ and $\beta_{2,t}$ and derives $R_t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines nonlinear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the optimization baseline.
+The cookie-factory optimization model has a five-dimensional action space at each time step. Its independently selected operating variables are the two bypass variables $\beta_{1,t}$ and $\beta_{2,t}$, the compressor-speed-related variable $R_t$, the mass flow rate $\dot{m}_{\mathrm{I},t}$, and the HTHP inlet temperature $T_{\mathrm{I},t}$. The remaining temperatures, power flows, and storage quantities are coupled through the model equations. In the RL formulation, the action space is reduced to two dimensions: the policy selects a signed bypass command $b_t$ and the mass flow rate $\dot{m}_{\mathrm{I},t}$. The environment maps $b_t$ to the two physical bypass coefficients $\beta_{1,t}$ and $\beta_{2,t}$ and derives $R_t$ from the $F_4$ coupling equation. This use case is more complex than the battery system because it combines nonlinear surrogate equations, thermal storage dynamics, and hard process constraints. It therefore provides a suitable second benchmark for evaluating whether reinforcement learning can learn feasible and cost-effective setpoint policies for industrial energy utility systems, and for comparing the learned policy against the optimization baseline.
 
 \FloatBarrier
 \subsection{Methodology}
@@ -1012,13 +1015,18 @@ is reduced to
 a_t=\left(b_t,\dot{m}_{\mathrm{I},t}\right),
 \qquad b_t\in[-1,1],\quad \dot{m}_{\mathrm{I},t}\in[5,16],
 \]
-where $b_t$ is a signed TES-mode command. The idle band has a half-width of
+where $b_t$ is a dimensionless signed bypass command, implemented as
+\texttt{beta\_command}. Outside the idle band, its sign selects charging or
+discharging, while its distance from the band determines the active bypass
+coefficient. The
+environment maps this single command to the two physical bypass coefficients
+$\beta_{1,t}$ and $\beta_{2,t}$. The idle band has a half-width of
 $\delta_\beta=0.05$. This value was selected as a small numerical tolerance
 around zero. It suppresses mode switching caused by small variations in the
 policy output while retaining most of the normalized action range for active
 charging and discharging. The value was fixed during the experiments and was
 not separately optimized. The environment maps $b_t$ to the two physical
-bypass settings according to Eq.~\eqref{eq:cookie_beta_mapping}:
+bypass coefficients according to Eq.~\eqref{eq:cookie_beta_mapping}:
 \begin{equation}
 \left(\beta_{1,t},\beta_{2,t}\right)=
 \left\{\begin{array}{@{}l@{\quad}l@{\quad}l@{}}
@@ -1254,7 +1262,7 @@ These results show that the optimization baseline retains an advantage in both o
 
 \subsection{Conclusion}
 
-This thesis investigated whether reinforcement learning can determine feasible and cost-effective operating setpoints for energy utility systems of different complexity. The setpoint-selection tasks were formulated as finite-horizon Markov decision processes and evaluated for a battery energy storage system and the electrified steam-generation utility system of a cookie production factory. The battery represents a one-dimensional storage-control problem, whereas the cookie-factory optimization model contains five coupled control variables and nonlinear process constraints. For the cookie-factory RL formulation, the action space was reduced to two dimensions by allowing the policy to select a signed storage-mode command and mass flow while deriving the remaining quantities through the process equations. In both cases, the trained policies were compared with the optimization baseline using the original economic objective, constraint satisfaction, and online computation time.
+This thesis investigated whether reinforcement learning can determine feasible and cost-effective operating setpoints for energy utility systems of different complexity. The setpoint-selection tasks were formulated as finite-horizon Markov decision processes and evaluated for a battery energy storage system and the electrified steam-generation utility system of a cookie production factory. The battery represents a one-dimensional storage-control problem, whereas the cookie-factory optimization model contains five coupled control variables and nonlinear process constraints. For the cookie-factory RL formulation, the action space was reduced to two dimensions by allowing the policy to select a signed bypass command $b_t$ and the mass flow rate $\dot{m}_{\mathrm{I},t}$. The environment maps $b_t$ to the physical bypass coefficients $\beta_{1,t}$ and $\beta_{2,t}$ and derives the remaining quantities through the process equations. In both cases, the trained policies were compared with the optimization baseline using the original economic objective, constraint satisfaction, and online computation time.
 
 For the battery system, the optimization baseline achieved the highest mean profit, but the TD3 policy approached its performance closely. Across 1000 randomly sampled 24-hour windows, the mean objective was $-3.02$~EUR for TD3 and $-3.19$~EUR for the optimization baseline, giving a mean gap of 0.16~EUR. TD3 also produced SOC trajectories that used a similar portion of the available storage range. Its main advantage was speed: a complete policy rollout required 0.0082~s on average, compared with 0.5605~s for the optimization baseline, corresponding to a speedup of approximately $68.13\times$.
 
@@ -1266,7 +1274,7 @@ The results therefore provide a qualified answer to the research question. Reinf
 
 \subsection{Future Work}
 
-Constraint handling should be strengthened for the cookie-factory policy. In particular, the observed grid-power violations should be addressed through a constraint-preserving action mapping or action projection. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and storage-mode mapping affect feasibility, sensitivity, and learning stability.
+Constraint handling should be strengthened for the cookie-factory policy. In particular, the observed grid-power violations should be addressed through a constraint-preserving action mapping or action projection. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and bypass-command mapping affect feasibility, sensitivity, and learning stability.
 
 The present evaluation uses fixed 24-hour price and wind profiles that are available to both methods. A rolling-horizon implementation should instead update forecasts and setpoints as new measurements become available. This would allow the policies to be tested under forecast errors, measurement noise, disturbances, and model--plant mismatch. Domain randomization or targeted retraining could then be used to improve robustness to operating conditions not represented in the original training data.
 
