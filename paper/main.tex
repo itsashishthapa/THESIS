@@ -553,6 +553,8 @@ value function \cite{fujimoto2018addressing}.
 Deterministic evaluation uses the actor without exploration noise.
 
 \paragraph{Soft Actor-Critic (SAC):}
+SAC action densities and their logarithms are evaluated in dimensionless
+normalized action coordinates, as in the TD3 learning updates above.
 SAC instead uses a stochastic actor, $\pi_\theta(a\mid x)$, that defines a distribution over continuous actions. As with TD3, the position in the scheduling horizon is included in $x$, so a separate time index is not required on the neural-network policy. In addition to maximizing expected return, SAC includes an entropy term that encourages exploration while training. Like TD3, SAC uses two critics and experience replay; however, its stochastic policy and entropy objective distinguish it from the deterministic TD3 policy \cite{haarnoja2018soft}. For a replay transition, a next action $a_{t+1}^{\prime}\sim\pi_\theta(\cdot\mid x_{t+1})$ is sampled from the current policy. The entropy-adjusted critic target is
 \[
 y_t^{\mathrm{SAC}}=r_t+\gamma_{\mathrm{RL}}(1-d_t)\left[
@@ -921,6 +923,8 @@ The main advantage of the TD3 policy was computation time. The trained TD3 model
 
 The second case study considers the cookie production factory as the more complex benchmark, combining multiple controllable components, nonlinear process behavior, thermal energy storage, and coupled operational constraints. As in the battery case, the problem formulation is followed by the methodology and numerical results.
 
+For reinforcement learning, the problem is simplified to a two-dimensional action space: the policy selects a signed bypass command $b_t$ and the mass flow rate $\dot{m}_{\mathrm{I},t}$, while the environment derives the remaining operating quantities from the process equations. The full optimization problem is presented below, and the reduced RL action formulation is detailed in Section~\ref{sec:cookie_methodology}.
+
 \subsection{Problem Formulation}
 \label{sec:cookie_problem}
 
@@ -1000,7 +1004,7 @@ operation.
 \begin{samepage}
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
-&\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{I},t}\}_{t=0}^{N-1}}
+&\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t}\}_{t=0}^{N-1}}
 \quad J_{\mathrm{grid}} = \frac{1}{1000}\sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t_{\mathrm h},
 \label{eq:cookie_objective} \\
 &\text{s.t.} \quad P_t^{\mathrm S} + W_t = 3F_{\mathrm{HTHP}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \label{eq:cookie_power_balance} \\
@@ -1055,8 +1059,8 @@ and fixed input of the experimental model. The power balance in
 Eq.~\eqref{eq:cookie_power_balance} and the remaining relations through
 Eq.~\eqref{eq:cookie_bounds} collectively describe the surrogate components,
 bypass mixing, TES dynamics, mutually exclusive charging and discharging,
-cyclic operation, and admissible operating ranges. All symbols and their units
-are also collected in the nomenclature.
+cyclic operation, and admissible operating ranges. The main physical symbols
+and their units are also collected in the nomenclature.
 
 % The main control decisions are the bypass variables $\beta_1$ and $\beta_2$, the compressor-speed-related variable $R$, the mass flow rate $\dot{m}_{\mathrm{I}}$, and the HTHP inlet temperature $T_{\mathrm{I}}$. The bypass variables determine the operating mode of the system. In charging mode, heat from the HTHP is routed into the TES; in discharging mode, stored heat is released to support the steam-generation process; and in idle or bypass operation, the storage is not actively charged or discharged. Simultaneous charging and discharging is prohibited through a complementarity constraint.
 
@@ -1241,6 +1245,13 @@ Here, $v_{\mathrm T,t}=\mathbbm{1}_{\{t=N-1\}}|T_{s,N}-T_{s,0}|$ is the
 terminal violation. The coefficients multiplying the violations in
 Eq.~\eqref{eq:cookie_reward} are the corresponding penalty weights in the
 general reward.
+Temperature spans and residuals are differences, with units of K
+(numerically identical to differences in ${}^\circ\mathrm C$); the inlet
+span $250-177$ in the reward denotes $73\,\mathrm K$.
+All violation ratios in Eq.~\eqref{eq:cookie_reward} are dimensionless,
+so its six $\lambda$ coefficients have units of EUR. The effective weights
+on the unnormalized temperature violations have units of EUR/K, and those
+on heat-flow and grid-power violations have units of EUR/kW.
 The values used in training are $T_s^{\min}=183\,{}^\circ\mathrm C$,
 $T_s^{\max}=324\,{}^\circ\mathrm C$,
 $\dot Q_s^{\max}=5000\,\mathrm{kW}$,
