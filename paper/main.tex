@@ -90,7 +90,7 @@ Title and name of adviser (optional)
 }
 %%% ENTER (real) SUBMISSION DATE HERE%%%
 \newcommand{\SUBMISSIONDATE}{
-06 October 2026
+07 October 2026
 }
 
 
@@ -766,7 +766,7 @@ Figure~\ref{fig:battery_reachability_reward} shows that the violation is zero at
 
 All computations were performed in Python~3.14.1, with Gymnasium~1.2.2 used to implement the reinforcement-learning environments and Stable-Baselines3~2.7.0, based on PyTorch~2.9.1, used to train the RL policies. Experiments were conducted on an AMD Ryzen~7 7840HS CPU with Radeon~780M Graphics.
 
-Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed test trajectories. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
+Training is performed in reinforcement-learning environments before the learned policies are evaluated on fixed evaluation trajectories. The environment provides the transition dynamics, cost calculation, constraint handling, and terminal condition for each episode. The learning algorithm only receives observations, rewards, and termination signals through the environment interface.
 
 For both use cases, one episode corresponds to a 24-step scheduling horizon. During training, the start index of the episode is sampled randomly from the available time-series data. This random-window strategy exposes the agent to different price and renewable-generation patterns instead of repeatedly starting each episode at the same time of day. Both environments use the grid-price series; the cookie factory environment additionally samples the corresponding wind-availability values for the same 24-hour window.
 
@@ -1339,7 +1339,7 @@ This mixed ranking shows why TD3's economic advantage does not imply better feas
 The action map explains why some constraints are easier to satisfy than others. Selecting one signed storage command keeps the inactive bypass at one and prevents simultaneous charging and discharging. In contrast, calculating compressor speed requires a bounded real root of the $F_4$ cubic. When the selected state, bypass, and mass flow admit no such root, the residual-minimizing fallback keeps $R_t$ within bounds but cannot remove the coupling mismatch.
 
 
-SAC and TD3 generated complete schedules in 0.0217~s and 0.0180~s on average, compared with 11.5901~s for the baseline. The reported ratios of mean runtimes were approximately $533\times$ and $645\times$. The RL timer includes reset, policy prediction, environment transitions with root solving, and stepwise residual checks; model loading and offline training are excluded. Active training required 2.81 hours for SAC and 1.24 hours for TD3. The online savings are most useful for repeated solves, scenario evaluations, or limited computation budgets.
+SAC and TD3 generated complete schedules in 0.0217~s and 0.0180~s on average, compared with 11.5901~s for the baseline. The reported ratios of mean runtimes were approximately $534\times$ and $645\times$. The RL timer includes reset, policy prediction, environment transitions with root solving, and stepwise residual checks; model loading and offline training are excluded. Active training required 2.81 hours for SAC and 1.24 hours for TD3. The online savings are most useful for repeated solves, scenario evaluations, or limited computation budgets.
 
 \startnewpage
 \section{Conclusion and Future Work}
