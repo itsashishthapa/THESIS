@@ -91,6 +91,7 @@ $x,x_t,x'$ & Generic state, state at time step $t$, and next state & * \\
 $X_t,A_t$ & Random state and action at time step $t$ & * \\
 $a,a_t,a_t^{\mathrm{phys}}$ & Generic action, policy action at time $t$, and corresponding physical setpoints & * \\
 $a_{t+1}^{\prime}$ & Next action sampled from the SAC policy for the critic target & * \\
+$\tilde a_{t+1}$ & TD3 target action after smoothing and clipping in normalized coordinates & -- \\
 $\mathcal{M}$ & Map from policy actions to physical setpoints & n/a \\
 $\pi,\pi_t(\cdot\mid x),\pi_\theta(a\mid x)$ & Policy, time-$t$ conditional action distribution, and parameterized stochastic policy & * \\
 $\pi_{\mathrm b}$ & Behavior policy used to collect transitions & n/a \\
@@ -120,7 +121,7 @@ $\widehat v^{\mathrm{tar}}$ & Continuation-value estimate used in a TD target & 
 $y_t$ & Generic one-step TD learning target & ** \\
 $y_t^{\mathrm{TD3}},y_t^{\mathrm{SAC}}$ & TD3 and SAC critic learning targets & ** \\
 $\delta_t^{\mathrm{TD}}$ & Temporal-difference error & ** \\
-$\zeta$ & TD3 target-policy smoothing noise & * \\
+$\zeta$ & Clipped TD3 target-policy smoothing noise in normalized coordinates & -- \\
 $L(\phi_j),L(\psi_j)$ & Mean squared TD-error losses of TD3 and SAC critics & (reward units)$^2$ \\
 $J_{\mathrm{PG}},J_{\mathrm{TD3}},J_{\mathrm{SAC}}$ & Generic policy-gradient, TD3 actor, and SAC policy objectives & ** \\
 $\alpha$ & Weight of the SAC entropy term & ** \\
