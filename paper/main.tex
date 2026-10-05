@@ -876,6 +876,7 @@ The system consists of four main units: a wind turbine (WT), a closed reverse Br
 \end{figure}
 
 
+\begin{samepage}
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
 \begin{align}
 &\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{I},t}\}_{t=0}^{N-1}}
@@ -886,6 +887,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &T_{\mathrm{IV},t} = F_{\mathrm{LTHX}}\left(T_{\mathrm{I},t},\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t},R_t\right), \\
 &T_{2,t} = \beta_{1,t} T_{\mathrm{II},t} + \left(1-\beta_{1,t}\right)T_{1,t}, \label{eq:cookie_charging_coupling} \\
 &T_{\mathrm{I},t} = \beta_{2,t} T_{3,t} + \left(1-\beta_{2,t}\right)T_{4,t}, \label{eq:cookie_discharging_mixing} \\
+&\dot{m}_{\mathrm{II},t} = \dot{m}_{\mathrm{I},t}, \\
 &T_{2,t} = 201.92 + \frac{1819.32}{3\dot{m}_{\mathrm{II},t}}, \\
 &T_{3,t} = 196.3 - \frac{188.4}{3\dot{m}_{\mathrm{I},t}}, \\
 &\dot{Q}_{s,\mathrm{ch},t} = 3\dot{m}_{\mathrm{II},t} c_{p,\mathrm{f}}\left(T_{\mathrm{II},t}-T_{1,t}\right)\left(1-\beta_{1,t}\right), \\
@@ -894,11 +896,34 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &T_{1,t} = T_{\mathrm{II},t} - \epsilon_{\mathrm{ch}}\left(T_{\mathrm{II},t}-T_{s,t}\right), \\
 &T_{4,t} = T_{3,t} - \epsilon_{\mathrm{dch}}\left(T_{3,t}-T_{s,t}\right), \\
 &T_{s,t+1} = T_{s,t} + \frac{\dot{Q}_{s,\mathrm{ch},t}-\dot{Q}_{s,\mathrm{dch},t}}{m_s c_{p,\mathrm{s}}}\Delta t_{\mathrm s}, \\
-&T_{s,0} = \tilde{T}_0, \qquad T_{s,N} = T_{s,0}, \\
-&T_{\mathrm{I},t} \in [177,250], \qquad \dot{m}_{\mathrm{I},t} \in [5,16], \\
-&T_{\mathrm{III},t} \in [60,100], \qquad R_t \in [0.8,1.53], \qquad \beta_{1,t},\beta_{2,t} \in [0,1].
+&T_{s,0} = \tilde{T}_0, \qquad T_{s,N} = T_{s,0}.
+\end{align}
+\end{samepage}
+The experimental problem also imposes the following operating bounds and
+fixed inlet temperature. All temperatures are in ${}^\circ\mathrm C$, powers
+and heat rates in $\mathrm{kW}$, and mass-flow rates in $\mathrm{kg/s}$.
+The stream and control constraints apply at every decision step
+$t\in\{0,\ldots,N-1\}$; the TES state bound includes both the initial and
+terminal states:
+\begin{align}
+&0 \leq P_t^{\mathrm S} \leq 5000, \\
+&0 \leq \dot{Q}_{s,\mathrm{ch},t},\dot{Q}_{s,\mathrm{dch},t} \leq 5000, \\
+&T_{\mathrm{I},t} \in [177,250], \qquad
+  \dot{m}_{\mathrm{I},t} \in [5,16], \qquad R_t \in [0.8,1.53], \\
+&\beta_{1,t},\beta_{2,t} \in [0,1], \qquad
+  \beta_{1,t}+\beta_{2,t} \geq 1, \\
+&T_{\mathrm{III},t} = 75, \\
+&T_{\mathrm{II},t} \in [239,400], \qquad
+  T_{\mathrm{IV},t} \in [-60,90], \\
+&T_{1,t},T_{4,t} \in [183,332], \\
+&T_{2,t} \in [239,324], \qquad T_{3,t} \in [183,193], \\
+&183 \leq T_{s,t} \leq 324, \qquad t\in\{0,\ldots,N\}.
 \label{eq:cookie_bounds}
 \end{align}
+The LTHX inlet is fixed at $T_{\mathrm{III},t}=75\,{}^\circ\mathrm C$ in
+these experiments. The interval $[60,100]\,{}^\circ\mathrm C$ describes the
+surrogate's validity range for this input, rather than a variable operating
+range in the experimental problem.
 The label $F_4$ denotes the charging-side coupling relation in
 Eq.~\eqref{eq:cookie_charging_coupling}, and $F_5$ denotes the
 discharging-side mixing relation in Eq.~\eqref{eq:cookie_discharging_mixing}.
@@ -954,8 +979,8 @@ and $T_{s,t+1}$ is the updated temperature after applying the decision at that
 step. The parameters $m_s$ and $c_{p,\mathrm s}$ denote the storage-medium mass
 and specific heat capacity, respectively. The prescribed initial temperature is
 $\tilde T_0$, so $T_{s,0}=\tilde T_0$, and $T_{s,N}=T_{s,0}$ imposes cyclic terminal
-operation. The final interval relations specify the validity and operating
-bounds of the surrogate model. The power balance in
+operation. The final bound relations specify the admissible operating ranges
+and fixed input of the experimental model. The power balance in
 Eq.~\eqref{eq:cookie_power_balance} and the remaining relations through
 Eq.~\eqref{eq:cookie_bounds} collectively describe the surrogate components,
 bypass mixing, TES dynamics, mutually exclusive charging and discharging,
