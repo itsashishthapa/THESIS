@@ -1001,8 +1001,10 @@ initial temperature is
 $\tilde T_0$, so $T_{s,0}=\tilde T_0$, and $T_{s,N}=T_{s,0}$ imposes cyclic terminal
 operation.
 
-\begin{samepage}
 The corresponding finite-horizon optimization problem is formulated over a discrete time horizon with time index $t \in \{0,\ldots,N-1\}$:
+\begingroup
+% Let the long formulation continue across pages instead of leaving a large gap.
+\allowdisplaybreaks[1]
 \begin{align}
 &\min_{\{\beta_{1,t},\beta_{2,t},R_t,\dot{m}_{\mathrm{I},t},T_{\mathrm{III},t}\}_{t=0}^{N-1}}
 \quad J_{\mathrm{grid}} = \frac{1}{1000}\sum_{t=0}^{N-1} P_t^{\mathrm S} S_t \Delta t_{\mathrm h},
@@ -1023,7 +1025,7 @@ The corresponding finite-horizon optimization problem is formulated over a discr
 &T_{s,t+1} = T_{s,t} + \frac{\dot{Q}_{s,\mathrm{ch},t}-\dot{Q}_{s,\mathrm{dch},t}}{m_s c_{p,\mathrm{s}}}\Delta t_{\mathrm s}, \\
 &T_{s,0} = \tilde{T}_0, \qquad T_{s,N} = T_{s,0}.
 \end{align}
-\end{samepage}
+\endgroup
 The experimental problem also imposes the following operating bounds and
 fixed inlet temperature. All temperatures are in ${}^\circ\mathrm C$, powers
 and heat rates in $\mathrm{kW}$, and mass-flow rates in $\mathrm{kg/s}$.
@@ -1361,9 +1363,7 @@ The results therefore provide a qualified answer to the research question. Reinf
 
 \subsection{Future Work}
 
-The findings of this thesis motivate further work on constraint satisfaction, robustness, and the integration of reinforcement learning with optimization-based methods.
-
-Constraint handling should be strengthened for the reinforcement-learning policies used in the cookie-factory case study. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and bypass-command mapping affect feasibility, sensitivity, and learning stability.
+The findings of this thesis motivate further work on constraint satisfaction, robustness, and the integration of reinforcement learning with optimization-based methods. Constraint handling should be strengthened for the reinforcement-learning policies used in the cookie-factory case study. The two-dimensional action formulation should also be investigated further to determine how the derived compressor-speed calculation and bypass-command mapping affect feasibility, sensitivity, and learning stability.
 
 The present evaluation uses fixed 24-hour price and wind profiles that are available to both methods. A rolling-horizon implementation should instead update forecasts and setpoints as new measurements become available \cite{kyriakidis2025energy}. This would allow the policies to be tested under forecast errors, measurement noise, disturbances, and model--plant mismatch. Domain randomization or targeted retraining could then be used to improve robustness to operating conditions not represented in the original training data.
 
