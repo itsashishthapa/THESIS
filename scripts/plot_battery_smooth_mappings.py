@@ -1,5 +1,7 @@
 """Plot the smooth battery power mappings used in the thesis."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -50,19 +52,53 @@ def main() -> None:
 
     action = np.linspace(-1.0, 1.0, 2001)
     grid_power = np.linspace(-P_MAX, P_MAX, 2001)
-    soc_values = (0.0, 0.005, 0.5, 0.995, 1.0)
-    colors = ("#0072B2", "#56B4E9", "#222222", "#E69F00", "#D55E00")
+    # Hollow markers identify the middle-SOC curve where its values
+    # coincide with the threshold curves, without widening the line.
+    middle_soc_markers = [100, 400, 700, 1300, 1600, 1900]
+    soc_styles = (
+        (0.5, "#333333", "-", 0.75, 1.1),
+        (0.005, "#0072B2", "--", 0.85, 1.6),
+        (0.995, "#D55E00", "-.", 0.85, 1.6),
+    )
 
     figure, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), sharey=True)
 
-    for soc, color in zip(soc_values, colors, strict=True):
+    for soc, color, linestyle, alpha, linewidth in soc_styles:
         axes[0].plot(
             action,
             grid_side_power(action, soc),
             color=color,
-            linewidth=1.8,
+            linestyle=linestyle,
+            alpha=alpha,
+            linewidth=linewidth,
+            marker="o" if soc == 0.5 else None,
+            markevery=middle_soc_markers,
+            markersize=4.0,
+            markerfacecolor="white",
+            markeredgewidth=0.9,
             label=fr"$\mathrm{{SOC}}_t={soc:g}$",
         )
+    axes[0].plot(
+        action,
+        P_MAX * action,
+        color="black",
+        linestyle=":",
+        linewidth=1.5,
+        zorder=3,
+        label=r"Reference: $P_t^{\mathrm{S}}=P_{\max}u_t$",
+    )
+    marker_actions = action[middle_soc_markers]
+    axes[0].plot(
+        marker_actions,
+        grid_side_power(marker_actions, 0.5),
+        linestyle="none",
+        marker="o",
+        markersize=4.0,
+        markerfacecolor="white",
+        markeredgecolor="#333333",
+        markeredgewidth=0.9,
+        zorder=4,
+    )
     axes[0].axhline(0.0, color="0.65", linewidth=0.7)
     axes[0].axvline(0.0, color="0.65", linewidth=0.7)
     axes[0].set_xlabel(r"Normalized action $u_t$")
@@ -70,7 +106,7 @@ def main() -> None:
     axes[0].set_xlim(-1.0, 1.0)
     axes[0].set_ylim(-23.0, 23.0)
     axes[0].set_yticks((-20.0, -10.0, 0.0, 10.0, 20.0))
-    axes[0].legend(loc="upper left", ncol=2, frameon=True)
+    axes[0].legend(loc="upper left", frameon=False)
 
     actual_power = storage_side_power(grid_power)
     axes[1].plot(
