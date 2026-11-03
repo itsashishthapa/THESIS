@@ -324,7 +324,7 @@ class SteamEnv(gym.Env):
         terminal_temperature_gap = float(
             np.clip((self.T_s_0 - self.T_s_k) / temperature_range, -1.0, 1.0)
         )
-        time_index = float(self.k / max(self.K - 1, 1))
+        time_index = float(k / max(self.K - 1, 1))
 
         base = np.array(
             [

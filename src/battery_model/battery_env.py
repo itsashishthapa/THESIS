@@ -47,6 +47,12 @@ class BatteryEnv(gym.Env):
         self.E_max = float(E_max)
         self.SOC_0 = float(SOC_0)
         self.forecast_h = int(forecast_h)
+        if self.forecast_h <= 0:
+            raise ValueError("forecast_h must be positive.")
+        if self.forecast_h > self.T:
+            raise ValueError(
+                "forecast_h cannot be larger than the supplied price trajectory."
+            )
         self.smooth_k = float(smooth_k)
         self.deadband_eps = float(deadband_eps)
         self.efficiency_eps = float(efficiency_eps)
@@ -276,8 +282,10 @@ class RandomWindowEnv(gym.Env):
 
     def __init__(self, prices_full, window_len=24, price_scale=None, **kwargs):
         self.prices_full = prices_full
-        self.window_len = window_len
-        self.max_start = len(prices_full) - window_len
+        self.window_len = int(window_len)
+        if self.window_len > len(prices_full):
+            raise ValueError("window_len cannot be larger than the available price history.")
+        self.max_start = len(prices_full) - self.window_len
         self.kwargs = kwargs
         self.price_scale = price_scale
         # Create a dummy env to get spaces
