@@ -120,9 +120,21 @@ def get_battery_model(e_price, verbose=True):
         solver.options['max_iter'] = 1000
 
         start_time = time.time()
-        solver.solve(model, tee=verbose)
+        result = solver.solve(model, tee=verbose)
         end_time = time.time()
         elapsed_time = end_time - start_time
+
+        is_optimal = (
+            result.solver.status == SolverStatus.ok
+            and result.solver.termination_condition
+            in (TerminationCondition.optimal, TerminationCondition.locallyOptimal)
+        )
+        if not is_optimal:
+            return {
+                'status': 'failed',
+                'error': str(result.solver.termination_condition),
+                'time': elapsed_time,
+            }
 
         u_opt = [float(value(model.u[t])) for t in range(T)]
         soc_opt = [float(value(model.SOC[t])) for t in range(T)]
