@@ -64,6 +64,29 @@ def load_price_data():
     return prices_full, global_price_scale
 
 
+def split_train_validation_prices(
+    prices_full,
+    validation_fraction=0.2,
+    window_len=24,
+):
+    """Split a price series into chronological training and validation blocks."""
+    prices_full = np.asarray(prices_full, dtype=float)
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1.")
+
+    split_idx = int(len(prices_full) * (1.0 - validation_fraction))
+    prices_train = prices_full[:split_idx]
+    prices_validation = prices_full[split_idx:]
+
+    if len(prices_train) < window_len or len(prices_validation) < window_len:
+        raise ValueError(
+            "Training and validation blocks must each contain at least "
+            f"{window_len} prices."
+        )
+
+    return prices_train, prices_validation
+
+
 def compute_total_cost(prices, power, dt=1.0, price_unit_scale=1000.0):
     """Compute total grid cost in euros, matching the v2 Pyomo model."""
     return float(np.sum((np.asarray(prices) / price_unit_scale) * np.asarray(power) * dt))
@@ -154,6 +177,18 @@ def _parse_args():
         default=None,
         help="Path to the saved model without .zip",
     )
+    parser.add_argument(
+        "--start-hour",
+        type=int,
+        default=None,
+        help="Zero-based start index for a 24-hour evaluation window (defaults to first held-out validation window)",
+    )
+    parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological held-out validation fraction",
+    )
     return parser.parse_args()
 
 
@@ -161,14 +196,22 @@ if __name__ == '__main__':
     args = _parse_args()
 
     # Load price data
-    prices_full, global_price_scale = load_price_data()
+    prices_full, _ = load_price_data()
+    prices_train, prices_validation = split_train_validation_prices(
+        prices_full,
+        validation_fraction=args.validation_fraction,
+    )
+    global_price_scale = float(np.percentile(np.abs(prices_train), 95) + 1e-6)
     
     # Load trained model
     model = load_rl_model(args.algorithm, args.model_path)
     print(f"{normalize_algorithm(args.algorithm)} model loaded successfully!")
     
-    # Evaluate
-    prices_eval = prices_full[72:96]
+    # Evaluate on held-out validation split by default
+    if args.start_hour is not None:
+        prices_eval = prices_full[args.start_hour : args.start_hour + 24]
+    else:
+        prices_eval = prices_validation[:24]
     print(f'Evaluation window: {len(prices_eval)} hours')
     
     # Run evaluation

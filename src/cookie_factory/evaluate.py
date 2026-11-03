@@ -21,11 +21,22 @@ from src.cookie_factory.train import (
     load_cookie_data,
     load_environment_config,
     normalize_algorithm,
+    split_train_validation_data,
 )
 
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_SAC_terminal"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 FIRST_24_ROWS = 24
+VIOLATION_SUMMARY_COLUMNS = [
+    "constraint_violation_bypass_post",
+    "constraint_violation_complementarity_post",
+    "constraint_violation_flow",
+    "constraint_violation_inlet_temperature",
+    "constraint_violation_state",
+    "constraint_violation_grid_post",
+    "constraint_violation_coupling",
+    "constraint_violation_terminal_cyclic",
+]
 
 
 def load_first_24_cookie_data(
@@ -105,14 +116,12 @@ def evaluate_first_24_data(
     print("\nFirst 24-row evaluation result:")
     print(pd.DataFrame([result]).to_string(index=False))
     if not trajectories.empty:
-        violation_columns = [
-            "constraint_violation_bypass_post",
-            "constraint_violation_complementarity_post",
-            "constraint_violation_state",
-            "constraint_violation_grid_post",
-            "constraint_violation_coupling",
-        ]
-        violation_summary = trajectories[violation_columns].sum().sort_values(ascending=False).reset_index()
+        violation_summary = (
+            trajectories[VIOLATION_SUMMARY_COLUMNS]
+            .sum()
+            .sort_values(ascending=False)
+            .reset_index()
+        )
         violation_summary.columns = ["constraint", "total_violation"]
         violation_summary["mean_violation_per_step"] = violation_summary["total_violation"] / len(trajectories)
         print("\nFirst 24-row violation breakdown:")
@@ -291,23 +300,22 @@ def evaluate_model(
             })
 
         trajectory_df_ep = pd.DataFrame(step_info_list)
+        terminal_deviation = abs(float(trajectory_df_ep.iloc[-1]["T_s"]) - raw_env.T_s_0)
+        terminal_cyclic_violation = (
+            terminal_deviation if raw_env.enforce_cyclic_boundary else 0.0
+        )
+        trajectory_df_ep["constraint_violation_terminal_cyclic"] = 0.0
+        trajectory_df_ep.loc[
+            trajectory_df_ep.index[-1], "constraint_violation_terminal_cyclic"
+        ] = terminal_cyclic_violation
         trajectory_list.append(trajectory_df_ep)
 
         env.close()
 
         # Aggregate episode stats
-        total_violations = (
-            trajectory_df_ep["constraint_violation_bypass_post"].sum()
-            + trajectory_df_ep["constraint_violation_complementarity_post"].sum()
-            + trajectory_df_ep["constraint_violation_state"].sum()
-            + trajectory_df_ep["constraint_violation_grid_post"].sum()
-            + trajectory_df_ep["constraint_violation_coupling"].sum()
+        total_violations = float(
+            trajectory_df_ep[VIOLATION_SUMMARY_COLUMNS].sum().sum()
         )
-
-        terminal_deviation = abs(float(trajectory_df_ep.iloc[-1]["T_s"]) - raw_env.T_s_0)
-        total_violations += trajectory_df_ep["constraint_violation_flow"].sum()
-        total_violations += trajectory_df_ep["constraint_violation_inlet_temperature"].sum()
-        total_violations += terminal_deviation if raw_env.enforce_cyclic_boundary else 0.0
         ep_stats = {
             "terminal_deviation_C": terminal_deviation,
             "episode": ep,
@@ -368,6 +376,17 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Zero-based row index for a fixed evaluation window",
     )
+    parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological held-out fraction used when sampling random windows",
+    )
+    parser.add_argument(
+        "--full-data",
+        action="store_true",
+        help="Sample random evaluation windows from the full dataset instead of the held-out validation split",
+    )
     parser.add_argument("--stochastic", action="store_true", help="Use stochastic (random) actions instead of deterministic")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output-dir", default="results/eval", help="Where to save results")
@@ -403,6 +422,22 @@ def main() -> None:
         price_col=args.price_col,
         wind_col=args.wind_col,
     )
+    g_grid_train, P_WT_train, g_grid_validation, P_WT_validation = (
+        split_train_validation_data(
+            g_grid_full,
+            P_WT_full,
+            validation_fraction=args.validation_fraction,
+            window_len=args.window_len,
+        )
+    )
+    price_scale = float(np.percentile(np.abs(g_grid_train), 95) + 1e-6)
+    wind_scale = float(np.percentile(np.abs(P_WT_train), 95) + 1e-6)
+    if args.start_hour is not None or args.full_data:
+        eval_prices = g_grid_full
+        eval_wind = P_WT_full
+    else:
+        eval_prices = g_grid_validation
+        eval_wind = P_WT_validation
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -416,8 +451,8 @@ def main() -> None:
 
     episode_stats, trajectories = evaluate_model(
         model_path=model_path,
-        g_grid_full=g_grid_full,
-        P_WT_full=P_WT_full,
+        g_grid_full=eval_prices,
+        P_WT_full=eval_wind,
         price_scale=price_scale,
         wind_scale=wind_scale,
         num_episodes=args.num_episodes,
@@ -443,14 +478,12 @@ def main() -> None:
         trajectories.to_csv(traj_csv, index=False)
         print(f"\nSaved trajectory details to {traj_csv}")
 
-        violation_columns = [
-            "constraint_violation_bypass_post",
-            "constraint_violation_complementarity_post",
-            "constraint_violation_state",
-            "constraint_violation_grid_post",
-            "constraint_violation_coupling",
-        ]
-        violation_summary = trajectories[violation_columns].sum().sort_values(ascending=False).reset_index()
+        violation_summary = (
+            trajectories[VIOLATION_SUMMARY_COLUMNS]
+            .sum()
+            .sort_values(ascending=False)
+            .reset_index()
+        )
         violation_summary.columns = ["constraint", "total_violation"]
         violation_summary["mean_violation_per_step"] = violation_summary["total_violation"] / len(trajectories)
 
