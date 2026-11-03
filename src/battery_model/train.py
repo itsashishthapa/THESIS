@@ -183,7 +183,7 @@ def train_model(
     prices_full,
     price_scale,
     log_dir="./logs",
-    total_timesteps=100000,
+    total_timesteps=200_000,
     model_kwargs=None,
     algorithm=DEFAULT_ALGORITHM,
     model_path=None,

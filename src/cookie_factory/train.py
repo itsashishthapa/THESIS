@@ -23,11 +23,11 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from src.cookie_factory.cookie_factory_env import RandomWindowEnv, SteamEnv
 
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_SAC_terminal"
 DEFAULT_ALGORITHM = "SAC"
 DEFAULT_MODEL_PATHS = {
     "SAC": DEFAULT_MODEL_PATH,
-    "TD3": "src/cookie_factory/cookie_td3_derived",
+    "TD3": "src/cookie_factory/cookie_TD3_terminal",
 }
 MODEL_CLASSES = {
     "SAC": SAC,
@@ -424,7 +424,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--model-path", default=None, help="Where to save the model")
     parser.add_argument("--log-dir", default=None, help="TensorBoard/log directory")
     parser.add_argument(
-        "--timesteps", type=int, default=20_000, help="Total training steps"
+        "--timesteps", type=int, default=200_000, help="Total training steps"
     )
     parser.add_argument(
         "--window-len", type=int, default=24, help="Random training window length"
