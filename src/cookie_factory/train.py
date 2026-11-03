@@ -348,7 +348,6 @@ def train_model(
         env,
         norm_obs=True,
         norm_reward=True,
-        gamma=model_init_kwargs.get("gamma", 0.99),
     )
 
     model = model_class("MlpPolicy", env, **model_init_kwargs)

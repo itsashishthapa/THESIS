@@ -188,7 +188,7 @@ def plot_comparison_distances(
     show=False,
     algorithm=DEFAULT_ALGORITHM,
 ):
-    """Create a thesis-ready RL versus mathematical-optimization comparison plot."""
+    """Create a thesis-ready RL versus optimization-baseline comparison plot."""
     rl_costs = np.asarray(results['rl']['costs'], dtype=float)
     pyomo_costs = np.asarray(results['pyomo']['costs'], dtype=float)
     n = min(len(rl_costs), len(pyomo_costs))
@@ -244,15 +244,15 @@ def plot_comparison_distances(
         markersize=8,
         linewidth=2,
         color=optimum_color,
-        label='Mathematical optimization',
+        label='Optimization baseline',
     )
     axes[0].set_title(
-        f'{algorithm} vs. Mathematical Optimization Across 24-Hour Comparison Windows',
+        f'{algorithm} vs. Optimization Baseline Across 24-Hour Comparison Windows',
         fontsize=20,
         fontweight='bold',
         pad=14,
     )
-    axes[0].set_ylabel('Objective value [€]', fontsize=14, fontweight='bold')
+    axes[0].set_ylabel('Objective value [EUR]', fontsize=14, fontweight='bold')
     axes[0].set_xticks(x)
     axes[0].set_xticklabels(labels, fontsize=11, fontweight='bold')
     axes[0].legend(loc='upper right', frameon=True, fancybox=True, framealpha=0.95)
@@ -263,7 +263,7 @@ def plot_comparison_distances(
     axes[1].text(
         max(0, n / 2 - 0.2),
         mean_gap + max(0.04, 0.035 * max(abs_cost_gaps)),
-        f'Mean gap = €{mean_gap:.2f}',
+        f'Mean gap = EUR {mean_gap:.2f}',
         color='#c41218',
         fontsize=13,
         fontweight='bold',
@@ -284,7 +284,7 @@ def plot_comparison_distances(
     for rank, index in enumerate(ranked[:2], start=1):
         label = 'Largest gap' if rank == 1 else '2nd largest gap'
         axes[1].annotate(
-            f'{label}\n€{abs_cost_gaps[index]:.2f}',
+            f'{label}' + chr(10) + f'EUR {abs_cost_gaps[index]:.2f}',
             xy=(index, abs_cost_gaps[index]),
             xytext=(0, 26),
             textcoords='offset points',
@@ -296,12 +296,12 @@ def plot_comparison_distances(
         )
 
     axes[1].set_title(
-        f'Optimality Gap to Mathematical Optimization (|{algorithm} − Optimum|)',
+        f'Objective Gap to Optimization Baseline (|{algorithm} − Optimization Baseline|)',
         fontsize=18,
         fontweight='bold',
         pad=12,
     )
-    axes[1].set_ylabel('Optimality gap [€]', fontsize=14, fontweight='bold')
+    axes[1].set_ylabel('Objective gap [EUR]', fontsize=14, fontweight='bold')
     axes[1].set_xticks(x)
     axes[1].set_xticklabels([f'Window {i + 1}' for i in range(n)], fontweight='bold')
     axes[1].set_xlim(-0.55, n - 0.45)
