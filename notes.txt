@@ -1,11 +1,11 @@
-The state-of-the-art (SOTA) reinforcement learning (RL) methods for prescribing the optimal operational point in energy systems focus on 
-Deep RL algorithms such as Deep Q-Network (DQN), Proximal Policy Optimization (PPO), 
+The state-of-the-art (SOTA) reinforcement learning (RL) methods for prescribing the optimal operational point in energy systems focus on
+Deep RL algorithms such as Deep Q-Network (DQN), Proximal Policy Optimization (PPO),
 Twin Delayed Deep Deterministic Policy Gradient (TD3), and Soft Actor-Critic (SAC)
 
 While these SOTA RL algorithms are effective, many studies lack robust benchmarking against white-box or gray-box models and have yet to fully leverage batch RL and all available historical operational data.
 
 
-- to compare energy management with mathematical, numrical optimization and RL(can we use RL instead of mathematical optimization). ****
+- to compare energy management with numerical optimization and RL (can we use RL instead of model-based optimization?). ****
 - which set point is optimal, can RL be used for set point of optimization.
 - find potential of RL in set point optimization.
 - Question to address and why.
@@ -16,7 +16,7 @@ Feedbacks:
 
 # lifecycle of the battery, self dischanging on long term.
 
-# when mathematical optimization is unstable use RL, 
+# when model-based optimization is unstable use RL,
 # cpu time, RL(training and testing)
 # take data from dwd (wind speed)(extrapolate to wind power)(location:hoyerswerda)
 # smard for electricity price.(location:germany)
@@ -150,9 +150,9 @@ temperature, storage state, and terminal cyclic violations.
 
 
 -----------------------------------------------------------------------------------------
-1. reduce page length
-2. change result as suggested by electricity
-3. have subscection in methodology.
+1. reduce page length (done)
+2. change result as suggested by electricity ??
+3. have subscection in methodology 
 4. mention about why 5 actions was reduced to 2 actions..
 5. fix TI to TIII, in the equation(5)
 6. add some plots(finding R) (R may not be feasible if massflow is higer than 0.8)
@@ -162,8 +162,15 @@ temperature, storage state, and terminal cyclic violations.
 10. mention why use previous action in RL.
 11. running cost and terminal cost.
 12. describe finite time horizon and how terminal penalty is absorved in the running cost.
-13. keep just 2 digits( specally in results)
+13. keep just 2 digits( specally in results) (done)
 14. mention +- (SD)
 15. give some interpretation in the result section.
 16. make footnote for units.
-17. instead of mathematical optimization say benchmark optimization
+17. use "model-based optimization" for the method and "optimization baseline" for comparisons
+
+
+--------------------------------------------------------------------------------------
+
+1. reduce constrained optimization.
+2. warm start(initialization).
+3. apply energy optimization.
