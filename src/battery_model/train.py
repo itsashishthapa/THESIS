@@ -211,7 +211,7 @@ def train_model(
         "batch_size": 256,
         "learning_rate": 3e-4,
         "tau": 0.005,
-        "gamma": 1, # TODO: set gamma to 1(check result)
+        "gamma": 1, 
         "train_freq": 1,
         "gradient_steps": 1,
         "verbose": 1,
@@ -636,7 +636,7 @@ if __name__ == "__main__":
     # Single run
     model_kwargs = {
         "learning_rate": linear_schedule(3e-4),
-        "gamma": 0.99,
+        "gamma": 1,
     }
     # model_kwargs = {
     #     'learning_rate': power_schedule(3e-4),
