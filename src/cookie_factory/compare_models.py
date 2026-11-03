@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import time
 from pathlib import Path
 from typing import Any
@@ -32,9 +33,10 @@ from src.cookie_factory.train import (
     load_cookie_data,
     load_environment_config,
     normalize_algorithm,
+    split_train_validation_data,
 )
 
-DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_sac_derived"
+DEFAULT_MODEL_PATH = "src/cookie_factory/cookie_SAC_terminal"
 DEFAULT_DATA_PATH = "cookie_model/WKA_Pe_merged.csv"
 DEFAULT_OUTPUT_DIR = "results/cookie_factory_comparison"
 VIOLATION_TOLERANCE = 1e-6
@@ -91,19 +93,24 @@ def _rl_step_info(info: dict[str, Any]) -> dict[str, float]:
     }
 
 
-def _add_terminal_cyclic_violation(trajectory: pd.DataFrame) -> pd.DataFrame:
+def _add_terminal_cyclic_violation(
+    trajectory: pd.DataFrame,
+    enforce_cyclic_boundary: bool = True,
+    terminal_target: float = TERMINAL_STORAGE_TEMPERATURE,
+) -> pd.DataFrame:
     """Record the cyclic TES-temperature residual on the final rollout step."""
     if trajectory.empty:
         return trajectory
 
     trajectory = trajectory.copy()
-    terminal_deviation = abs(
-        float(trajectory.iloc[-1]["T_s"]) - TERMINAL_STORAGE_TEMPERATURE
-    )
     trajectory["violation_terminal_cyclic"] = 0.0
-    trajectory.loc[trajectory.index[-1], "violation_terminal_cyclic"] = (
-        terminal_deviation if terminal_deviation > VIOLATION_TOLERANCE else 0.0
-    )
+    if enforce_cyclic_boundary:
+        terminal_deviation = abs(
+            float(trajectory.iloc[-1]["T_s"]) - float(terminal_target)
+        )
+        trajectory.loc[trajectory.index[-1], "violation_terminal_cyclic"] = (
+            terminal_deviation if terminal_deviation > VIOLATION_TOLERANCE else 0.0
+        )
     trajectory["violation_total"] += trajectory["violation_terminal_cyclic"]
     return trajectory
 
@@ -168,7 +175,11 @@ def run_rl_model(
 
     elapsed = time.perf_counter() - started
     env.close()
-    trajectory = _add_terminal_cyclic_violation(pd.DataFrame(rows))
+    trajectory = _add_terminal_cyclic_violation(
+        pd.DataFrame(rows),
+        enforce_cyclic_boundary=raw_env.enforce_cyclic_boundary,
+        terminal_target=raw_env.T_s_0,
+    )
     violation_totals = _violation_totals(trajectory)
     return (
         {
@@ -187,6 +198,7 @@ def run_pyomo_model(
     wind: np.ndarray,
     solver_name: str,
     max_iter: int,
+    enforce_cyclic_boundary: bool = True,
 ) -> tuple[dict[str, Any] | None, pd.DataFrame | None, str | None]:
     """Solve one matching Pyomo window and calculate its feasibility metrics."""
     result = get_cookie_model(
@@ -233,7 +245,10 @@ def run_pyomo_model(
         lambda row: _constraint_violations(row.to_dict()), axis=1, result_type="expand"
     )
     violations.columns = [f"violation_{name}" for name in violations.columns]
-    trajectory = _add_terminal_cyclic_violation(pd.concat([trajectory, violations], axis=1))
+    trajectory = _add_terminal_cyclic_violation(
+        pd.concat([trajectory, violations], axis=1),
+        enforce_cyclic_boundary=enforce_cyclic_boundary,
+    )
     violation_totals = _violation_totals(trajectory)
     return (
         {
@@ -259,6 +274,8 @@ def compare_models(
     solver_name: str,
     max_iter: int,
     start_hour: int | None = None,
+    validation_fraction: float = 0.2,
+    full_data: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Compare an RL policy and Pyomo over identical input windows."""
     if comparisons <= 0:
@@ -275,6 +292,16 @@ def compare_models(
     if start_hour is not None and not 0 <= start_hour <= max_start:
         raise ValueError(f"start_hour must be between 0 and {max_start}")
 
+    prices_train, wind_train, _, _ = split_train_validation_data(
+        prices,
+        wind,
+        validation_fraction=validation_fraction,
+        window_len=window_len,
+    )
+    price_scale = float(np.percentile(np.abs(prices_train), 95) + 1e-6)
+    wind_scale = float(np.percentile(np.abs(wind_train), 95) + 1e-6)
+    min_random_start = 0 if full_data else len(prices_train)
+
     vecnormalize_path = f"{model_path}_vecnormalize.pkl"
     if not Path(vecnormalize_path).exists():
         vecnormalize_path = None
@@ -283,12 +310,21 @@ def compare_models(
     algorithm = normalize_algorithm(algorithm)
     model = get_model_class(algorithm).load(model_path)
     environment_config = load_environment_config(model_path)
+    enforce_cyclic_boundary = bool(
+        environment_config.get("enforce_cyclic_boundary", True)
+    )
+    random.seed(seed)
+    np.random.seed(seed)
     rng = np.random.default_rng(seed)
     summary_rows: list[dict[str, Any]] = []
     trajectory_frames: list[pd.DataFrame] = []
 
     for comparison in range(comparisons):
-        start = start_hour if start_hour is not None else int(rng.integers(max_start + 1))
+        start = (
+            start_hour
+            if start_hour is not None
+            else int(rng.integers(min_random_start, max_start + 1))
+        )
         end = start + window_len
         prices_window = prices[start:end]
         wind_window = wind[start:end]
@@ -309,6 +345,7 @@ def compare_models(
             wind_window,
             solver_name,
             max_iter,
+            enforce_cyclic_boundary=enforce_cyclic_boundary,
         )
         if pyomo_metrics is None or pyomo_trajectory is None:
             print(f"  Pyomo failed: {error}")
@@ -473,6 +510,7 @@ def violation_breakdown(trajectories: pd.DataFrame) -> pd.DataFrame:
         column
         for column in trajectories.columns
         if column.startswith("violation_")
+        and column != "violation_total"
         and column.removeprefix("violation_") not in GUARANTEED_RL_CONSTRAINTS
     ]
     if trajectories.empty or not violation_columns:
@@ -520,6 +558,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--window-len", type=int, default=24)
     parser.add_argument("--forecast-h", type=int, default=24)
     parser.add_argument("--start-hour", type=int, default=None)
+    parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological held-out fraction used when sampling random windows",
+    )
+    parser.add_argument(
+        "--full-data",
+        action="store_true",
+        help="Sample random windows from the full dataset instead of the held-out validation split",
+    )
     parser.add_argument("--seed", type=int, default=22)
     parser.add_argument("--solver", default="ipopt")
     parser.add_argument("--max-iter", type=int, default=1000)
@@ -548,6 +597,8 @@ def main() -> None:
         solver_name=args.solver,
         max_iter=args.max_iter,
         start_hour=args.start_hour,
+        validation_fraction=args.validation_fraction,
+        full_data=args.full_data,
     )
 
     output_dir = Path(args.output_dir)

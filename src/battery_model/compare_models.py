@@ -17,6 +17,7 @@ from src.battery_model.evaluate import (
     load_price_data,
     load_rl_model,
     normalize_algorithm,
+    split_train_validation_prices,
 )
 from src.battery_model.price_model import (
     DEFAULT_PRICE_MODEL_HOURS,
@@ -84,10 +85,32 @@ def _terminal_soc_shortfall(socs, terminal_soc_min=TERMINAL_SOC_MIN):
     return float(max(float(terminal_soc_min) - socs[-1], 0.0))
 
 
-def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_comparisons=10):
+def compare_models(
+    prices_full,
+    global_price_scale,
+    rl_model,
+    window_len=24,
+    n_comparisons=10,
+    validation_fraction=0.2,
+    full_data=False,
+    seed=42,
+):
     """
     Compare RL and Pyomo models on multiple random windows.
     """
+    prices_full = np.asarray(prices_full, dtype=float)
+    max_start = len(prices_full) - window_len
+    if max_start < 0:
+        raise ValueError("prices_full must contain at least window_len values.")
+
+    prices_train, _ = split_train_validation_prices(
+        prices_full,
+        validation_fraction=validation_fraction,
+        window_len=window_len,
+    )
+    min_random_start = 0 if full_data else len(prices_train)
+    rng = np.random.default_rng(seed)
+
     results = {
         'rl': {
             'costs': [], 'times': [], 'max_socs': [], 'min_socs': [],
@@ -110,9 +133,8 @@ def compare_models(prices_full, global_price_scale, rl_model, window_len=24, n_c
     print("="*80)
     
     for i in range(n_comparisons):
-        # Randomly select window
-        max_start = len(prices_full) - window_len
-        start_idx = np.random.randint(0, max_start + 1)
+        # Randomly select window from held-out validation split (unless full_data is enabled)
+        start_idx = int(rng.integers(min_random_start, max_start + 1))
         prices_window = prices_full[start_idx:start_idx + window_len]
         
         print(f"\nComparison {i+1}/{n_comparisons}")
@@ -460,6 +482,23 @@ def _parse_args():
         help="Number of random windows to compare",
     )
     parser.add_argument(
+        "--validation-fraction",
+        type=float,
+        default=0.2,
+        help="Chronological held-out fraction used when sampling random windows",
+    )
+    parser.add_argument(
+        "--full-data",
+        action="store_true",
+        help="Sample random windows from the full dataset instead of the held-out validation split",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for comparison window selection",
+    )
+    parser.add_argument(
         "--use-price-model",
         action="store_true",
         help="Generate comparison prices with price_model instead of loading electricity_price.txt",
@@ -513,13 +552,25 @@ if __name__ == '__main__':
     else:
         prices_full, global_price_scale = load_price_data()
     
+    prices_train, _ = split_train_validation_prices(
+        prices_full,
+        validation_fraction=args.validation_fraction,
+    )
+    global_price_scale = float(np.percentile(np.abs(prices_train), 95) + 1e-6)
+
     rl_model = load_rl_model(args.algorithm, args.model_path)
     print(f"{args.algorithm} model loaded successfully!")
     
     # Run comparisons
     results = compare_models(
-        prices_full, global_price_scale, rl_model,
-        window_len=24, n_comparisons=args.comparisons
+        prices_full,
+        global_price_scale,
+        rl_model,
+        window_len=24,
+        n_comparisons=args.comparisons,
+        validation_fraction=args.validation_fraction,
+        full_data=args.full_data,
+        seed=args.seed,
     )
     
     # Print results
