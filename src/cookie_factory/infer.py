@@ -9,13 +9,17 @@ import os
 
 import numpy as np
 import pandas as pd
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, TD3
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 
 from src.cookie_factory.cookie_factory_env import SteamEnv
 from src.cookie_factory.train import (
+    DEFAULT_ALGORITHM,
     DEFAULT_MODEL_PATH,
+    get_model_class,
+    get_model_path,
     load_environment_config,
+    normalize_algorithm,
 )
 
 DEFAULT_DATA_PATH = "cookie_model/data_24h_test.xlsx"
@@ -56,7 +60,7 @@ def load_cookie_data(
 
 
 def run_inference(
-    model: SAC,
+    model: SAC | TD3,
     g_grid: np.ndarray,
     P_WT: np.ndarray,
     forecast_h: int,
@@ -109,15 +113,21 @@ def run_inference(
                 "T_s_k": float(info.get("T_s_k", np.nan)),
                 "P_grid_k": float(info.get("P_grid_k", np.nan)),
                 "cost_grid_k": float(info.get("cost_grid_k", np.nan)),
-                "mode_violation_k": float(info.get("mode_violation_k", np.nan)),
-                "state_violation_k": float(info.get("state_violation_k", np.nan)),
-                "complementarity_violation_k": float(info.get("complementarity_violation_k", np.nan)),
-                "f4_residual_k": float(info.get("f4_residual_k", np.nan)),
-                "f5_residual_k": float(info.get("f5_residual_k", np.nan)),
+                "bypass_sum_violation_k": float(info.get("bypass_sum_violation_k", 0.0)),
+                "complementarity_violation_k": float(info.get("complementarity_violation_k", 0.0)),
+                "flow_bound_violation_k": float(info.get("flow_bound_violation_k", 0.0)),
+                "T_I_bound_violation_k": float(info.get("T_I_bound_violation_k", 0.0)),
+                "state_violation_k": float(info.get("state_violation_k", 0.0)),
+                "grid_bound_violation_k": float(info.get("grid_bound_violation_k", 0.0)),
+                "f4_residual_k": float(info.get("f4_residual_k", 0.0)),
+                "f5_residual_k": float(info.get("f5_residual_k", 0.0)),
             }
         )
         step_idx += 1
 
+    terminal_cyclic_violation = (
+        abs(env.T_s_k - env.T_s_0) if enforce_cyclic_boundary else 0.0
+    )
     if normalization is not None:
         normalization.close()
     else:
@@ -127,11 +137,15 @@ def run_inference(
         "steps": float(len(rollout_df)),
         "cumulative_reward": float(rollout_df["reward"].sum()),
         "total_cost": float(rollout_df["cost_grid_k"].sum()),
-        "mean_mode_violation": float(rollout_df["mode_violation_k"].mean()),
-        "mean_state_violation": float(rollout_df["state_violation_k"].mean()),
+        "mean_bypass_violation": float(rollout_df["bypass_sum_violation_k"].mean()),
         "mean_complementarity_violation": float(rollout_df["complementarity_violation_k"].mean()),
+        "mean_flow_violation": float(rollout_df["flow_bound_violation_k"].mean()),
+        "mean_inlet_temp_violation": float(rollout_df["T_I_bound_violation_k"].mean()),
+        "mean_state_violation": float(rollout_df["state_violation_k"].mean()),
+        "mean_grid_violation": float(rollout_df["grid_bound_violation_k"].mean()),
         "mean_abs_f4_residual": float(rollout_df["f4_residual_k"].abs().mean()),
         "mean_abs_f5_residual": float(rollout_df["f5_residual_k"].abs().mean()),
+        "terminal_cyclic_violation": float(terminal_cyclic_violation),
     }
 
     if output_csv:
@@ -149,9 +163,16 @@ def run_inference(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run inference for Cookie Factory SAC model")
+    parser = argparse.ArgumentParser(description="Run inference for Cookie Factory RL model")
+    parser.add_argument(
+        "--algorithm",
+        type=normalize_algorithm,
+        default=DEFAULT_ALGORITHM,
+        choices=("SAC", "TD3"),
+        help="RL algorithm used by the saved model",
+    )
     parser.add_argument("--data", default=DEFAULT_DATA_PATH, help="Path to Excel dataset")
-    parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH, help="Path to trained model (without .zip)")
+    parser.add_argument("--model-path", default=None, help="Path to trained model (without .zip)")
     parser.add_argument("--forecast-h", type=int, default=24, help="Forecast horizon")
     parser.add_argument("--no-cyclic-boundary", action="store_true", help="Disable cyclic terminal boundary (F14) penalty in env")
     parser.add_argument("--price-col", type=int, default=2, help="Excel column index for grid price")
@@ -163,6 +184,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
+    model_path = args.model_path or get_model_path(args.algorithm)
 
     g_grid_full, P_WT_full, price_scale, wind_scale = load_cookie_data(
         excel_path=args.data,
@@ -170,9 +192,9 @@ def main() -> None:
         wind_col_idx=args.wind_col,
     )
 
-    model = SAC.load(args.model_path)
-    config = load_environment_config(args.model_path)
-    vecnormalize_path = f"{args.model_path}_vecnormalize.pkl"
+    model = get_model_class(args.algorithm).load(model_path)
+    config = load_environment_config(model_path)
+    vecnormalize_path = f"{model_path}_vecnormalize.pkl"
     if not os.path.exists(vecnormalize_path):
         vecnormalize_path = None
         print("VecNormalize statistics not found; using raw observations.")
