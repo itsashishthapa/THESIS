@@ -118,8 +118,19 @@ class BestValidationCostCallback(BaseCallback):
         )
 
         self.best_mean_cost = float("inf")
+        self.best_mean_violation = float("inf")
+        self.violation_tolerance = 1e-6
         self.best_step = None
         self.last_eval_step = None
+
+    def _is_better_checkpoint(self, mean_violation, mean_cost):
+        both_feasible = (
+            mean_violation <= self.violation_tolerance
+            and self.best_mean_violation <= self.violation_tolerance
+        )
+        if both_feasible or abs(mean_violation - self.best_mean_violation) <= 1e-6:
+            return mean_cost < self.best_mean_cost
+        return mean_violation < self.best_mean_violation
 
     def _evaluate(self):
         costs = []
@@ -141,16 +152,19 @@ class BestValidationCostCallback(BaseCallback):
 
         mean_cost = float(np.mean(costs))
         mean_reward = float(np.mean(total_rewards))
+        mean_violation = float(np.mean(terminal_violations))
         violation_rate = float(
-            np.mean(np.asarray(terminal_violations) > 1e-6)
+            np.mean(np.asarray(terminal_violations) > self.violation_tolerance)
         )
 
         self.logger.record("validation/mean_cost", mean_cost)
         self.logger.record("validation/mean_reward", mean_reward)
+        self.logger.record("validation/mean_terminal_violation", mean_violation)
         self.logger.record("validation/terminal_violation_rate", violation_rate)
 
-        improved = mean_cost < self.best_mean_cost
+        improved = self._is_better_checkpoint(mean_violation, mean_cost)
         if improved:
+            self.best_mean_violation = mean_violation
             self.best_mean_cost = mean_cost
             self.best_step = int(self.num_timesteps)
             self.model.save(self.model_path)
@@ -623,6 +637,7 @@ if __name__ == "__main__":
         prices_full,
         validation_fraction=args.validation_fraction,
     )
+    global_price_scale = float(np.percentile(np.abs(prices_train), 95) + 1e-6)
     print(
         f"Training prices: {len(prices_train)} hours | "
         f"Validation prices: {len(prices_validation)} hours"

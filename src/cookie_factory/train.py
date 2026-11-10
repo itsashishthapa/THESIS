@@ -169,7 +169,7 @@ def split_train_validation_data(
 
 
 class LowestViolationCheckpointCallback(BaseCallback):
-    """Save the policy whose validation windows have the lowest violation."""
+    """Save the best policy on validation windows using feasibility-first selection."""
 
     def __init__(
         self,
@@ -184,6 +184,7 @@ class LowestViolationCheckpointCallback(BaseCallback):
         n_validation_windows: int,
         seed: int,
         enforce_cyclic_boundary: bool,
+        violation_tolerance: float = 1e-3,
     ):
         super().__init__()
         self.g_grid_validation = np.asarray(g_grid_validation, dtype=np.float32)
@@ -195,7 +196,9 @@ class LowestViolationCheckpointCallback(BaseCallback):
         self.forecast_h = int(forecast_h)
         self.eval_freq = max(int(eval_freq), 1)
         self.enforce_cyclic_boundary = bool(enforce_cyclic_boundary)
+        self.violation_tolerance = float(violation_tolerance)
         self.best_mean_violation = float("inf")
+        self.best_mean_cost = float("inf")
         self.last_eval_step: int | None = None
 
         if n_validation_windows <= 0:
@@ -212,7 +215,7 @@ class LowestViolationCheckpointCallback(BaseCallback):
             )
         )
 
-    def _window_violation(self, start: int) -> float:
+    def _window_metrics(self, start: int) -> tuple[float, float, float]:
         end = start + self.window_len
         env = SteamEnv(
             self.g_grid_validation[start:end],
@@ -223,38 +226,57 @@ class LowestViolationCheckpointCallback(BaseCallback):
             enforce_cyclic_boundary=self.enforce_cyclic_boundary,
         )
         observation, _ = env.reset()
-        total = 0.0
+        total_violation = 0.0
+        total_cost = 0.0
+        total_reward = 0.0
         done = False
         temperature_range = env.T_s_max - env.T_s_min
         while not done:
             normalized_observation = self.training_env.normalize_obs(observation)
             action, _ = self.model.predict(normalized_observation, deterministic=True)
-            observation, _, terminated, truncated, info = env.step(action)
-            total += float(info["bypass_sum_violation_k"])
-            total += float(info["complementarity_violation_k"]) / env.Q_flow_max**2
-            total += float(info["flow_bound_violation_k"]) / env.Q_flow_max
-            total += float(info["T_I_bound_violation_k"]) / (250.0 - 177.0)
-            total += float(info["state_violation_k"]) / temperature_range
-            total += float(info["grid_bound_violation_k"]) / env.P_HP_max
-            total += abs(float(info["f4_residual_k"])) / temperature_range
+            observation, reward, terminated, truncated, info = env.step(action)
+            total_violation += float(info["bypass_sum_violation_k"])
+            total_violation += float(info["complementarity_violation_k"]) / env.Q_flow_max**2
+            total_violation += float(info["flow_bound_violation_k"]) / env.Q_flow_max
+            total_violation += float(info["T_I_bound_violation_k"]) / (250.0 - 177.0)
+            total_violation += float(info["state_violation_k"]) / temperature_range
+            total_violation += float(info["grid_bound_violation_k"]) / env.P_HP_max
+            total_violation += abs(float(info["f4_residual_k"])) / temperature_range
+            total_cost += float(info["cost_grid_k"])
+            total_reward += float(reward)
             done = bool(terminated or truncated)
 
         if self.enforce_cyclic_boundary:
-            total += abs(env.T_s_k - env.T_s_0) / temperature_range
-        return total
+            total_violation += abs(env.T_s_k - env.T_s_0) / temperature_range
+        return total_violation, total_cost, total_reward
+
+    def _is_better_checkpoint(self, mean_violation: float, mean_cost: float) -> bool:
+        both_feasible = (
+            mean_violation <= self.violation_tolerance
+            and self.best_mean_violation <= self.violation_tolerance
+        )
+        if both_feasible or abs(mean_violation - self.best_mean_violation) <= 1e-6:
+            return mean_cost < self.best_mean_cost
+        return mean_violation < self.best_mean_violation
 
     def _evaluate(self) -> None:
-        mean_violation = float(
-            np.mean([self._window_violation(int(start)) for start in self.validation_starts])
-        )
+        window_results = [
+            self._window_metrics(int(start)) for start in self.validation_starts
+        ]
+        mean_violation = float(np.mean([res[0] for res in window_results]))
+        mean_cost = float(np.mean([res[1] for res in window_results]))
+        mean_reward = float(np.mean([res[2] for res in window_results]))
         self.logger.record("validation/mean_normalized_violation", mean_violation)
-        if mean_violation < self.best_mean_violation:
+        self.logger.record("validation/mean_cost", mean_cost)
+        self.logger.record("validation/mean_reward", mean_reward)
+        if self._is_better_checkpoint(mean_violation, mean_cost):
             self.best_mean_violation = mean_violation
+            self.best_mean_cost = mean_cost
             self.model.save(self.model_path)
             self.training_env.save(f"{self.model_path}_vecnormalize.pkl")
             print(
-                f"Validation step {self.num_timesteps}: new best normalized "
-                f"violation={mean_violation:.6f}"
+                f"Validation step {self.num_timesteps}: new best checkpoint "
+                f"(violation={mean_violation:.6f}, cost={mean_cost:.4f} EUR)"
             )
         self.last_eval_step = self.num_timesteps
 

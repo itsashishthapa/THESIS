@@ -179,7 +179,7 @@ class SteamEnv(gym.Env):
             dtype=np.float32,
         )
 
-        self.reset(seed=42)
+        self._reset_state()
 
     @staticmethod
     def _norm_signed(x, scale):
@@ -394,8 +394,7 @@ class SteamEnv(gym.Env):
 
         return T_2_k, T_3_k
 
-    def reset(self, *, seed=None, options=None):
-        super().reset(seed=seed)
+    def _reset_state(self):
         self.k = 0
         self.T_s_k = self.T_s_0
         self._last_mode = 0
@@ -404,6 +403,10 @@ class SteamEnv(gym.Env):
         self._last_beta_command_k = 0.0
         self._last_m_I_k = 0.5 * (5.0 + 16.0)
         self._last_info = {}
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+        self._reset_state()
         return self._obs(), {}
 
     def step(self, action):
@@ -600,6 +603,7 @@ class RandomWindowEnv(gym.Env):
     """Random window wrapper"""
 
     def __init__(self, g_grid_full, P_WT_full, window_len=24, **kwargs):
+        super().__init__()
         self.g_grid_full = np.asarray(g_grid_full, dtype=np.float32)
         self.P_WT_full = np.asarray(P_WT_full, dtype=np.float32)
 
@@ -613,15 +617,14 @@ class RandomWindowEnv(gym.Env):
         self.max_start = n - self.window_len
         self.kwargs = kwargs
 
-        dummy = SteamEnv(
+        self.env = SteamEnv(
             self.g_grid_full[:window_len],
             self.P_WT_full[:window_len],
             **kwargs,
         )
-        self.observation_space = dummy.observation_space
-        self.action_space = dummy.action_space
-        self.metadata = dummy.metadata
-        self._sample_new_window()
+        self.observation_space = self.env.observation_space
+        self.action_space = self.env.action_space
+        self.metadata = self.env.metadata
 
     def _sample_new_window(self):
         start = int(self.np_random.integers(0, self.max_start + 1))

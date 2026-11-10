@@ -466,7 +466,6 @@ def main() -> None:
         wind_col=args.wind_col,
         hours=args.hours,
     )
-    print("price",power_price, power_wka)
     summary, best_result = run_multistart(
         power_price,
         power_wka,

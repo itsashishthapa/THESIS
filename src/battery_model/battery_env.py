@@ -89,7 +89,7 @@ class BatteryEnv(gym.Env):
         )
         # Action: continuous in [-1, 1], smoothly mapped to power.
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
-        self.reset(seed=42)
+        self._reset_state()
 
     def _smooth_gate(self, x):
         return 0.5 * (1.0 + np.tanh(self.smooth_k * x))
@@ -188,13 +188,16 @@ class BatteryEnv(gym.Env):
             (np.array([self.SOC, norm_price, norm_time], dtype=np.float32), forecast)
         )
 
-    def reset(self, *, seed=None, options=None):
-        super().reset(seed=seed)
+    def _reset_state(self):
         self.t = 0
         self.SOC = self.SOC_0
         self._last_P = 0.0
         self._last_P_actual = 0.0
         self.acc_cost = 0.0
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+        self._reset_state()
         return self._obs(), {}
 
     def step(self, action):
@@ -281,6 +284,7 @@ class RandomWindowEnv(gym.Env):
     """Wrapper that samples random windows from full price data on each reset"""
 
     def __init__(self, prices_full, window_len=24, price_scale=None, **kwargs):
+        super().__init__()
         self.prices_full = prices_full
         self.window_len = int(window_len)
         if self.window_len > len(prices_full):
@@ -288,25 +292,24 @@ class RandomWindowEnv(gym.Env):
         self.max_start = len(prices_full) - self.window_len
         self.kwargs = kwargs
         self.price_scale = price_scale
-        # Create a dummy env to get spaces
-        dummy = BatteryEnv(
+        self.env = BatteryEnv(
             prices_full[:window_len], price_scale=self.price_scale, **kwargs
         )
-        self.observation_space = dummy.observation_space
-        self.action_space = dummy.action_space
-        self.metadata = dummy.metadata
-        self._sample_new_window()
+        self.observation_space = self.env.observation_space
+        self.action_space = self.env.action_space
+        self.metadata = self.env.metadata
 
     def _sample_new_window(self):
-        start = np.random.randint(0, self.max_start + 1)
+        start = int(self.np_random.integers(0, self.max_start + 1))
         window_prices = self.prices_full[start : start + self.window_len]
         self.env = BatteryEnv(
             window_prices, price_scale=self.price_scale, **self.kwargs
         )
 
-    def reset(self, **kwargs):
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
         self._sample_new_window()
-        return self.env.reset(**kwargs)
+        return self.env.reset(seed=seed, options=options)
 
     def step(self, action):
         return self.env.step(action)

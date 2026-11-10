@@ -43,31 +43,30 @@ def load_first_24_cookie_data(
     data_path: str = DEFAULT_DATA_PATH,
     price_col: str = "Pe",
     wind_col: str = "WKA",
+    validation_fraction: float = 0.2,
 ) -> tuple[np.ndarray, np.ndarray, float, float]:
     """Load the same first 24 WKA/Pe rows used by cookie_optimization.py."""
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Could not find dataset: {data_path}")
-
-    if data_path.lower().endswith(".csv"):
-        df = pd.read_csv(data_path, sep=None, engine="python", nrows=FIRST_24_ROWS)
-    else:
-        df = pd.read_excel(data_path, nrows=FIRST_24_ROWS)
-
-    if price_col not in df.columns or wind_col not in df.columns:
-        raise ValueError(f"Dataset must contain columns '{price_col}' and '{wind_col}'")
-    if len(df) < FIRST_24_ROWS:
+    g_grid_full, P_WT_full, price_scale, wind_scale = load_cookie_data(
+        data_path=data_path,
+        price_col=price_col,
+        wind_col=wind_col,
+    )
+    if len(g_grid_full) < FIRST_24_ROWS:
         raise ValueError(f"Dataset must contain at least {FIRST_24_ROWS} rows")
 
-    g_grid = pd.to_numeric(df[price_col], errors="coerce").fillna(0.0).to_numpy(dtype=float)
-    P_WT = pd.to_numeric(df[wind_col], errors="coerce").fillna(0.0).to_numpy(dtype=float)
+    if len(g_grid_full) >= int(FIRST_24_ROWS / min(validation_fraction, 1.0 - validation_fraction)) + 1:
+        g_grid_train, P_WT_train, _, _ = split_train_validation_data(
+            g_grid_full,
+            P_WT_full,
+            validation_fraction=validation_fraction,
+            window_len=FIRST_24_ROWS,
+        )
+        price_scale = float(np.percentile(np.abs(g_grid_train), 95) + 1e-6)
+        wind_scale = float(np.percentile(np.abs(P_WT_train), 95) + 1e-6)
 
-    price_scale = float(np.percentile(np.abs(g_grid), 95) + 1e-6)
-    wind_scale = float(np.percentile(np.abs(P_WT), 95) + 1e-6)
-
-    print(f"Loaded first {FIRST_24_ROWS} timesteps from {data_path}")
-    print(f"price_scale (95th pct): {price_scale:.4f}")
-    print(f"wind_scale  (95th pct): {wind_scale:.4f}")
-
+    g_grid = g_grid_full[:FIRST_24_ROWS]
+    P_WT = P_WT_full[:FIRST_24_ROWS]
+    print(f"Selected first {FIRST_24_ROWS} timesteps from {data_path}")
     return g_grid, P_WT, price_scale, wind_scale
 
 
@@ -94,7 +93,6 @@ def evaluate_first_24_data(
         price_col=price_col,
         wind_col=wind_col,
     )
-    print("price",g_grid, P_WT)
 
     episode_stats, trajectories = evaluate_model(
         model_path=model_path,
